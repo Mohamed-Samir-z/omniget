@@ -38,6 +38,20 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
 
+          # NDK r23+ dropped the `<triple>-ranlib` / `-ar` binutils names and
+          # ships only llvm-* tools. The vendored OpenSSL build still looks for
+          # the old names, so expose them as symlinks on PATH.
+          NDKBIN="$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          SHIMS="$HOME/ndk-shims"
+          mkdir -p "$SHIMS"
+          for triple in aarch64-linux-android armv7a-linux-androideabi arm-linux-androideabi x86_64-linux-android i686-linux-android; do
+            for tool in ar ranlib strip nm; do
+              ln -sf "$NDKBIN/llvm-$tool" "$SHIMS/$triple-$tool"
+            done
+          done
+          echo "$SHIMS" >> "$GITHUB_PATH"
+          echo "$NDKBIN" >> "$GITHUB_PATH"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
