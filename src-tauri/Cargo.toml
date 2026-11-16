@@ -1,12 +1,9 @@
 [workspace]
 members = [
     ".",
-    "omniget-core",
-    "omniget-plugin-sdk",
-    "omniget-cli",
-    "omnidisc-proto",
-    "omnidisc-media",
-    "omnidisc-mls",
+    "libreget-core",
+    "libreget-plugin-sdk",
+    "libreget-cli",
     "plugins/convert",
     "plugins/telegram",
     "plugins/courses",
@@ -15,25 +12,21 @@ members = [
 resolver = "2"
 
 [package]
-name = "omniget"
-version = "0.14.0"
-description = "OmniGet — Universal Downloader & Media Player"
+name = "libreget"
+version = "0.16.6"
+description = "LibreGet — Universal Downloader & Media Player"
 authors = ["OpenSelena"]
 edition = "2021"
 
 [lib]
-name = "omniget_lib"
+name = "libreget_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [features]
-default = ["linux-capture"]
-# Off for the x86_64 Linux release, whose runner has PipeWire headers older than
-# the capture backend can compile against. Everything else in the client is
-# unaffected, and `MediaCapabilities` reports the loss rather than hiding it.
-linux-capture = ["omnidisc-media/linux-capture"]
+default = []
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
@@ -82,14 +75,11 @@ thiserror = "1"
 hmac = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 open = "5"
-omniget-core = { path = "omniget-core", features = ["desktop"] }
-omniget-plugin-sdk = { path = "omniget-plugin-sdk" }
-omniget-plugin-convert = { path = "plugins/convert" }
-omniget-plugin-telegram = { path = "plugins/telegram" }
-omniget-plugin-courses = { path = "plugins/courses" }
-omnidisc-proto = { path = "omnidisc-proto" }
-omnidisc-media = { path = "omnidisc-media", default-features = false, features = ["rnnoise"] }
-omnidisc-mls = { path = "omnidisc-mls" }
+libreget-core = { path = "libreget-core", features = ["desktop"] }
+libreget-plugin-sdk = { path = "libreget-plugin-sdk" }
+libreget-plugin-convert = { path = "plugins/convert" }
+libreget-plugin-telegram = { path = "plugins/telegram" }
+libreget-plugin-courses = { path = "plugins/courses" }
 libloading = "0.8"
 which = "8"
 librqbit = "8.1.1"

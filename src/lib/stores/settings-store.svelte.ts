@@ -91,37 +91,6 @@ export type AppSettings = {
     app_id: string;
     large_image_key: string;
   };
-  omnidisc?: {
-    enabled?: boolean;
-    voice?: OmnidiscVoiceSettings;
-  };
-  league?: {
-    enabled?: boolean;
-    auto_accept?: boolean;
-    auto_accept_delay?: number;
-    notify_ready_check?: boolean;
-    auto_pick?: boolean;
-    auto_ban?: boolean;
-    auto_ban_delay?: number;
-    auto_lock?: boolean;
-    auto_lock_at_timeout?: boolean;
-    auto_runes?: boolean;
-    auto_honor?: boolean;
-    auto_play_again?: boolean;
-    auto_requeue?: boolean;
-    auto_accept_swaps?: boolean;
-    auto_reconnect?: boolean;
-    auto_trade?: string;
-    auto_message?: string;
-    pick_champions?: number[];
-    ban_champions?: number[];
-    pick_random?: boolean;
-    skin_roulette?: boolean;
-    skin_roulette_include_base?: boolean;
-    ward_roulette?: boolean;
-    sgp_enabled?: boolean;
-    coach_style?: "objective" | "roast" | "praise";
-  };
   onboarding_completed: boolean;
   start_with_system: boolean;
   start_minimized: boolean;
@@ -136,16 +105,6 @@ export type AppSettings = {
     disable_haptics?: boolean;
   };
   typography?: TypographySettings;
-};
-
-export type OmnidiscVoiceSettings = {
-  ptt_key?: string;
-  noise_suppression?: boolean;
-  input_device?: string | null;
-  output_device?: string | null;
-  vad_threshold_db?: number;
-  ducking_percent?: number;
-  relay_only?: boolean;
 };
 
 export type TypographySettings = {
@@ -236,9 +195,9 @@ function applyTypography(typo: TypographySettings | undefined) {
   if (typeof document === "undefined") return;
   const t = typo ?? TYPOGRAPHY_DEFAULTS;
   const root = document.documentElement.style;
-  // 'OmniGet Lao' is unicode-range limited to Lao, so it only affects Lao glyphs.
-  root.setProperty("--font-display", `'OmniGet Lao', ${fontStack(t.font_display)}`);
-  root.setProperty("--font-body", `'OmniGet Lao', ${bodyFontStack(t.font_body)}`);
+  // 'LibreGet Lao' is unicode-range limited to Lao, so it only affects Lao glyphs.
+  root.setProperty("--font-display", `'LibreGet Lao', ${fontStack(t.font_display)}`);
+  root.setProperty("--font-body", `'LibreGet Lao', ${bodyFontStack(t.font_body)}`);
   root.setProperty("--font-mono", monoFontStack(t.font_mono));
   root.setProperty("--leading-base", String(t.line_height_base));
   const scale = typeof t.spacing_scale === "number" ? t.spacing_scale : 1.0;

@@ -28,14 +28,14 @@ pub mod tray;
 
 struct DesktopCookieProvider;
 
-impl omniget_core::platforms::cookie_provider::CookieProvider for DesktopCookieProvider {
+impl libreget_core::platforms::cookie_provider::CookieProvider for DesktopCookieProvider {
     fn cookie_path_for(&self, domain: &str) -> Option<std::path::PathBuf> {
         let root = crate::cookies::root_domain_of(domain);
         if root.is_empty() {
             return None;
         }
 
-        let slug = omniget_core::core::log_hook::current_cookie_slug();
+        let slug = libreget_core::core::log_hook::current_cookie_slug();
         let path = crate::cookies::account_path_for_consumer(&root, slug.as_deref())
             .or_else(|| crate::cookies::account_path_for_consumer(&root, None))?;
         crate::cookies::touch_last_used(&root, slug.as_deref().unwrap_or("_default"));
@@ -77,12 +77,14 @@ impl omniget_core::platforms::cookie_provider::CookieProvider for DesktopCookieP
 
 struct DesktopBilibiliRuntimeProvider;
 
-impl omniget_core::platforms::bilibili::BilibiliRuntimeProvider for DesktopBilibiliRuntimeProvider {
+impl libreget_core::platforms::bilibili::BilibiliRuntimeProvider
+    for DesktopBilibiliRuntimeProvider
+{
     fn active_account_slug(&self) -> Option<String> {
         let registry = crate::cookies::load_registry();
         let bucket = registry.buckets.get("bilibili.com")?;
 
-        if let Some(selected) = omniget_core::core::log_hook::current_cookie_slug() {
+        if let Some(selected) = libreget_core::core::log_hook::current_cookie_slug() {
             if bucket
                 .accounts
                 .iter()
@@ -110,17 +112,17 @@ impl omniget_core::platforms::bilibili::BilibiliRuntimeProvider for DesktopBilib
             .map(|a| a.slug.clone())
     }
 
-    fn settings(&self) -> omniget_core::models::settings::AppSettings {
+    fn settings(&self) -> libreget_core::models::settings::AppSettings {
         storage::config::load_settings_standalone()
     }
 
     fn persist_account(
         &self,
-        cookies: &[omniget_core::platforms::bilibili::BilibiliAuthCookie],
+        cookies: &[libreget_core::platforms::bilibili::BilibiliAuthCookie],
         uname: &str,
         source_label: &str,
     ) -> Result<String, String> {
-        let slug = omniget_core::platforms::bilibili::auth::slug_from_uname(uname);
+        let slug = libreget_core::platforms::bilibili::auth::slug_from_uname(uname);
         let entries: Vec<crate::extension_storage::ExtensionCookie> = cookies
             .iter()
             .map(|cookie| crate::extension_storage::ExtensionCookie {
@@ -202,11 +204,6 @@ pub struct AppState {
     pub active_p2p_sends: ActiveP2pSends,
     pub frontend_ready: Arc<tokio::sync::Mutex<bool>>,
     pub pending_external_events: Arc<tokio::sync::Mutex<Vec<external_url::ExternalUrlEvent>>>,
-    pub omnidisc_gateways: commands::omnidisc::gateway::Gateways,
-    pub omnidisc_voice: Arc<commands::omnidisc::voice::VoiceManager>,
-    pub omnidisc_stream: Arc<commands::omnidisc::stream::StreamManager>,
-    pub omnidisc_mls: Arc<commands::omnidisc::mls::MlsManager>,
-    pub omnidisc_uploads: Arc<commands::omnidisc::upload::UploadManager>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -220,7 +217,7 @@ pub fn run() {
         core::portable::startup_banner(
             env!("CARGO_PKG_VERSION"),
             std::process::id(),
-            std::env::var("OMNIGET_PORTABLE").ok().as_deref() == Some("1"),
+            std::env::var("LIBREGET_PORTABLE").ok().as_deref() == Some("1"),
             core::paths::app_data_dir().as_deref(),
         )
     );
@@ -229,28 +226,32 @@ pub fn run() {
     // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
     // that the single-post Twitter/Reddit downloaders would otherwise match
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::InstagramDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::ThreadsDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::PinterestDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::TikTokDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::TwitterDownloader::new()));
     registry.register(Arc::new(
-        omniget_core::platforms::TwitchClipsDownloader::new(),
+        libreget_core::platforms::InstagramDownloader::new(),
     ));
-    registry.register(Arc::new(omniget_core::platforms::BlueskyDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::RedditDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::YouTubeDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::VimeoDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::BilibiliDownloader::new()));
-    registry.register(Arc::new(omniget_core::platforms::DouyinDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::ThreadsDownloader::new()));
+    registry.register(Arc::new(
+        libreget_core::platforms::PinterestDownloader::new(),
+    ));
+    registry.register(Arc::new(libreget_core::platforms::TikTokDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::TwitterDownloader::new()));
+    registry.register(Arc::new(
+        libreget_core::platforms::TwitchClipsDownloader::new(),
+    ));
+    registry.register(Arc::new(libreget_core::platforms::BlueskyDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::RedditDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::YouTubeDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::VimeoDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::BilibiliDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::DouyinDownloader::new()));
     let torrent_session: Arc<tokio::sync::Mutex<Option<Arc<librqbit::Session>>>> =
         Arc::new(tokio::sync::Mutex::new(None));
     registry.register(Arc::new(platforms::magnet::MagnetDownloader::new(
         torrent_session.clone(),
     )));
-    registry.register(Arc::new(omniget_core::platforms::P2pDownloader::new()));
+    registry.register(Arc::new(libreget_core::platforms::P2pDownloader::new()));
     registry.register(Arc::new(
-        omniget_core::platforms::DirectFileDownloader::new(),
+        libreget_core::platforms::DirectFileDownloader::new(),
     ));
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
@@ -265,11 +266,6 @@ pub fn run() {
         active_p2p_sends: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         frontend_ready: Arc::new(tokio::sync::Mutex::new(false)),
         pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-        omnidisc_gateways: commands::omnidisc::gateway::new_gateways(),
-        omnidisc_voice: Arc::new(commands::omnidisc::voice::VoiceManager::new()),
-        omnidisc_stream: Arc::new(commands::omnidisc::stream::StreamManager::default()),
-        omnidisc_mls: Arc::new(commands::omnidisc::mls::MlsManager::default()),
-        omnidisc_uploads: Arc::new(commands::omnidisc::upload::UploadManager::default()),
     };
 
     tauri::Builder::default()
@@ -310,11 +306,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    let pressed = event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed;
-                    if hotkey::handle_ptt(app, shortcut, pressed) {
-                        return;
-                    }
-                    if pressed {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         hotkey::on_hotkey_pressed(app, shortcut);
                     }
                 })
@@ -346,7 +338,7 @@ pub fn run() {
                 // Nao e so Windows. No Linux o wry usa este caminho para
                 // `base_data_directory`, `base_cache_directory` e os cookies do
                 // WebKitGTK; sem ele o modo portatil deixa
-                // `XDG_DATA_HOME/wtf.tonho.omniget` no perfil do usuario — a
+                // `XDG_DATA_HOME/com.openselena.libreget` no perfil do usuario — a
                 // mesma #209, fora do Windows. Foi o smoke test do B55 que
                 // pegou isso, na primeira vez que rodou.
                 //
@@ -382,7 +374,7 @@ pub fn run() {
                 if core::portable::portable_webview_dir_from_env().is_some() {
                     tracing::warn!(
                         "[portable] no macOS o WebView guarda dados em ~/Library mesmo em modo \
-                         portatil — o wry nao permite redirecionar. Ver github.com/OpenSelena/omniget/issues/227"
+                         portatil — o wry nao permite redirecionar. Ver github.com/OpenSelena/libreget/issues/227"
                     );
                 }
 
@@ -397,7 +389,7 @@ pub fn run() {
             // Modo smoke: sobe, prova que a janela existe, e sai sozinho com 0.
             // So existe para o CI conseguir responder "abre?", que e a pergunta
             // que compilar nunca responde.
-            if let Ok(raw) = std::env::var("OMNIGET_SMOKE_EXIT_MS") {
+            if let Ok(raw) = std::env::var("LIBREGET_SMOKE_EXIT_MS") {
                 if let Ok(ms) = raw.trim().parse::<u64>() {
                     let handle = app.handle().clone();
                     std::thread::spawn(move || {
@@ -420,7 +412,7 @@ pub fn run() {
             }
             {
                 let handle = app.handle().clone();
-                omniget_core::platforms::bilibili::notify::set_emitter(Box::new(
+                libreget_core::platforms::bilibili::notify::set_emitter(Box::new(
                     move |event: &str, payload: serde_json::Value| {
                         use tauri::Emitter;
                         let _ = handle.emit(event, payload);
@@ -432,10 +424,10 @@ pub fn run() {
             core::http_fetcher::set_global_max_concurrent_segments(
                 settings.advanced.max_concurrent_segments as usize,
             );
-            omniget_core::platforms::cookie_provider::set_cookie_provider(Arc::new(
+            libreget_core::platforms::cookie_provider::set_cookie_provider(Arc::new(
                 DesktopCookieProvider,
             ));
-            omniget_core::platforms::bilibili::set_runtime_provider(Arc::new(
+            libreget_core::platforms::bilibili::set_runtime_provider(Arc::new(
                 DesktopBilibiliRuntimeProvider,
             ));
             core::ytdlp::set_per_domain_cookie_fn(|url| {
@@ -445,7 +437,7 @@ pub fn run() {
                 if root.is_empty() {
                     return None;
                 }
-                let slug = omniget_core::core::log_hook::current_cookie_slug();
+                let slug = libreget_core::core::log_hook::current_cookie_slug();
                 let path = crate::cookies::account_path_for_consumer(&root, slug.as_deref())?;
                 crate::cookies::touch_last_used(&root, slug.as_deref().unwrap_or("_default"));
                 Some(path)
@@ -588,7 +580,7 @@ pub fn run() {
             });
             {
                 let app_handle = app.handle().clone();
-                omniget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
+                libreget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
                     // B33: caixa-preta. Toda linha de log de download passa por
                     // aqui, e o `record` redige antes de guardar — e o unico
                     // ponto onde da para capturar o historico sem instrumentar
@@ -612,7 +604,6 @@ pub fn run() {
             core::channels::init_from_disk();
             core::channel_poller::start(app.handle().clone());
             core::queue::start_scheduler(app.handle().clone());
-            commands::league::start_background(app.handle().clone());
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -657,19 +648,18 @@ pub fn run() {
                     }
                 });
             }
-            // Make sure the OS routes `omniget://` to this binary even when the
-            // package didn't ship a desktop file with `MimeType=x-scheme-handler/omniget;`
+            // Make sure the OS routes `libreget://` to this binary even when the
+            // package didn't ship a desktop file with `MimeType=x-scheme-handler/libreget;`
             // or when the user is running from an AppImage / unpacked build.
             // No-op on macOS (which uses Info.plist registered by the bundler).
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 if let Err(error) = app.deep_link().register_all() {
-                    tracing::warn!("Failed to register omniget:// scheme: {}", error);
+                    tracing::warn!("Failed to register libreget:// scheme: {}", error);
                 }
             }
             tray::setup(app.handle())?;
             hotkey::register_from_settings(app.handle());
-            commands::omnidisc::voice::start(app.handle());
 
             // Migration: drop the manifests / binary copies the previous
             // native-messaging code left under `~/.config/...` so Chrome and
@@ -726,7 +716,7 @@ pub fn run() {
                 let plugins_dir = core::paths::app_data_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
                     .join("plugins");
-                let host: std::sync::Arc<dyn omniget_plugin_sdk::PluginHost> = std::sync::Arc::new(
+                let host: std::sync::Arc<dyn libreget_plugin_sdk::PluginHost> = std::sync::Arc::new(
                     plugin_host::PluginHostImpl::new(app.handle().clone(), plugins_dir),
                 );
                 let plugin_mgr = app
@@ -745,19 +735,19 @@ pub fn run() {
                         {
                             let mut mgr = mgr_for_plugins.blocking_write();
                             let _ = mgr.register_builtin(
-                                omniget_plugin_convert::manifest(),
-                                Box::new(omniget_plugin_convert::ConvertPlugin::new()),
+                                libreget_plugin_convert::manifest(),
+                                Box::new(libreget_plugin_convert::ConvertPlugin::new()),
                                 std::sync::Arc::clone(&host),
                             );
                             let _ = mgr.register_builtin(
-                                omniget_plugin_telegram::manifest(),
-                                Box::new(omniget_plugin_telegram::TelegramPlugin::new()),
+                                libreget_plugin_telegram::manifest(),
+                                Box::new(libreget_plugin_telegram::TelegramPlugin::new()),
                                 std::sync::Arc::clone(&host),
                             );
                             let _ = mgr.register_builtin(
-                                omniget_plugin_courses::manifest(),
+                                libreget_plugin_courses::manifest(),
                                 Box::new(
-                                    omniget_plugin_courses::CoursesPlugin::new()
+                                    libreget_plugin_courses::CoursesPlugin::new()
                                         .with_app(app_emit.clone()),
                                 ),
                                 std::sync::Arc::clone(&host),
@@ -880,183 +870,11 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            tauri::WindowEvent::Destroyed
-                if window.label().starts_with("omnidisc-stream-") =>
-            {
-                commands::omnidisc::stream::on_stream_window_destroyed(
-                    &window.app_handle().clone(),
-                    window.label(),
-                );
-            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             local_bridge::media_stream_url,
             commands::auth_webview::open_auth_webview,
-            commands::omnidisc::omnidisc_connect,
-            commands::omnidisc::auth::omnidisc_register,
-            commands::omnidisc::auth::omnidisc_login,
-            commands::omnidisc::auth::omnidisc_logout,
-            commands::omnidisc::auth::omnidisc_has_session,
-            commands::omnidisc::api::omnidisc_list_messages,
-            commands::omnidisc::api::omnidisc_send_message,
-            commands::omnidisc::api::omnidisc_edit_message,
-            commands::omnidisc::api::omnidisc_delete_message,
-            commands::omnidisc::api::omnidisc_add_reaction,
-            commands::omnidisc::api::omnidisc_remove_reaction,
-            commands::omnidisc::api::omnidisc_ack,
-            commands::omnidisc::gateway::omnidisc_typing,
-            commands::omnidisc::api::omnidisc_create_guild,
-            commands::omnidisc::api::omnidisc_create_channel,
-            commands::omnidisc::api::omnidisc_create_invite,
-            commands::omnidisc::api::omnidisc_join_invite,
-            commands::omnidisc::api::omnidisc_create_dm,
-            commands::omnidisc::api::omnidisc_update_me,
-            commands::omnidisc::api::omnidisc_get_user,
-            commands::omnidisc::api::omnidisc_get_guild,
-            commands::omnidisc::api::omnidisc_get_me,
-            commands::omnidisc::api::omnidisc_search,
-            commands::omnidisc::api::omnidisc_list_pins,
-            commands::omnidisc::api::omnidisc_pin_message,
-            commands::omnidisc::api::omnidisc_list_relationships,
-            commands::omnidisc::api::omnidisc_add_relationship,
-            commands::omnidisc::api::omnidisc_accept_relationship,
-            commands::omnidisc::api::omnidisc_remove_relationship,
-            commands::omnidisc::api::omnidisc_block_user,
-            commands::omnidisc::api::omnidisc_list_notes,
-            commands::omnidisc::api::omnidisc_put_note,
-            commands::omnidisc::api::omnidisc_update_guild,
-            commands::omnidisc::api::omnidisc_delete_guild,
-            commands::omnidisc::api::omnidisc_leave_guild,
-            commands::omnidisc::api::omnidisc_transfer_guild,
-            commands::omnidisc::api::omnidisc_create_role,
-            commands::omnidisc::api::omnidisc_update_role,
-            commands::omnidisc::api::omnidisc_delete_role,
-            commands::omnidisc::api::omnidisc_set_member_role,
-            commands::omnidisc::api::omnidisc_update_member,
-            commands::omnidisc::api::omnidisc_kick_member,
-            commands::omnidisc::api::omnidisc_ban_member,
-            commands::omnidisc::api::omnidisc_unban_member,
-            commands::omnidisc::api::omnidisc_list_bans,
-            commands::omnidisc::api::omnidisc_audit_log,
-            commands::omnidisc::api::omnidisc_update_channel,
-            commands::omnidisc::api::omnidisc_delete_channel,
-            commands::omnidisc::api::omnidisc_put_overwrite,
-            commands::omnidisc::api::omnidisc_delete_overwrite,
-            commands::omnidisc::api::omnidisc_list_sessions,
-            commands::omnidisc::api::omnidisc_revoke_session,
-            commands::omnidisc::api::omnidisc_revoke_other_sessions,
-            commands::omnidisc::device::omnidisc_device_fingerprint,
-            commands::omnidisc::device::omnidisc_list_user_devices,
-            commands::omnidisc::device::omnidisc_revoke_device,
-            commands::omnidisc::mls::omnidisc_mls_sync,
-            commands::omnidisc::mls::omnidisc_mls_status,
-            commands::omnidisc::mls::omnidisc_mls_recall,
-            commands::omnidisc::mls::omnidisc_mls_device_revoked,
-            commands::omnidisc::upload::omnidisc_instance_limits,
-            commands::omnidisc::upload::omnidisc_stage_file,
-            commands::omnidisc::upload::omnidisc_upload_start,
-            commands::omnidisc::upload::omnidisc_upload_cancel,
-            commands::omnidisc::upload::omnidisc_download_attachment,
-            commands::omnidisc::gateway::omnidisc_gateway_connect,
-            commands::omnidisc::gateway::omnidisc_gateway_disconnect,
-            commands::omnidisc::gateway::omnidisc_gateway_send,
-            commands::omnidisc::gateway::omnidisc_gateway_status,
-            commands::omnidisc::voice::omnidisc_voice_join,
-            commands::omnidisc::voice::omnidisc_voice_leave,
-            commands::omnidisc::voice::omnidisc_voice_set_mute,
-            commands::omnidisc::voice::omnidisc_voice_set_deaf,
-            commands::omnidisc::voice::omnidisc_voice_set_volume,
-            commands::omnidisc::voice::omnidisc_voice_devices,
-            commands::omnidisc::voice::omnidisc_voice_set_device,
-            commands::omnidisc::voice::omnidisc_voice_stats,
-            commands::omnidisc::voice::omnidisc_voice_ptt,
-            commands::omnidisc::voice::omnidisc_voice_status,
-            commands::omnidisc::voice::omnidisc_voice_set_noise_suppression,
-            commands::omnidisc::voice::omnidisc_voice_mic_test,
-            commands::omnidisc::voice::omnidisc_voice_set_ducking,
-            commands::omnidisc::voice::omnidisc_voice_ptt_status,
-            commands::omnidisc::stream::omnidisc_media_capabilities,
-            commands::omnidisc::stream::omnidisc_stream_sources,
-            commands::omnidisc::stream::omnidisc_stream_start,
-            commands::omnidisc::stream::omnidisc_stream_stop,
-            commands::omnidisc::stream::omnidisc_stream_stats,
-            commands::omnidisc::stream::omnidisc_stream_set_volume,
-            commands::omnidisc::stream::omnidisc_stream_set_viewport,
-            commands::omnidisc::stream::omnidisc_stream_watch,
-            commands::omnidisc::stream::omnidisc_stream_unwatch,
-            commands::league::league_status,
-            commands::league::league_get,
-            commands::league::league_install_dir,
-            commands::league::league_set_positions,
-            commands::league::league_end_of_game_stats,
-            commands::league::league_set_icon,
-            commands::league::league_set_profile_background,
-            commands::league::league_set_status,
-            commands::league::league_owned_skins,
-            commands::league::league_summoner,
-            commands::league::league_ranked,
-            commands::league::league_gameflow,
-            commands::league::league_match_detail,
-            commands::league::league_player_history,
-            commands::league::league_perks,
-            commands::league::league_match_history,
-            commands::league::league_accept_ready_check,
-            commands::league::league_auto_accept_set,
-            commands::league::league_auto_accept_get,
-            commands::league::league_lobby_queues,
-            commands::league::league_create_lobby,
-            commands::league::league_start_matchmaking,
-            commands::league::league_stop_matchmaking,
-            commands::league::league_leave_lobby,
-            commands::league::league_play_again,
-            commands::league::league_champ_select_session,
-            commands::league::league_bench_swap,
-            commands::league::league_restart_ux,
-            commands::league::league_reroll,
-            commands::league::league_reroll_keeping_champion,
-            commands::league::league_live_game,
-            commands::league::league_game_players,
-            commands::league::league_player_report,
-            commands::league::league_match_analysis,
-            commands::league::league_live_events,
-            commands::league::league_live_metrics,
-            commands::league::league_search_player,
-            commands::league::league_duos,
-            commands::league::league_jungle_report,
-            commands::league::league_apply_runes,
-            commands::league::league_send_chat,
-            commands::league::league_rune_recommendations,
-            commands::league::league_champion_meta,
-            commands::league::league_champion_tiers,
-            commands::league::league_champion_build,
-            commands::league::league_ability_cooldowns,
-            commands::league::league_spectate,
-            commands::league::league_dodge,
-            commands::league::profile::league_profile_state,
-            commands::league::profile::league_set_chat_rank,
-            commands::league::profile::league_reset_chat_rank,
-            commands::league::profile::league_set_challenge_crystal,
-            commands::league::profile::league_set_chat_icon,
-            commands::league::profile::league_challenges,
-            commands::league::profile::league_set_challenge_prefs,
-            commands::league::profile::league_set_regalia,
-            commands::league::profile::league_friends,
-            commands::league::profile::league_remove_friends,
-            commands::league::profile::league_random_champion,
-            commands::league::profile::league_declare_champion,
-            commands::league::skins::league_roll_skin,
-            commands::league::skins::league_roll_ward,
-            commands::league::skins::league_skin_carousel,
-            commands::league::sgp::league_sgp_status,
-            commands::league::sgp::league_sgp_match_history,
-            commands::league::sgp::league_sgp_ranked,
-            commands::league::sgp::league_sgp_summoners,
-            commands::league::sgp::league_sgp_download_replay,
-            commands::league::coach::league_coach_review,
-            commands::league::coach::league_coach_trends,
-            commands::league::coach::league_coach_ask,
-            commands::league::coach::league_coach_ready,
             commands::bilibili_auth::bilibili_qr_generate,
             commands::bilibili_auth::bilibili_qr_poll,
             commands::bilibili_auth::bilibili_captcha_challenge,
@@ -1471,15 +1289,22 @@ pub fn run() {
             commands::tools::linkedin::tool_li_connections,
             commands::tools::linkedin::tool_li_messages,
             commands::tools::linkedin::tool_li_checklist,
-            commands::open_nami::open_nami_check_python_dependencies,
-            commands::open_nami::http::open_nami_http_fetch,
-            commands::open_nami::open_nami_run_gallery_dl_download,
-            commands::open_nami::open_nami_cancel_download,
-            commands::open_nami::open_nami_save_app_settings,
-            commands::open_nami::open_nami_load_app_settings,
-            commands::open_nami::open_nami_load_profiles,
-            commands::open_nami::open_nami_save_profile,
-            commands::open_nami::open_nami_delete_profile,
+            commands::nami::nami_check_python_dependencies,
+            commands::nami::http::nami_http_fetch,
+            commands::nami::nami_run_gallery_dl_download,
+            commands::nami::nami_cancel_download,
+            commands::nami::nami_save_app_settings,
+            commands::nami::nami_load_app_settings,
+            commands::nami::nami_load_profiles,
+            commands::nami::nami_save_profile,
+            commands::nami::nami_delete_profile,
+            commands::nami::nami_get_history,
+            commands::nami::nami_reconcile_disk,
+            commands::nami::nami_delete_history_record,
+            commands::nami::nami_pull_creator,
+            commands::nami::nami_pull_all_creators,
+            commands::nami::nami_detect_browsers,
+            commands::nami::nami_extract_browser_cookies,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -11,6 +11,7 @@ pub struct MediaLocation {
     pub location: tl::enums::InputFileLocation,
     pub size: u64,
     pub dc_id: i32,
+    pub mime_type: String,
 }
 
 pub fn media_to_location(media: &tl::enums::MessageMedia) -> Option<MediaLocation> {
@@ -32,6 +33,7 @@ pub fn media_to_location(media: &tl::enums::MessageMedia) -> Option<MediaLocatio
                 location,
                 size: doc.size as u64,
                 dc_id: doc.dc_id,
+                mime_type: doc.mime_type.clone(),
             })
         }
         tl::enums::MessageMedia::Photo(photo_media) => {
@@ -60,6 +62,7 @@ pub fn media_to_location(media: &tl::enums::MessageMedia) -> Option<MediaLocatio
                 location,
                 size: largest.size as u64,
                 dc_id: photo.dc_id,
+                mime_type: "image/jpeg".to_string(),
             })
         }
         _ => None,
@@ -211,7 +214,7 @@ pub async fn download_file(
     client: &Client,
     media: &MediaLocation,
     output_path: &Path,
-    progress_tx: mpsc::Sender<omniget_core::models::progress::ProgressUpdate>,
+    progress_tx: mpsc::Sender<libreget_core::models::progress::ProgressUpdate>,
     cancel_token: &CancellationToken,
 ) -> anyhow::Result<u64> {
     tracing::info!(
@@ -257,7 +260,7 @@ pub async fn download_file(
                 if media.size > 0 {
                     let percent = (downloaded as f64 / media.size as f64) * 100.0;
                     let _ = progress_tx
-                        .send(omniget_core::models::progress::ProgressUpdate::percent(
+                        .send(libreget_core::models::progress::ProgressUpdate::percent(
                             percent.min(100.0),
                         ))
                         .await;
@@ -312,4 +315,50 @@ pub async fn download_file(
     file.flush().await?;
     tracing::info!("[tg-dl] download complete: {} bytes, dc={}", downloaded, dc);
     Ok(downloaded)
+}
+
+pub async fn fetch_media_chunk(
+    client: &Client,
+    media: &MediaLocation,
+    aligned_offset: i64,
+    limit: i32,
+) -> anyhow::Result<Vec<u8>> {
+    let mut dc = media.dc_id;
+    ensure_auth_on_dc(client, dc).await?;
+
+    for _ in 0..3 {
+        let request = tl::functions::upload::GetFile {
+            precise: true,
+            cdn_supported: false,
+            location: media.location.clone(),
+            offset: aligned_offset,
+            limit,
+        };
+
+        match client.invoke_in_dc(dc, &request).await {
+            Ok(tl::enums::upload::File::File(f)) => return Ok(f.bytes),
+            Ok(tl::enums::upload::File::CdnRedirect(_)) => {
+                return Err(anyhow::anyhow!("CDN redirect not supported"));
+            }
+            Err(grammers_mtsender::InvocationError::Rpc(ref err))
+                if err.name == "AUTH_KEY_UNREGISTERED" =>
+            {
+                {
+                    let mut copied = auth_copied_dcs().lock().await;
+                    copied.retain(|&d| d != dc);
+                }
+                ensure_auth_on_dc(client, dc).await?;
+            }
+            Err(grammers_mtsender::InvocationError::Rpc(ref err))
+                if err.code == FILE_MIGRATE_ERROR =>
+            {
+                let new_dc = err.value.map(|v| v as i32).unwrap_or(dc);
+                dc = new_dc;
+                ensure_auth_on_dc(client, dc).await?;
+            }
+            Err(e) => return Err(anyhow::anyhow!("upload.getFile failed: {}", e)),
+        }
+    }
+
+    Err(anyhow::anyhow!("upload.getFile failed after retries"))
 }

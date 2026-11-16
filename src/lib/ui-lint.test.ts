@@ -8,7 +8,7 @@ describe("UI Lint Policies & Target Runner", () => {
   const appPolicyPath = path.join(rootDir, "ui-policy.app.json");
   const docsPolicyPath = path.join(rootDir, "ui-policy.docs.json");
 
-  it("validates ui-policy.app.json against lintapple and OmniGet desktop tokens", () => {
+  it("validates ui-policy.app.json against lintapple and LibreGet desktop tokens", () => {
     const raw = JSON.parse(fs.readFileSync(appPolicyPath, "utf-8"));
     const validated = validatePolicy(raw);
 
@@ -67,7 +67,7 @@ describe("UI Lint Policies & Target Runner", () => {
 
     const shellPlan = resolveTargets(["--shell"]);
     expect(shellPlan.targets).toEqual(SHELL_ROUTES);
-    expect(SHELL_ROUTES).toContain("/omnidisc");
+    expect(SHELL_ROUTES).toContain("/nami");
 
     const docShort = resolveTargets(["docs/mcp"]);
     expect(docShort.surface).toBe("docs");
@@ -81,7 +81,6 @@ describe("UI Lint Policies & Target Runner", () => {
     expect(ALL_APP_THEMES.length).toBe(14);
 
     const mockScript = buildTauriMockInitScript("dark");
-    expect(mockScript).toContain("omnidisc_connect");
     expect(mockScript).toContain("plugin:courses|courses_list_platforms");
   });
 

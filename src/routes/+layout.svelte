@@ -9,18 +9,13 @@
   import { listen } from "@tauri-apps/api/event";
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
-  import {
-    getUnreadCount as getChatUnreadCount,
-    getMentionTotal as getChatMentionCount,
-    isImmersive,
-    initOmnidisc,
-  } from "$lib/stores/omnidisc-store.svelte";
   import { getSettings, loadSettings } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
   import CommandPalette from "$components/shell/CommandPalette.svelte";
+  import GlobalDownloadBar from "$components/download/GlobalDownloadBar.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import {
     refreshUpdateInfo,
@@ -37,7 +32,8 @@
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import { t, locale, isRtlLocale } from "$lib/i18n";
+  import { t, locale, isRtlLocale, loadTranslations } from "$lib/i18n";
+  import { syncTrayLabels } from "$lib/tray-labels";
   import { get } from "svelte/store";
   import { CORE_NAV_ITEMS, pluginIconForRoute, type NavItem } from "$lib/nav-config";
   import { TOOLS, toolHref } from "$lib/tools/catalog";
@@ -46,17 +42,9 @@
 
   let pluginNavItems = $state<NavItem[]>([]);
 
-  let leagueNavItems = $derived<NavItem[]>(
-    (getSettings()?.league?.enabled ?? true)
-      ? [{ href: "/league", labelKey: "league.nav", icon: "league", group: "app", order: 45 }]
-      : []
-  );
+  let coreNavItems = $derived(CORE_NAV_ITEMS);
 
-  let coreNavItems = $derived(
-    CORE_NAV_ITEMS.filter((item) => item.href !== "/omnidisc" || (getSettings()?.omnidisc?.enabled ?? true))
-  );
-
-  let allNav = $derived([...coreNavItems, ...leagueNavItems, ...pluginNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
+  let allNav = $derived([...coreNavItems, ...pluginNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
   let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
@@ -71,19 +59,15 @@
 
   let counts = $derived(getCounts());
   let badgeLabel = $derived(counts.badge > 99 ? "99+" : String(counts.badge));
-  let chatBadgeCount = $derived(getChatMentionCount() || getChatUnreadCount());
   let settings = $derived(getSettings());
 
-  let isStreamPopout = $derived(page.url.pathname === "/omnidisc/stream");
-  let hideAppSidebar = $derived(page.url.pathname.startsWith("/omnidisc") && isImmersive());
   let isCoreRoute = $derived(
     page.url.pathname === "/" ||
     page.url.pathname.startsWith("/downloads") ||
     page.url.pathname.startsWith("/settings") ||
     page.url.pathname.startsWith("/marketplace") ||
-    page.url.pathname.startsWith("/league") ||
     page.url.pathname.startsWith("/about") ||
-    page.url.pathname.startsWith("/open-nami"),
+    page.url.pathname.startsWith("/nami"),
   );
 
   let isFlushRoute = $derived(
@@ -141,25 +125,27 @@
       .catch(() => {});
   }
 
-  let omnidiscStarted = false;
-  $effect(() => {
-    if (omnidiscStarted || !(getSettings()?.omnidisc?.enabled ?? true)) return;
-    omnidiscStarted = true;
-    void initOmnidisc();
-  });
-
   onMount(() => {
     initDownloadListener();
-    // If `get_settings` failed while the shell was booting, the sidebar has no
-    // League entry and Settings spins forever. Retry a few times instead of
-    // leaving the app half-configured until the next restart.
+    // If `get_settings` failed while the shell was booting, Settings spins forever.
+    // Retry a few times instead of leaving the app half-configured until the next restart.
     if (!getSettings()) {
       let attempts = 0;
       const retry = () => {
         if (getSettings() || attempts >= 5) return;
         attempts += 1;
         loadSettings()
-          .then(() => reloadPluginNav())
+          .then(async (s) => {
+            reloadPluginNav();
+            const target = s?.appearance?.language;
+            if (target && target !== get(locale)) {
+              try {
+                await loadTranslations(target, page.url.pathname);
+                locale.set(target);
+                await syncTrayLabels();
+              } catch {}
+            }
+          })
           .catch(() => setTimeout(retry, 1000 * attempts));
       };
       setTimeout(retry, 500);
@@ -330,9 +316,24 @@
     buildCommandPaletteItems();
   });
 
+  $effect(() => {
+    const targetLang = settings?.appearance?.language;
+    if (targetLang && targetLang !== $locale) {
+      void (async () => {
+        try {
+          await loadTranslations(targetLang, page.url.pathname);
+          locale.set(targetLang);
+          await syncTrayLabels();
+        } catch (e) {
+          console.warn(`[i18n] could not sync locale to "${targetLang}":`, e);
+        }
+      })();
+    }
+  });
+
   let { children }: { children: Snippet } = $props();
 
-  const VACUUM_LAST_RUN_KEY = "omniget.library.auto_vacuum.last_run";
+  const VACUUM_LAST_RUN_KEY = "libreget.library.auto_vacuum.last_run";
 
   async function checkAutoVacuum() {
     try {
@@ -352,15 +353,8 @@
   });
 </script>
 
-{#if isStreamPopout}
-  <div class="stream-popout">
-    {@render children()}
-  </div>
-{:else}
 <div class="shell" data-reduce-motion={settings?.accessibility?.reduce_motion} data-reduce-transparency={settings?.accessibility?.reduce_transparency}>
-  {#if !hideAppSidebar}
-    <AppSidebar {primaryNav} {appNav} {pluginNav} {badgeLabel} {chatBadgeCount} />
-  {/if}
+  <AppSidebar {primaryNav} {appNav} {pluginNav} {badgeLabel} />
 
   <div class="shell-body">
     <AppToolbar />
@@ -432,10 +426,10 @@
           </div>
         {/if}
       </div>
+      <GlobalDownloadBar />
     </main>
   </div>
 </div>
-{/if}
 
 <Toast />
 <CommandPalette />
@@ -513,21 +507,13 @@
     overflow: hidden;
   }
 
-
-
-  .stream-popout {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: var(--bg);
-  }
-
   .global-update-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    margin: 0 var(--pane-inset) var(--space-2) 0;
+    margin-block: 0 var(--space-2);
+    margin-inline: 0 var(--pane-inset);
     padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
     background: var(--accent);
     color: var(--on-accent);
@@ -614,7 +600,8 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    margin: 0 var(--pane-inset) var(--space-2) 0;
+    margin-block: 0 var(--space-2);
+    margin-inline: 0 var(--pane-inset);
     padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
     background: color-mix(in srgb, var(--warning) 16%, var(--pane-bg));
     color: var(--text);

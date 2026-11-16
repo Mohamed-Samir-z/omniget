@@ -10,10 +10,10 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 use crate::platforms::traits::PlatformDownloader;
-use omniget_core::core::filename;
-use omniget_core::core::media_processor::MediaProcessor;
-use omniget_core::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType};
-use omniget_core::models::settings::{self, DownloadSettings};
+use libreget_core::core::filename;
+use libreget_core::core::media_processor::MediaProcessor;
+use libreget_core::models::media::{DownloadOptions, DownloadResult, MediaInfo, MediaType};
+use libreget_core::models::settings::{self, DownloadSettings};
 
 use super::api::{self, Course, Lesson};
 use super::auth::HotmartSession;
@@ -46,7 +46,7 @@ struct DoneManifest {
 fn done_path(file_path: &str) -> PathBuf {
     let p = PathBuf::from(file_path);
     let file_name = p.file_name().unwrap_or_default().to_string_lossy();
-    let manifest_name = format!("{}.omniget.done", file_name);
+    let manifest_name = format!("{}.libreget.done", file_name);
     p.with_file_name(manifest_name)
 }
 
@@ -110,7 +110,7 @@ impl HotmartDownloader {
         concurrent_fragments: u32,
     ) -> Self {
         let hls_client =
-            omniget_core::core::http_client::apply_global_proxy(reqwest::Client::builder())
+            libreget_core::core::http_client::apply_global_proxy(reqwest::Client::builder())
                 .connect_timeout(Duration::from_secs(30))
                 .timeout(Duration::from_secs(300))
                 .pool_max_idle_per_host(50)
@@ -130,15 +130,18 @@ impl HotmartDownloader {
 
     fn filename_prefix(&self) -> &str {
         if self.download_settings.filename_template == settings::default_filename_template() {
-            "omniget-"
+            "libreget-"
         } else {
             ""
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn download_lesson(
         &self,
         session: &HotmartSession,
+        slug: &str,
+        product_id: u64,
         lesson: &Lesson,
         output_dir: &str,
         referer: &str,
@@ -335,13 +338,13 @@ impl HotmartDownloader {
                                     }
                                 }
 
-                                match omniget_core::core::ytdlp::ensure_ytdlp().await {
+                                match libreget_core::core::ytdlp::ensure_ytdlp().await {
                                     Ok(ytdlp_path) => {
                                         let out_dir = std::path::Path::new(&out)
                                             .parent()
                                             .unwrap_or(std::path::Path::new("."));
                                         let (vtx, _vrx) = mpsc::channel(8);
-                                        match omniget_core::core::ytdlp::download_video(
+                                        match libreget_core::core::ytdlp::download_video(
                                             &ytdlp_path,
                                             &embed_url,
                                             out_dir,
@@ -432,13 +435,13 @@ impl HotmartDownloader {
 
                                 let yt_url =
                                     format!("https://www.youtube.com/watch?v={}", video_id);
-                                match omniget_core::core::ytdlp::ensure_ytdlp().await {
+                                match libreget_core::core::ytdlp::ensure_ytdlp().await {
                                     Ok(ytdlp_path) => {
                                         let out_dir = std::path::Path::new(&out)
                                             .parent()
                                             .unwrap_or(std::path::Path::new("."));
                                         let (ytx, _yrx) = mpsc::channel(8);
-                                        match omniget_core::core::ytdlp::download_video(
+                                        match libreget_core::core::ytdlp::download_video(
                                             &ytdlp_path,
                                             &yt_url,
                                             out_dir,
@@ -500,18 +503,76 @@ impl HotmartDownloader {
                 .iter()
                 .map(|att| {
                     let session = session.clone();
-                    let safe_name = filename::sanitize_path_component(&att.file_name);
-                    let att_path = format!("{}/{}", mat_dir, safe_name);
+                    let client = self.hls_client.clone();
+                    let slug = slug.to_string();
+                    let bytes_tx = bytes_tx.clone();
+                    let cancel_token = cancel_token.clone();
                     let file_membership_id = att.file_membership_id.clone();
+                    let raw_name = if att.file_name.trim().is_empty() {
+                        format!("attachment_{}", file_membership_id)
+                    } else {
+                        att.file_name.clone()
+                    };
+                    let safe_name = filename::sanitize_path_component(&raw_name);
+                    let att_path = format!("{}/{}", mat_dir, safe_name);
+                    let drm_path = format!("{}/drm_{}", mat_dir, safe_name);
 
                     async move {
-                        if tokio::fs::try_exists(&att_path).await.unwrap_or(false) {
+                        if cancel_token.is_cancelled() {
                             return None;
                         }
-                        match download_attachment(&session, &file_membership_id, &att_path).await {
-                            Ok(()) => Some(PathBuf::from(att_path)),
-                            Err(_) => None,
+                        if tokio::fs::metadata(&att_path)
+                            .await
+                            .map(|m| m.len() > 0)
+                            .unwrap_or(false)
+                            || tokio::fs::metadata(&drm_path)
+                                .await
+                                .map(|m| m.len() > 0)
+                                .unwrap_or(false)
+                        {
+                            return None;
                         }
+
+                        let mut last_err = None;
+                        for attempt in 0..3u32 {
+                            if cancel_token.is_cancelled() {
+                                return None;
+                            }
+                            match download_attachment(
+                                &session,
+                                &client,
+                                &slug,
+                                product_id,
+                                &file_membership_id,
+                                &att_path,
+                            )
+                            .await
+                            {
+                                Ok((saved_path, size)) => {
+                                    let _ = bytes_tx.send(size);
+                                    return Some(saved_path);
+                                }
+                                Err(e) => {
+                                    last_err = Some(e);
+                                    if attempt < 2 {
+                                        tokio::time::sleep(Duration::from_secs(
+                                            2 * (attempt as u64 + 1),
+                                        ))
+                                        .await;
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(e) = last_err {
+                            tracing::error!(
+                                "[download] Falha ao baixar anexo '{}' ({}): {}",
+                                safe_name,
+                                file_membership_id,
+                                e
+                            );
+                        }
+                        None
                     }
                 })
                 .collect();
@@ -705,6 +766,8 @@ impl HotmartDownloader {
                     let lesson_result = downloader
                         .download_lesson(
                             &session,
+                            &slug,
+                            course_id,
                             &lesson,
                             &task.page_dir,
                             &referer,
@@ -763,7 +826,7 @@ async fn retry_hls_download(
     max_retries: u32,
     max_attempts: u32,
     hls_client: Option<reqwest::Client>,
-) -> anyhow::Result<omniget_core::core::hls_downloader::HlsDownloadResult> {
+) -> anyhow::Result<libreget_core::core::hls_downloader::HlsDownloadResult> {
     let mut last_err = None;
     for attempt in 0..max_attempts {
         if cancel_token.is_cancelled() {
@@ -828,20 +891,22 @@ async fn cleanup_part_files(dir: &std::path::Path) {
 
 async fn download_attachment(
     session: &HotmartSession,
+    client: &reqwest::Client,
+    slug: &str,
+    product_id: u64,
     file_membership_id: &str,
     output_path: &str,
-) -> anyhow::Result<()> {
-    let info = api::get_attachment_url(session, file_membership_id).await?;
+) -> anyhow::Result<(PathBuf, u64)> {
+    let info = api::get_attachment_url(session, slug, product_id, file_membership_id).await?;
 
-    if !info.is_drm {
+    let (target_url, final_path) = if !info.is_drm {
         if info.url.is_empty() {
             return Err(anyhow!(
                 "URL de download vazia para attachment {}",
                 file_membership_id
             ));
         }
-        let bytes = reqwest::get(&info.url).await?.bytes().await?;
-        tokio::fs::write(output_path, &bytes).await?;
+        (info.url, output_path.to_string())
     } else {
         let lambda_url = info
             .lambda_url
@@ -859,31 +924,52 @@ async fn download_attachment(
             .header("User-Agent", USER_AGENT)
             .send()
             .await?
+            .error_for_status()?
             .text()
             .await?;
 
+        let signed_url = signed_url.trim().trim_matches('"').trim().to_string();
         if signed_url.is_empty() || signed_url.contains("500") {
             return Err(anyhow!(
                 "DRM attachment unavailable (empty response or error 500)"
             ));
         }
 
-        let bytes = reqwest::get(&signed_url).await?.bytes().await?;
         let drm_output = format!(
             "{}/drm_{}",
             std::path::Path::new(output_path)
                 .parent()
-                .map(|p| p.to_str().unwrap_or("."))
+                .and_then(|p| p.to_str())
                 .unwrap_or("."),
             std::path::Path::new(output_path)
                 .file_name()
-                .map(|f| f.to_str().unwrap_or("file"))
+                .and_then(|f| f.to_str())
                 .unwrap_or("file")
         );
-        tokio::fs::write(&drm_output, &bytes).await?;
+        (signed_url, drm_output)
+    };
+
+    let bytes = client
+        .get(&target_url)
+        .header("User-Agent", USER_AGENT)
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes()
+        .await?;
+
+    if bytes.is_empty() {
+        return Err(anyhow!(
+            "Attachment {} retornou 0 bytes",
+            file_membership_id
+        ));
     }
 
-    Ok(())
+    let part_path = format!("{}.part", final_path);
+    tokio::fs::write(&part_path, &bytes).await?;
+    tokio::fs::rename(&part_path, &final_path).await?;
+
+    Ok((PathBuf::from(final_path), bytes.len() as u64))
 }
 
 #[async_trait]
@@ -913,7 +999,7 @@ impl PlatformDownloader for HotmartDownloader {
         &self,
         _info: &MediaInfo,
         _opts: &DownloadOptions,
-        _progress: tokio::sync::mpsc::Sender<omniget_core::models::progress::ProgressUpdate>,
+        _progress: tokio::sync::mpsc::Sender<libreget_core::models::progress::ProgressUpdate>,
     ) -> anyhow::Result<DownloadResult> {
         Err(anyhow!(
             "Hotmart downloads use start_course_download, not the generic download trait"

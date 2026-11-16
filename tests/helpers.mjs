@@ -10,7 +10,7 @@ export const CANONICAL_DOC_PAGES = [
   'docs/installation/index.html',
   'docs/mcp/index.html',
   'docs/courses/index.html',
-  'docs/opennami/index.html',
+  'docs/nami/index.html',
   'docs/troubleshooting/index.html',
   'docs/changelog/index.html'
 ];
@@ -285,10 +285,10 @@ export function parseDocPage(relPath) {
     },
     theme: {
       hasToggleBtn: /class\s*=\s*["'][^"']*theme-toggle-btn[^"']*["']/i.test(content),
-      hasEarlyInit: /localStorage\.getItem\(['"](theme|omniget_docs_theme)['"]\)/i.test(content) &&
+      hasEarlyInit: /localStorage\.getItem\(['"](theme|libreget_docs_theme)['"]\)/i.test(content) &&
                     content.indexOf('localStorage.getItem') < (content.indexOf('</head>') > 0 ? content.indexOf('</head>') : 3000),
       hasToggleFunc: /function\s+toggleTheme\s*\(/i.test(combinedJs),
-      usesDocThemeKey: /omniget_docs_theme/i.test(combinedJs),
+      usesDocThemeKey: /libreget_docs_theme/i.test(combinedJs),
       usesStandardThemeKey: /localStorage\.setItem\(['"]theme['"]/i.test(combinedJs)
     },
     code: {
