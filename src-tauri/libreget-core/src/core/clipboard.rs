@@ -28,6 +28,15 @@ pub async fn copy_file_to_clipboard(path: &Path) -> anyhow::Result<()> {
     {
         copy_file_windows(&path_str).await
     }
+
+    // Android (and any other platform) has no file-to-clipboard helper here.
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        let _ = path_str;
+        Err(anyhow::anyhow!(
+            "copying files to the clipboard is not supported on this platform"
+        ))
+    }
 }
 
 #[cfg(target_os = "macos")]

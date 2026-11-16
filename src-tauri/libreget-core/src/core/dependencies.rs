@@ -869,8 +869,10 @@ async fn download_gallerydl() -> anyhow::Result<PathBuf> {
     let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_linux";
     #[cfg(target_os = "macos")]
     let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_macos";
+    // `return` has type `!`, so this binding keeps `url` defined on platforms
+    // without a prebuilt binary (Android) while still exiting early.
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    return Err(anyhow!("gallery-dl nao tem binario para este sistema"));
+    let url: &str = return Err(anyhow!("gallery-dl nao tem binario para este sistema"));
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(180))
