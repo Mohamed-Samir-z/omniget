@@ -83,8 +83,14 @@ pub async fn open_auth_webview(
     let mut builder =
         tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(parsed_url))
             .title(&request.title)
-            .inner_size(width, height)
-            .center();
+            .inner_size(width, height);
+
+    // Window centring only exists on desktop; on Android the webview is
+    // always full screen.
+    #[cfg(desktop)]
+    {
+        builder = builder.center();
+    }
 
     if let Some(ref script) = request.initialization_script {
         builder = builder.initialization_script(script);

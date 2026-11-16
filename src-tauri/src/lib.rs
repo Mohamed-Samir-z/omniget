@@ -938,10 +938,15 @@ pub fn run() {
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
             commands::downloads::validate_output_path,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::get_media_formats,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::prefetch_media_info,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::download_from_url,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::playlist_entries,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::torrent_contents,
             commands::channels::channels_list,
             commands::channels::channel_add,
@@ -953,30 +958,53 @@ pub fn run() {
             commands::ai::ai_get_config,
             commands::ai::ai_set_config,
             commands::ai::ai_test,
+            #[cfg(not(target_os = "android"))]
             commands::ai::ai_summarize_url,
+            #[cfg(not(target_os = "android"))]
             commands::ai::whisper_generate,
             commands::ai::ai_history_list,
             commands::ai::ai_history_clear,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::video_op_silence_estimate,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::video_op_preset,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::video_op_propose,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::video_op_run,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::detect_shot_changes,
+            #[cfg(not(target_os = "android"))]
             commands::video_ops::waveform_peaks,
+            #[cfg(not(target_os = "android"))]
             commands::subtitle_ws::subtitle_load,
+            #[cfg(not(target_os = "android"))]
             commands::subtitle_ws::subtitle_save,
+            #[cfg(not(target_os = "android"))]
             commands::subtitle_ws::subtitle_translate,
+            #[cfg(not(target_os = "android"))]
             commands::subtitle_ws::subtitle_grammar_fix,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::metadata_fetch,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::thumbnails_list,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::thumbnail_save,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_list,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_save,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_merge,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::comments_fetch,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::chapters_fetch,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::tools_save_text,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::livechat_fetch,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::download_with_custom_args,
             commands::downloads::cancel_generic_download,
             commands::yt_templates::yt_templates_list,
@@ -997,10 +1025,13 @@ pub fn run() {
             commands::downloads::parse_batch_file,
             commands::downloads::get_recovery_items,
             commands::downloads::discard_recovery,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::restore_recovery,
             commands::downloads::get_download_history,
             commands::downloads::clear_download_history,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::reveal_file,
+            #[cfg(not(target_os = "android"))]
             commands::downloads::open_path_default,
             commands::host_queue::host_queue_enqueue_external,
             commands::host_queue::host_queue_report_progress,
@@ -1018,96 +1049,183 @@ pub fn run() {
             commands::settings::get_bridge_info,
             commands::settings::rotate_bridge_token,
             commands::settings::bridge_open_pairing,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::check_dependencies,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_status,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_install,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_action,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_set_theme,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_remove_addon,
+            #[cfg(not(target_os = "android"))]
             commands::spicetify::spicetify_install_marketplace,
+            #[cfg(not(target_os = "android"))]
             commands::tools::text::tool_humanize,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_ollama_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_ollama_recommended,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_ollama_pull,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_ollama_delete,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_pricing_info,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_pricing_search,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_pricing_for,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_usage_report,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_usage_clear,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_slideshare,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_gdocs_parse,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_gdocs_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_calameo,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_gallery_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_gallery_install,
+            #[cfg(not(target_os = "android"))]
             commands::tools::documents::tool_gallery_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::downloads::tool_aria2_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::downloads::tool_aria2_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::downloads::tool_manifest_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_dupes_scan,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_shred,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_dupes_delete,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_rename_plan,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_rename_apply,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_file_search_backend,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_file_search,
             #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_awake_set,
             #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_awake_get,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_upscale_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_upscale_install,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_upscale_run,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_resize,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_ocr_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_ocr_run,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_exif_read,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_exif_strip,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_icon_pack,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_img_dupes,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_img_compress,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_video_compress,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_video_restore,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_video_gif,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_video_silence,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_subtitle_convert,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_subtitle_burn,
+            #[cfg(not(target_os = "android"))]
             commands::tools::audio::tool_audio_clean,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_hash,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_hmac,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_hash_id,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_magic,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_cipher,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_caesar_brute,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_xor,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_encode,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_detect,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ctf::tool_ctf_freq,
+            #[cfg(not(target_os = "android"))]
             commands::tools::phone::tool_kde_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::phone::tool_kde_share,
+            #[cfg(not(target_os = "android"))]
             commands::tools::phone::tool_kde_ping,
+            #[cfg(not(target_os = "android"))]
             commands::tools::phone::tool_kde_refresh,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_whisper_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_whisper_install,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_whisper_model_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_whisper_model_remove,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_whisper_transcribe,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_tts_voices,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_tts_speak,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_srt_translate,
+            #[cfg(not(target_os = "android"))]
             commands::tools::speech::tool_dub,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_kinds,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_save,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_delete,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_test,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_balance,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_models,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_keys_use,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_mcp_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_mcp_set_enabled,
+            #[cfg(not(target_os = "android"))]
             commands::tools::ai::tool_mcp_selftest,
             #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_hotkeys_get,
@@ -1153,137 +1271,266 @@ pub fn run() {
             commands::tools::desktop::tool_vs_design,
             #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_isolate,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_info,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_merge,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_split,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_render,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_text,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_from_images,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_compress,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_sanitize,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_ocr,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_office,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_repair,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_redaction_check,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_password,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_watermark,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_crop,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_outline_read,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_outline_write,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_win_tweaks_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_win_tweak_apply,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_clean_scan,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_clean_run,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_disk_volumes,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_disk_scan,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_disk_trash,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_startup_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_startup_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_uninstall_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_uninstall_leftovers,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_uninstall_run,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_debloat_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_debloat_remove,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_debloat_restore,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_registry_scan,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_registry_fix,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_registry_backups_dir,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_updater_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_updater_upgrade,
+            #[cfg(not(target_os = "android"))]
             commands::tools::youtube::tool_sponsorblock,
+            #[cfg(not(target_os = "android"))]
             commands::tools::youtube::tool_ryd,
+            #[cfg(not(target_os = "android"))]
             commands::tools::youtube::tool_yt_video_id,
+            #[cfg(not(target_os = "android"))]
             commands::tools::youtube::tool_save_url,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_session,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_query_ids_refresh,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_cancel,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_post,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_thread,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_export_posts,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_export_users,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_render_posts,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_profile,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_profile_lookup,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_media,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_media_posts,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_search,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_trends,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_bookmarks_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_follows_audit,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_unfollow,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_whitelist_get,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_whitelist_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_archive_open,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_archive_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_grok_config,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_grok_config_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_grok_ask,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_data_url,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_save_data_url,
+            #[cfg(not(target_os = "android"))]
             commands::tools::x::tool_x_write_text,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_inspect,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_related,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_boards_search,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_download_many,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_backup,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_dupes,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_unsave,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_palette,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_keywords,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_source,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pinterest::tool_pin_expand,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_accounts,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_whoami,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_parse,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_cancel,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_post,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_resolve,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_download_bulk,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_profile,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_friendship,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_profile_media,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_stories,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_stories_tray,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_highlights,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_highlight_items,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_story_viewers,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_follow_lists,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_whitelist_get,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_whitelist_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_actions_today,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_actions,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_resolve_users,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_snapshot_take,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_snapshots,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_snapshot_diff,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_snapshot_delete,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_ghosts,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_write_csv,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_read_text,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_analytics,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_hashtag,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_comments,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_likers,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_giveaway,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_publish,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_publish_graph,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_schedule_list,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_schedule_add,
+            #[cfg(not(target_os = "android"))]
             commands::tools::instagram::tool_ig_schedule_remove,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::check_ytdlp_available,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::install_dependency,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::dependency_archived_versions,
             commands::diagnostics::flight_recorder_dump,
             commands::diagnostics::flight_recorder_clear,
             commands::diagnostics::preflight_batch,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::rollback_dependency,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::clear_dependency_path,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::dependency_custom_path,
             commands::rules::list_rules,
             commands::rules::save_rules,
@@ -1296,9 +1543,13 @@ pub fn run() {
             commands::smart_speed::silence_skip_target,
             commands::smart_speed::forget_silence_map,
             commands::torrent_playback::torrent_playback_readiness,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::dependency_variants,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::dependency_install_dir,
+            #[cfg(not(target_os = "android"))]
             commands::dependencies::set_dependency_path,
+            #[cfg(not(target_os = "android"))]
             commands::search::search_videos,
             commands::plugins::list_plugins,
             commands::plugins::get_plugin_frontend_path,
@@ -1311,36 +1562,64 @@ pub fn run() {
             commands::plugins::get_plugin_i18n,
             commands::plugins::check_plugin_updates,
             commands::plugins::update_plugin,
+            #[cfg(not(target_os = "android"))]
             commands::p2p::p2p_send_file,
+            #[cfg(not(target_os = "android"))]
             commands::p2p::p2p_cancel_send,
+            #[cfg(not(target_os = "android"))]
             commands::p2p::p2p_pause_send,
+            #[cfg(not(target_os = "android"))]
             commands::p2p::p2p_resume_send,
             commands::app_lifecycle::force_exit_app,
             commands::app_lifecycle::get_debug_info,
             commands::app_lifecycle::get_portable_info,
+            #[cfg(not(target_os = "android"))]
             commands::tools::twitch::tool_tw_emotes,
+            #[cfg(not(target_os = "android"))]
             commands::tools::twitch::tool_tw_chat_replay,
+            #[cfg(not(target_os = "android"))]
             commands::tools::music::tool_music_playlist,
+            #[cfg(not(target_os = "android"))]
             commands::tools::music::tool_lyrics_sync,
+            #[cfg(not(target_os = "android"))]
             commands::tools::music::tool_music_history,
+            #[cfg(not(target_os = "android"))]
             commands::tools::reddit::tool_rd_download,
+            #[cfg(not(target_os = "android"))]
             commands::tools::reddit::tool_rd_thread,
+            #[cfg(not(target_os = "android"))]
             commands::tools::reddit::tool_rd_gdpr,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_img_stitch,
+            #[cfg(not(target_os = "android"))]
             commands::tools::images::tool_img_sprite,
+            #[cfg(not(target_os = "android"))]
             commands::tools::bilibili::tool_bili_danmaku_export,
+            #[cfg(not(target_os = "android"))]
             commands::tools::bilibili::tool_bili_danmaku_burn,
+            #[cfg(not(target_os = "android"))]
             commands::tools::games::tool_switch_album,
+            #[cfg(not(target_os = "android"))]
             commands::tools::games::tool_clip_organizer,
+            #[cfg(not(target_os = "android"))]
             commands::tools::games::tool_protondb,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_hosts_read,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_hosts_apply,
+            #[cfg(not(target_os = "android"))]
             commands::tools::system::tool_hosts_restore,
+            #[cfg(not(target_os = "android"))]
             commands::tools::video::tool_sticker,
+            #[cfg(not(target_os = "android"))]
             commands::tools::pdf::tool_pdf_markdown,
+            #[cfg(not(target_os = "android"))]
             commands::tools::linkedin::tool_li_overview,
+            #[cfg(not(target_os = "android"))]
             commands::tools::linkedin::tool_li_connections,
+            #[cfg(not(target_os = "android"))]
             commands::tools::linkedin::tool_li_messages,
+            #[cfg(not(target_os = "android"))]
             commands::tools::linkedin::tool_li_checklist,
             commands::nami::nami_check_python_dependencies,
             commands::nami::http::nami_http_fetch,

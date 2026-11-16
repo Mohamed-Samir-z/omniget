@@ -1417,6 +1417,7 @@ pub fn discard_recovery() {
     crate::core::recovery::clear_all();
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn restore_recovery(
     app: tauri::AppHandle,
