@@ -1,14 +1,18 @@
+#[cfg(not(target_os = "android"))]
 use std::sync::{Mutex, OnceLock};
 
 // Holds the OS keep-awake guard while downloads are active. Dropping the
 // guard releases the lock. The settings check happens only on transitions
 // (acquire), never on every queue tick.
+#[cfg(not(target_os = "android"))]
 static GUARD: OnceLock<Mutex<Option<keepawake::KeepAwake>>> = OnceLock::new();
 
+#[cfg(not(target_os = "android"))]
 fn cell() -> &'static Mutex<Option<keepawake::KeepAwake>> {
     GUARD.get_or_init(|| Mutex::new(None))
 }
 
+#[cfg(not(target_os = "android"))]
 pub fn sync(active: bool) {
     let Ok(mut held) = cell().lock() else {
         return;
@@ -38,3 +42,8 @@ pub fn sync(active: bool) {
         tracing::debug!("[awake] sleep prevention released");
     }
 }
+
+// Android: downloads run under a foreground service, there is no wake-lock
+// guard to hold here, so this is a no-op.
+#[cfg(target_os = "android")]
+pub fn sync(_active: bool) {}

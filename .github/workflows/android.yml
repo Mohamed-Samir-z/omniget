@@ -1,0 +1,101 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # arm64 covers virtually every phone made in the last decade and keeps
+      # the build fast. Add armv7 / x86_64 here if you need them.
+      ANDROID_TARGET: aarch64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate the Android project
+        run: pnpm tauri android init --ci
+
+      - name: Build release APK
+        run: pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
+
+      - name: Sign the APK
+        run: |
+          set -euo pipefail
+          UNSIGNED="$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)"
+          test -n "$UNSIGNED" || { echo "no unsigned APK found"; exit 1; }
+
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          mkdir -p dist
+
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            KS=release.keystore; ALIAS="$KEY_ALIAS"; PASS="$KEYSTORE_PASSWORD"
+          else
+            # No keystore secrets configured: sign with a throwaway key so the
+            # APK installs. Each run then has a different signature, so a new
+            # APK must be installed over an uninstalled old one. Add the
+            # secrets below to keep updates in place.
+            keytool -genkeypair -v -keystore release.keystore -alias libreget \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android -dname "CN=LibreGet Android"
+            KS=release.keystore; ALIAS=libreget; PASS=android
+          fi
+
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" dist/aligned.apk
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ALIAS" \
+            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+            --out dist/libreget-android.apk dist/aligned.apk
+          "$BT/apksigner" verify dist/libreget-android.apk
+          rm dist/aligned.apk
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libreget-android-apk
+          path: dist/libreget-android.apk
+          if-no-files-found: error

@@ -67,8 +67,10 @@ pub async fn tool_file_search(
 
 // ── Manter acordado (estudo 29, PowerToys Awake) ──
 // Guard próprio, independente da opção "impedir suspensão durante downloads".
+#[cfg(not(target_os = "android"))]
 static AWAKE: OnceLock<Mutex<Option<keepawake::KeepAwake>>> = OnceLock::new();
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn tool_awake_set(active: bool) -> Result<bool, String> {
     let cell = AWAKE.get_or_init(|| Mutex::new(None));
@@ -89,6 +91,7 @@ pub fn tool_awake_set(active: bool) -> Result<bool, String> {
     Ok(held.is_some())
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn tool_awake_get() -> bool {
     AWAKE

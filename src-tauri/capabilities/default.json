@@ -2,15 +2,23 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     {
       "identifier": "shell:allow-open",
       "allow": [
-        { "url": "https://**" },
-        { "url": "http://**" },
-        { "url": "mailto:**" }
+        {
+          "url": "https://**"
+        },
+        {
+          "url": "http://**"
+        },
+        {
+          "url": "mailto:**"
+        }
       ]
     },
     "store:default",
@@ -19,12 +27,9 @@
     "fs:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "updater:default",
-    "process:allow-restart",
     "core:window:allow-start-dragging",
     "core:window:allow-set-badge-count",
     "core:window:allow-set-progress-bar",
-    "core:window:allow-set-overlay-icon",
-    "autostart:default"
+    "core:window:allow-set-overlay-icon"
   ]
 }

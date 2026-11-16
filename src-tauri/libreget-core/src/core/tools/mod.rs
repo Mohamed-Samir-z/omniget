@@ -8,6 +8,7 @@ pub mod aria2;
 pub mod arxiv;
 pub mod audio_clean;
 pub mod audio_tag;
+#[cfg(not(target_os = "android"))]
 pub mod autoclick;
 pub mod blogs;
 pub mod calameo;

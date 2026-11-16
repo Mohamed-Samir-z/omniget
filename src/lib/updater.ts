@@ -1,7 +1,11 @@
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { storeChangelogForUpdate } from "$lib/stores/changelog-store.svelte";
 import { getSettings } from "$lib/stores/settings-store.svelte";
+
+// The updater and process plugins are not linked into the Android build, so
+// they are imported lazily and never touched there. Android updates come from
+// installing a newer APK.
+const isAndroid =
+  typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
 
 export interface UpdateInfo {
   available: boolean;
@@ -23,7 +27,9 @@ function proxyUrl(): string | undefined {
 }
 
 export async function checkForUpdate(): Promise<UpdateInfo> {
+  if (isAndroid) return { available: false };
   try {
+    const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check({ proxy: proxyUrl() });
     if (update) {
       return {
@@ -39,6 +45,9 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 }
 
 export async function installUpdate(): Promise<void> {
+  if (isAndroid) return;
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const { relaunch } = await import("@tauri-apps/plugin-process");
   const update = await check({ proxy: proxyUrl() });
   if (update) {
     if (update.body && update.version) {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Manager;
+#[cfg(desktop)]
 use tauri_plugin_deep_link::DeepLinkExt;
 
 use tokio_util::sync::CancellationToken;
@@ -16,6 +17,10 @@ pub mod cookies;
 pub mod core;
 pub mod extension_storage;
 pub mod external_url;
+#[cfg(desktop)]
+pub mod hotkey;
+#[cfg(not(desktop))]
+#[path = "hotkey_stub.rs"]
 pub mod hotkey;
 pub mod local_bridge;
 pub mod mcp;
@@ -24,7 +29,13 @@ pub mod platforms;
 pub mod plugin_host;
 pub mod plugin_loader;
 pub mod storage;
+#[cfg(desktop)]
 pub mod tray;
+#[cfg(not(desktop))]
+#[path = "tray_stub.rs"]
+pub mod tray;
+#[cfg(target_os = "android")]
+pub mod android_env;
 
 struct DesktopCookieProvider;
 
@@ -208,6 +219,11 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Android has no HOME/XDG variables and a read-only cwd; every `dirs::*`
+    // lookup below depends on this having run first.
+    #[cfg(target_os = "android")]
+    android_env::init();
+
     tracing_subscriber::fmt::init();
 
     // Emitido antes do single-instance poder sair em silencio: ver
@@ -268,8 +284,11 @@ pub fn run() {
         pending_external_events: Arc::new(tokio::sync::Mutex::new(Vec::new())),
     };
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+    let builder = tauri::Builder::default();
+
+    // Single-instance is desktop-only; it must stay the first plugin registered.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if let Some(url) =
                 external_url::find_external_url_arg(argv.iter().skip(1).map(|arg| arg.as_str()))
             {
@@ -287,7 +306,9 @@ pub fn run() {
             } else {
                 tray::show_window(app);
             }
-        }))
+    }));
+
+    let builder = builder
         .manage(state)
         .manage(Arc::new(tokio::sync::RwLock::new(
             plugin_loader::PluginManager::new(
@@ -301,6 +322,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    // Plugins that only exist on desktop (updater, global shortcuts, autostart,
+    // deep-link registration, process restart).
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(
@@ -312,12 +339,13 @@ pub fn run() {
                 })
                 .build(),
         )
-        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
-        ))
+        ));
+
+    builder
         .setup(|app| {
             // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
             // (`"create": false`), porque so daqui da para passar
@@ -632,6 +660,7 @@ pub fn run() {
                     });
                 }
             }
+            #[cfg(desktop)]
             {
                 let app_handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
@@ -1023,7 +1052,9 @@ pub fn run() {
             commands::tools::files::tool_rename_apply,
             commands::tools::files::tool_file_search_backend,
             commands::tools::files::tool_file_search,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_awake_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::files::tool_awake_get,
             commands::tools::images::tool_upscale_status,
             commands::tools::images::tool_upscale_install,
@@ -1078,27 +1109,49 @@ pub fn run() {
             commands::tools::ai::tool_mcp_status,
             commands::tools::ai::tool_mcp_set_enabled,
             commands::tools::ai::tool_mcp_selftest,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_hotkeys_get,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_hotkey_set,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_autoclick_start,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_autoclick_stop,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_autoclick_state,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_autoclick_mouse,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_devices,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_options,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_set_options,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_state,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_start,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_dictation_stop,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_record_sources,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_record_state,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_record_start,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_record_stop,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_record_save_replay,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_status,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_launch,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_clone,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_design,
+            #[cfg(not(target_os = "android"))]
             commands::tools::desktop::tool_vs_isolate,
             commands::tools::pdf::tool_pdf_status,
             commands::tools::pdf::tool_pdf_info,

@@ -23,6 +23,7 @@ pub mod media_processor;
 pub mod media_signature;
 pub mod onnxrt;
 pub mod paths;
+pub mod trash_compat;
 pub mod pdfium;
 pub mod pokemon_names;
 pub mod pot_provider;

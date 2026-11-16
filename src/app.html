@@ -15,6 +15,9 @@
         "data-platform",
         /mac/i.test(p) ? "macos" : "other"
       );
+      if (/android/i.test(navigator.userAgent)) {
+        document.documentElement.setAttribute("data-mobile", "android");
+      }
     </script>
     %sveltekit.head%
   </head>

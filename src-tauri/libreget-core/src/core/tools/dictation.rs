@@ -358,6 +358,13 @@ pub fn is_recording() -> bool {
 }
 
 /// Digita o texto onde o cursor estiver.
+#[cfg(target_os = "android")]
+pub fn type_text(_text: &str) -> anyhow::Result<()> {
+    Err(anyhow!("digitar em outro app nao e possivel no Android"))
+}
+
+/// Digita o texto onde o cursor estiver.
+#[cfg(not(target_os = "android"))]
 pub fn type_text(text: &str) -> anyhow::Result<()> {
     use enigo::{Enigo, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default())
@@ -369,6 +376,13 @@ pub fn type_text(text: &str) -> anyhow::Result<()> {
 }
 
 /// Cmd+V / Ctrl+V (o app coloca o texto na área de transferência antes).
+#[cfg(target_os = "android")]
+pub fn press_paste() -> anyhow::Result<()> {
+    Err(anyhow!("colar em outro app nao e possivel no Android"))
+}
+
+/// Cmd+V / Ctrl+V (o app coloca o texto na área de transferência antes).
+#[cfg(not(target_os = "android"))]
 pub fn press_paste() -> anyhow::Result<()> {
     use enigo::{Direction, Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| anyhow!("teclado: {}", e))?;

@@ -8,6 +8,7 @@ pub mod audio;
 pub mod bilibili;
 pub mod blogs;
 pub mod ctf;
+#[cfg(not(target_os = "android"))]
 pub mod desktop;
 pub mod documents;
 pub mod downloads;

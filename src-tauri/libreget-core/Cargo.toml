@@ -61,8 +61,6 @@ open = "5"
 lopdf = { version = "0.45", default-features = false, features = ["chrono"] }
 libloading = "0.8"
 walkdir = "2"
-trash = "5"
-enigo = { version = "0.6", default-features = false, features = ["x11rb"] }
 fs4 = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "ico"] }
 # Tags de audio (ID3/Vorbis/MP4) em Rust puro, sem binario externo.
@@ -75,3 +73,11 @@ rust_xlsxwriter = "0.99"
 # binario gerido, baixado sob demanda igual ao PDFium e ao Real-ESRGAN.
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
 ndarray = "0.17"
+
+# Desktop-only: moving files to the OS trash and synthesising mouse/keyboard
+# input have no Android implementation (enigo does not build there at all).
+# The code that uses them is gated the same way; see core/trash_compat.rs and
+# the cfg on `autoclick` / `dictation` in core/tools/mod.rs.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+trash = "5"
+enigo = { version = "0.6", default-features = false, features = ["x11rb"] }
