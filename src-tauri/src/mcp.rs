@@ -401,6 +401,7 @@ pub async fn call(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             )
         }
         "x_trends" => to_json(x::search::trends().await.map_err(err)?),
+        #[cfg(not(target_os = "android"))]
         "instagram_profile" => {
             let account = {
                 let v = s(&a, "account");

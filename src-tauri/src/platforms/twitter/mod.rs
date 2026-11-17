@@ -980,6 +980,12 @@ impl PlatformDownloader for TwitterDownloader {
 }
 
 impl TwitterDownloader {
+    #[cfg(target_os = "android")]
+    async fn fallback_ytdlp(&self, _url: &str) -> anyhow::Result<MediaInfo> {
+        Err(anyhow!("yt-dlp fallback is not available on Android"))
+    }
+
+    #[cfg(not(target_os = "android"))]
     async fn fallback_ytdlp(&self, url: &str) -> anyhow::Result<MediaInfo> {
         let ytdlp_path = crate::core::ytdlp::ensure_ytdlp().await?;
         let mut extra_flags = vec![

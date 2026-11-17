@@ -241,6 +241,7 @@ pub fn run() {
     let mut registry = core::registry::PlatformRegistry::new();
     // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
     // that the single-post Twitter/Reddit downloaders would otherwise match
+    #[cfg(not(target_os = "android"))]
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
     registry.register(Arc::new(
         libreget_core::platforms::InstagramDownloader::new(),
@@ -269,6 +270,7 @@ pub fn run() {
     registry.register(Arc::new(
         libreget_core::platforms::DirectFileDownloader::new(),
     ));
+    #[cfg(not(target_os = "android"))]
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));
@@ -429,6 +431,7 @@ pub fn run() {
             }
 
             commands::host_queue::register_event_listeners(app.handle());
+            #[cfg(not(target_os = "android"))]
             {
                 let handle = app.handle().clone();
                 platforms::bilibili::notify::set_emitter(Box::new(
