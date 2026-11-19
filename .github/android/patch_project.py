@@ -54,7 +54,7 @@ if "YoutubeDL" not in k:
         "\n    Thread {\n"
         "      try {\n"
         "        YoutubeDL.getInstance().init(applicationContext)\n"
-        "        FFmpeg.getInstance().init(applicationContext)\n"
+        "        FFmpeg.getInstance().init(applicationContext)\n        java.io.File(applicationContext.filesDir, \"runtime-ready\").writeText(\"1\")\n"
         "      } catch (e: Throwable) {\n"
         "        android.util.Log.e(\"libreget\", \"runtime init failed\", e)\n"
         "        try { java.io.File(applicationContext.filesDir, \"ytdl-init-error.txt\").writeText(android.util.Log.getStackTraceString(e)) } catch (_: Throwable) {}\n"

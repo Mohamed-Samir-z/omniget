@@ -112,6 +112,7 @@ pub fn init() {
     std::env::set_var("TMPDIR", &cache);
 
     setup_media_runtime(&internal, &data);
+    libreget_core::core::ytdlp::android_prepare_ytdlp();
 }
 
 /// Wire up the yt-dlp / Python / ffmpeg runtimes that the Kotlin side

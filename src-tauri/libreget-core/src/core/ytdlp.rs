@@ -1505,8 +1505,73 @@ pub fn android_ytdl_base() -> Option<PathBuf> {
 
 #[cfg(target_os = "android")]
 fn android_ytdlp_script() -> Option<PathBuf> {
-    let p = android_ytdl_base()?.join("yt-dlp").join("yt-dlp");
+    let dir = android_ytdl_base()?.join("yt-dlp");
+    // Preferred: the zipapp unpacked into a directory whose bytecode has been
+    // precompiled (see `android_prepare_ytdlp`). Python can run a directory
+    // with a `__main__.py` directly and then reuses its `__pycache__`, which
+    // makes start-up several times faster than re-compiling the zipapp.
+    let unpacked = dir.join("app");
+    if unpacked.join(".ready").exists() {
+        return Some(unpacked);
+    }
+    let p = dir.join("yt-dlp");
     p.exists().then_some(p)
+}
+
+/// Unpack yt-dlp next to its zipapp, precompile it, and write a self-test
+/// report. Runs once in the background after the Kotlin side has unpacked the
+/// runtimes (it creates `<files>/runtime-ready`).
+#[cfg(target_os = "android")]
+pub fn android_prepare_ytdlp() {
+    std::thread::Builder::new()
+        .name("ytdlp-prepare".into())
+        .spawn(|| {
+            let started = std::time::Instant::now();
+            let Some(base) = android_ytdl_base() else { return };
+            let ready_flag = Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
+            for _ in 0..240 {
+                if ready_flag.exists() { break; }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            let Some(py) = android_python() else { return };
+            let zip = base.join("yt-dlp").join("yt-dlp");
+            let app = base.join("yt-dlp").join("app");
+            let mut report = String::new();
+            if !app.join(".ready").exists() && zip.exists() {
+                let _ = std::fs::remove_dir_all(&app);
+                let script = "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
+                let r = std::process::Command::new(&py).args(["-c", script]).arg(&zip).arg(&app).output();
+                report.push_str(&format!("extract: {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string()))));
+                let r = std::process::Command::new(&py).args(["-m", "compileall", "-q"]).arg(&app).output();
+                report.push_str(&format!("compile: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string())), started.elapsed()));
+                if app.join("__main__.py").exists() {
+                    let _ = std::fs::write(app.join(".ready"), b"1");
+                    reset_ytdlp_cache();
+                }
+            }
+            if let Some(script) = android_ytdlp_script() {
+                let t = std::time::Instant::now();
+                let r = std::process::Command::new(&py).arg(&script).arg("--version").output();
+                report.push_str(&format!("yt-dlp --version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).trim().to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+            } else {
+                report.push_str("yt-dlp script missing\n");
+            }
+            let t = std::time::Instant::now();
+            let ff = std::env::var("HOME").ok().map(|h| Path::new(&h).join("data/com.openselena.libreget/bin/ffmpeg"));
+            if let Some(ff) = ff {
+                let r = std::process::Command::new(&ff).arg("-version").output();
+                report.push_str(&format!("ffmpeg -version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+            }
+            report.push_str(&format!("total: {:?}\n", started.elapsed()));
+            tracing::info!("[android] runtime self-test:\n{}", report);
+            if let Ok(home) = std::env::var("HOME") {
+                let _ = std::fs::write(Path::new(&home).join("runtime-selftest.txt"), &report);
+            }
+            for dir in ["/storage/emulated/0/Download/OmniGet"] {
+                let _ = std::fs::write(Path::new(dir).join("libreget-selftest.txt"), &report);
+            }
+        })
+        .ok();
 }
 
 #[cfg(target_os = "android")]
@@ -1669,7 +1734,7 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
 
 pub fn is_ytdlp_zipapp(path: &Path) -> bool {
     #[cfg(target_os = "android")]
-    if path.file_name().and_then(|n| n.to_str()) == Some("yt-dlp") {
+    if matches!(path.file_name().and_then(|n| n.to_str()), Some("yt-dlp") | Some("app")) {
         return true;
     }
     path.extension()
