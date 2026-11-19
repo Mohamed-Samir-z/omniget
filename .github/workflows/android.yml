@@ -110,6 +110,15 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
+      - name: Inspect the signed APK
+        run: |
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          echo "== size / sha256 =="; ls -l dist/libreget-android.apk; sha256sum dist/libreget-android.apk
+          echo "== zip integrity =="; unzip -tq dist/libreget-android.apk | tail -n 1
+          echo "== zipalign check =="; "$BT/zipalign" -c -P 16 -v 4 dist/libreget-android.apk | tail -n 3 || true
+          echo "== signatures =="; "$BT/apksigner" verify --verbose --print-certs dist/libreget-android.apk | head -n 20
+          echo "== manifest summary =="; "$BT/aapt2" dump badging dist/libreget-android.apk | grep -E "^(package|sdkVersion|targetSdkVersion|native-code|application-label:)" || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: libreget-android-apk
