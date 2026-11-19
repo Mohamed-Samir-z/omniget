@@ -24,6 +24,15 @@ pr = root / "proguard-rules.pro"
 with open(pr, "a") as f:
     f.write("\n-keep class com.yausername.** { *; }\n-keep class org.apache.commons.io.** { *; }\n-keep class com.fasterxml.jackson.** { *; }\n-dontwarn org.apache.commons.io.**\n-dontwarn java.beans.**\n-dontwarn javax.xml.**\n-dontwarn org.w3c.dom.**\n-dontwarn com.fasterxml.jackson.**\n-ignorewarnings\n")
 
+# R8 breaks commons-compress' static initialisers (ExceptionInInitializerError
+# while unpacking Python), so ship the release build unobfuscated.
+g = gradle.read_text()
+g = re.sub(r"optimization\s*\{\s*enable\s*=\s*true", "optimization { enable = false", g)
+g = g.replace("isMinifyEnabled = true", "isMinifyEnabled = false")
+gradle.write_text(g)
+with open(pr, "a") as f:
+    f.write("-keep class org.apache.commons.compress.** { *; }\n-dontwarn org.apache.commons.compress.**\n")
+
 # ---- Manifest ---------------------------------------------------------
 manifest = root / "src/main/AndroidManifest.xml"
 m = manifest.read_text()
