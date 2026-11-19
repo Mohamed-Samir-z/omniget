@@ -1699,6 +1699,20 @@ pub async fn open_path_default(path: String) -> Result<(), String> {
     open::that_detached(&path).map_err(|e| e.to_string())
 }
 
+/// Android: there is no file manager to "reveal" a file in, so open the
+/// containing folder in the system Files app instead.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn reveal_file(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::android_media::open_folder(&app, &path)
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn open_path_default(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    crate::android_media::open_folder(&app, &path)
+}
+
 pub fn sanitize_explorer_path(path: &str) -> String {
     let without_quotes = path.replace('"', "");
     without_quotes.trim_end_matches('\\').to_string()

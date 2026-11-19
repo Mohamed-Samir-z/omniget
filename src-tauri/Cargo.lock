@@ -3915,6 +3915,7 @@ dependencies = [
  "futures",
  "hex 0.4.3",
  "hmac",
+ "jni",
  "keepawake",
  "keyring",
  "libloading 0.8.9",

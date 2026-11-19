@@ -36,6 +36,8 @@ pub mod tray;
 pub mod tray;
 #[cfg(target_os = "android")]
 pub mod android_env;
+#[cfg(target_os = "android")]
+pub mod android_media;
 
 struct DesktopCookieProvider;
 
@@ -1029,9 +1031,7 @@ pub fn run() {
             commands::downloads::restore_recovery,
             commands::downloads::get_download_history,
             commands::downloads::clear_download_history,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::reveal_file,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::open_path_default,
             commands::host_queue::host_queue_enqueue_external,
             commands::host_queue::host_queue_report_progress,

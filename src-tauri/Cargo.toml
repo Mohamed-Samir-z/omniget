@@ -98,6 +98,8 @@ keepawake = "0.5"
 # OpenSSL from source with the NDK so the existing TLS stack keeps working.
 [target.'cfg(target_os = "android")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
+# JNI for the media scanner / open-folder helpers (same version Tauri uses).
+jni = "0.21"
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

@@ -1895,6 +1895,10 @@ async fn spawn_download_inner(
                     dl.file_size_bytes
                 ),
             );
+            // Make the file show up in the gallery / media players.
+            #[cfg(target_os = "android")]
+            crate::android_media::scan_file(&app, &dl.file_path);
+
             let is_seeding = platform_name == "magnet" && dl.torrent_id.is_some();
             if !is_seeding {
                 if let Err(msg) = validate_download_output(&dl.file_path).await {
