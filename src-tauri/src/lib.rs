@@ -943,9 +943,7 @@ pub fn run() {
             commands::downloads::validate_output_path,
             #[cfg(not(target_os = "android"))]
             commands::downloads::get_media_formats,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::prefetch_media_info,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::download_from_url,
             #[cfg(not(target_os = "android"))]
             commands::downloads::playlist_entries,
@@ -1028,7 +1026,6 @@ pub fn run() {
             commands::downloads::parse_batch_file,
             commands::downloads::get_recovery_items,
             commands::downloads::discard_recovery,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::restore_recovery,
             commands::downloads::get_download_history,
             commands::downloads::clear_download_history,

@@ -61,11 +61,14 @@
   }
 
   .mac-nav-label {
+    display: block;
     flex: 0 0 auto;
     max-width: 72px;
+    line-height: 1.1;
   }
 
   .mac-nav-badge {
+    display: inline-flex;
     position: absolute;
     top: 4px;
     right: 8px;
@@ -97,5 +100,10 @@
   .kbd-hint,
   .shortcut-hint {
     display: none !important;
+  }
+
+  /* Keyboard-shortcut chips (e.g. "Ctrl+V" on the Paste button). */
+  .librebox-paste-kbd {
+    display: none;
   }
 }

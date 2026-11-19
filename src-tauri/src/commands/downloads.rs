@@ -8,10 +8,10 @@ use crate::platforms::Platform;
 use crate::storage::config;
 use crate::AppState;
 
-#[cfg(not(target_os = "android"))]
 use crate::core::ytdlp;
+use crate::models::media::MediaType;
 #[cfg(not(target_os = "android"))]
-use crate::models::media::{FormatInfo, MediaType};
+use crate::models::media::FormatInfo;
 
 #[derive(Clone, Serialize)]
 pub struct PlatformInfo {
@@ -126,7 +126,6 @@ pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     Ok(ytdlp::parse_formats(&json))
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn prefetch_media_info(
     app: tauri::AppHandle,
@@ -853,7 +852,6 @@ pub async fn playlist_entries(url: String) -> Result<Vec<PlaylistEntryInfo>, Str
         .collect())
 }
 
-#[cfg(not(target_os = "android"))]
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn download_from_url(
@@ -1417,7 +1415,6 @@ pub fn discard_recovery() {
     crate::core::recovery::clear_all();
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn restore_recovery(
     app: tauri::AppHandle,

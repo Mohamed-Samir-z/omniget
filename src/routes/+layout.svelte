@@ -50,7 +50,11 @@
   let pluginNav = $derived(allNav.filter((item) => item.group === "plugins"));
 
   let ytdlpDismissed = $state(false);
-  let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
+  const isAndroid =
+    typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+  // On Android yt-dlp cannot be installed from Settings, so the banner would
+  // only point at a button that does nothing.
+  let ytdlpMissing = $derived(!isAndroid && isDepsChecked() && !isYtdlpAvailable());
   let showOnboarding = $derived(needsOnboarding());
 
   let updateInfo = $derived(getUpdateInfo());
