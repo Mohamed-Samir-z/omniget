@@ -40,6 +40,13 @@ if "extractNativeLibs" not in m:
     m = m.replace("<application", '<application\n        android:extractNativeLibs="true"', 1)
 if "MANAGE_EXTERNAL_STORAGE" not in m:
     m = m.replace("<application", '<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <application', 1)
+PERMS = ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS",
+         "WAKE_LOCK", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"]
+for perm in PERMS:
+    if "android.permission." + perm + '"' not in m:
+        m = m.replace("<application", '<uses-permission android:name="android.permission.%s" />\n    <application' % perm, 1)
+if "DownloadService" not in m:
+    m = m.replace("</application>", '<service android:name=".DownloadService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>', 1)
 manifest.write_text(m)
 
 # ---- MainActivity: unpack runtimes on a background thread -------------
@@ -50,7 +57,19 @@ act = acts[0]
 k = act.read_text()
 if "YoutubeDL" not in k:
     k = k.replace("import ", "import com.yausername.youtubedl_android.YoutubeDL\nimport com.yausername.ffmpeg.FFmpeg\nimport ", 1)
-    init = (
+    svc = (
+        "\n    try {\n"
+        "      if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(\"android.permission.POST_NOTIFICATIONS\"), 1)\n"
+        "      androidx.core.content.ContextCompat.startForegroundService(this, android.content.Intent(this, DownloadService::class.java))\n"
+        "      val prefs = getSharedPreferences(\"libreget\", 0)\n"
+        "      val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager\n"
+        "      if (!prefs.getBoolean(\"battery_asked\", false) && !pm.isIgnoringBatteryOptimizations(packageName)) {\n"
+        "        prefs.edit().putBoolean(\"battery_asked\", true).apply()\n"
+        "        startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse(\"package:\" + packageName)))\n"
+        "      }\n"
+        "    } catch (e: Throwable) { android.util.Log.e(\"libreget\", \"service start failed\", e) }\n"
+    )
+    init = svc + (
         "\n    Thread {\n"
         "      try {\n"
         "        YoutubeDL.getInstance().init(applicationContext)\n"
@@ -72,5 +91,53 @@ if "YoutubeDL" not in k:
         else:
             k = re.sub(r"(TauriActivity\(\))", r"\1 " + body.replace("\\", "\\\\"), k, count=1)
     act.write_text(k)
+    pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
+    (act.parent / "DownloadService.kt").write_text(f"""package {pkg}
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+import android.os.PowerManager
+
+/** Keeps the process alive while the app is in the background so downloads continue. */
+class DownloadService : Service() {{
+    private var wake: PowerManager.WakeLock? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {{
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= 26) {{
+            nm.createNotificationChannel(NotificationChannel("downloads", "Downloads", NotificationManager.IMPORTANCE_LOW))
+        }}
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "downloads") else Notification.Builder(this)
+        val n = builder
+            .setContentTitle("OmniGet")
+            .setContentText("Downloads keep running in the background")
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setOngoing(true)
+            .build()
+        try {{
+            if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            else startForeground(1, n)
+        }} catch (e: Throwable) {{ android.util.Log.e("libreget", "startForeground failed", e) }}
+        if (wake == null) {{
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "libreget:downloads").also {{ it.acquire() }}
+        }}
+        return START_STICKY
+    }}
+
+    override fun onDestroy() {{
+        try {{ wake?.release() }} catch (_: Throwable) {{}}
+        super.onDestroy()
+    }}
+}}
+""")
 print(act.read_text())
 print(gradle.read_text())
