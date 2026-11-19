@@ -10,7 +10,6 @@ use crate::AppState;
 
 use crate::core::ytdlp;
 use crate::models::media::MediaType;
-#[cfg(not(target_os = "android"))]
 use crate::models::media::FormatInfo;
 
 #[derive(Clone, Serialize)]
@@ -110,7 +109,6 @@ pub async fn detect_platform(url: String) -> Result<PlatformInfo, String> {
     }
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn get_media_formats(url: String) -> Result<Vec<FormatInfo>, String> {
     let _timer_start = std::time::Instant::now();
@@ -273,7 +271,6 @@ pub async fn torrent_contents(url: String) -> Result<Vec<TorrentFileEntry>, Stri
     Ok(entries)
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn metadata_fetch(
     url: String,
@@ -348,7 +345,6 @@ pub struct ThumbnailListResult {
     pub thumbnails: Vec<ThumbnailInfo>,
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn thumbnails_list(url: String) -> Result<ThumbnailListResult, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
@@ -401,7 +397,6 @@ pub async fn thumbnails_list(url: String) -> Result<ThumbnailListResult, String>
     Ok(ThumbnailListResult { title, thumbnails })
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn thumbnail_save(
     thumb_url: String,
@@ -456,7 +451,6 @@ pub struct SubtitleListResult {
     pub tracks: Vec<SubtitleTrack>,
 }
 
-#[cfg(not(target_os = "android"))]
 fn collect_sub_tracks(map: Option<&serde_json::Value>, auto: bool, out: &mut Vec<SubtitleTrack>) {
     let Some(obj) = map.and_then(|v| v.as_object()) else {
         return;
@@ -499,7 +493,6 @@ fn collect_sub_tracks(map: Option<&serde_json::Value>, auto: bool, out: &mut Vec
     }
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn subtitles_list(url: String) -> Result<SubtitleListResult, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
@@ -520,7 +513,6 @@ pub async fn subtitles_list(url: String) -> Result<SubtitleListResult, String> {
     Ok(SubtitleListResult { title, tracks })
 }
 
-#[cfg(not(target_os = "android"))]
 async fn fetch_text(client: &reqwest::Client, url: &str) -> Result<String, String> {
     let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
@@ -529,7 +521,6 @@ async fn fetch_text(client: &reqwest::Client, url: &str) -> Result<String, Strin
     resp.text().await.map_err(|e| e.to_string())
 }
 
-#[cfg(not(target_os = "android"))]
 fn ensure_ext(name: &str, ext: &str) -> String {
     let safe = sanitize_filename::sanitize(name);
     if safe
@@ -542,7 +533,6 @@ fn ensure_ext(name: &str, ext: &str) -> String {
     }
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn subtitles_save(
     sub_url: String,
@@ -565,7 +555,6 @@ pub async fn subtitles_save(
     Ok(safe)
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn subtitles_merge(
     primary_url: String,
@@ -614,7 +603,6 @@ pub struct CommentsResult {
     pub comments: Vec<VideoComment>,
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn comments_fetch(
     url: String,
@@ -704,7 +692,6 @@ pub struct ChaptersResult {
     pub chapters: Vec<Chapter>,
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn chapters_fetch(url: String) -> Result<ChaptersResult, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
@@ -735,7 +722,6 @@ pub async fn chapters_fetch(url: String) -> Result<ChaptersResult, String> {
     Ok(ChaptersResult { title, chapters })
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn tools_save_text(
     output_dir: String,
@@ -762,7 +748,6 @@ pub struct LiveChatResult {
     pub messages: Vec<libreget_core::core::livechat::LiveChatMessage>,
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn livechat_fetch(url: String) -> Result<LiveChatResult, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
@@ -832,7 +817,6 @@ pub async fn livechat_fetch(url: String) -> Result<LiveChatResult, String> {
     result
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn playlist_entries(url: String) -> Result<Vec<PlaylistEntryInfo>, String> {
     let ytdlp_path = ytdlp::find_ytdlp_cached()
@@ -1054,7 +1038,6 @@ fn validate_custom_ytdlp_args(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn download_with_custom_args(
     app: tauri::AppHandle,

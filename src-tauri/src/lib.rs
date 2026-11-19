@@ -942,11 +942,9 @@ pub fn run() {
             commands::downloads::detect_platform,
             commands::downloads::check_cookie_error,
             commands::downloads::validate_output_path,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::get_media_formats,
             commands::downloads::prefetch_media_info,
             commands::downloads::download_from_url,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::playlist_entries,
             #[cfg(not(target_os = "android"))]
             commands::downloads::torrent_contents,
@@ -986,27 +984,16 @@ pub fn run() {
             commands::subtitle_ws::subtitle_translate,
             #[cfg(not(target_os = "android"))]
             commands::subtitle_ws::subtitle_grammar_fix,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::metadata_fetch,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::thumbnails_list,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::thumbnail_save,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_list,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_save,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::subtitles_merge,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::comments_fetch,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::chapters_fetch,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::tools_save_text,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::livechat_fetch,
-            #[cfg(not(target_os = "android"))]
             commands::downloads::download_with_custom_args,
             commands::downloads::cancel_generic_download,
             commands::yt_templates::yt_templates_list,
