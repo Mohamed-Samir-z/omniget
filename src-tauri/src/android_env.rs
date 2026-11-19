@@ -110,4 +110,35 @@ pub fn init() {
     std::env::set_var("XDG_CONFIG_HOME", &config);
     std::env::set_var("XDG_CACHE_HOME", &cache);
     std::env::set_var("TMPDIR", &cache);
+
+    setup_media_runtime(&internal, &data);
+}
+
+/// Wire up the yt-dlp / Python / ffmpeg runtimes that the Kotlin side
+/// (youtubedl-android) unpacks under `<package>/no_backup/youtubedl-android`.
+/// Child processes inherit these variables, so every spawn site works as-is.
+fn setup_media_runtime(internal: &Path, data: &Path) {
+    let base = internal.join("no_backup").join("youtubedl-android").join("packages");
+    let python = base.join("python");
+    let ffmpeg = base.join("ffmpeg");
+    let ld = format!(
+        "{}/usr/lib:{}/usr/lib",
+        python.display(),
+        ffmpeg.display()
+    );
+    std::env::set_var("LD_LIBRARY_PATH", ld);
+    std::env::set_var("SSL_CERT_FILE", python.join("usr/etc/tls/cert.pem"));
+    std::env::set_var("PYTHONHOME", python.join("usr"));
+
+    // `find_tool("ffmpeg")` looks for `<data>/com.openselena.libreget/bin/ffmpeg`.
+    // The real binary is `libffmpeg.so` in the native library dir, so expose it
+    // under the expected name.
+    if let Some(native) = libreget_core::core::ytdlp::android_native_lib_dir() {
+        let bin = data.join("com.openselena.libreget").join("bin");
+        let _ = std::fs::create_dir_all(&bin);
+        let link = bin.join("ffmpeg");
+        let target = native.join("libffmpeg.so");
+        let _ = std::fs::remove_file(&link);
+        let _ = std::os::unix::fs::symlink(&target, &link);
+    }
 }

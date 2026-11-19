@@ -73,6 +73,9 @@ jobs:
       - name: Generate the Android project
         run: pnpm tauri android init --ci
 
+      - name: Bundle yt-dlp, Python and ffmpeg
+        run: python3 .github/android/patch_project.py
+
       - name: Build release APK
         run: pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
 

@@ -1470,7 +1470,61 @@ pub const VIDEO_INFO_PROCESS_TIMEOUT_SECS: u64 = 90;
 pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
 pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
+/// Android: the Python interpreter, ffmpeg and QuickJS ship as native
+/// libraries (youtubedl-android) and are executed straight from the app's
+/// `nativeLibraryDir`, the only place Android lets an app exec from.
+#[cfg(target_os = "android")]
+pub fn android_native_lib_dir() -> Option<PathBuf> {
+    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DIR.get_or_init(|| {
+        let maps = std::fs::read_to_string("/proc/self/maps").ok()?;
+        maps.lines().find_map(|line| {
+            let path = line.split_whitespace().last()?;
+            if path.starts_with("/data/app/") && path.contains("/lib/") && path.ends_with(".so") {
+                Path::new(path).parent().map(|p| p.to_path_buf())
+            } else {
+                None
+            }
+        })
+    })
+    .clone()
+}
+
+/// `<files>/../no_backup/youtubedl-android`, where the Kotlin side unpacks
+/// the bundled yt-dlp script and the Python / ffmpeg runtimes.
+#[cfg(target_os = "android")]
+pub fn android_ytdl_base() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(
+        Path::new(&home)
+            .parent()?
+            .join("no_backup")
+            .join("youtubedl-android"),
+    )
+}
+
+#[cfg(target_os = "android")]
+fn android_ytdlp_script() -> Option<PathBuf> {
+    let p = android_ytdl_base()?.join("yt-dlp").join("yt-dlp");
+    p.exists().then_some(p)
+}
+
+#[cfg(target_os = "android")]
+fn android_python() -> Option<PathBuf> {
+    let p = android_native_lib_dir()?.join("libpython.so");
+    p.exists().then_some(p)
+}
+
 pub async fn find_ytdlp() -> Option<PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        return android_ytdlp_script();
+    }
+    #[cfg(not(target_os = "android"))]
+    find_ytdlp_desktop().await
+}
+
+async fn find_ytdlp_desktop() -> Option<PathBuf> {
     let _timer_start = std::time::Instant::now();
     let bin_name = if cfg!(target_os = "windows") {
         "yt-dlp.exe"
@@ -1614,6 +1668,10 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
 }
 
 pub fn is_ytdlp_zipapp(path: &Path) -> bool {
+    #[cfg(target_os = "android")]
+    if path.file_name().and_then(|n| n.to_str()) == Some("yt-dlp") {
+        return true;
+    }
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| e.eq_ignore_ascii_case("pyz"))
@@ -1706,6 +1764,15 @@ pub async fn find_python() -> Option<PathBuf> {
 
 /// Versão síncrona (bloqueia só na primeira chamada, ~30 ms por candidato).
 fn python_cached() -> Option<PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        return android_python();
+    }
+    #[cfg(not(target_os = "android"))]
+    python_cached_desktop()
+}
+
+fn python_cached_desktop() -> Option<PathBuf> {
     PYTHON_CACHE
         .get_or_init(|| {
             let found = python_candidates().iter().find_map(|c| probe_python(c));
@@ -1791,6 +1858,11 @@ async fn usable_zipapp() -> Option<PathBuf> {
 }
 
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        return android_ytdlp_script()
+            .ok_or_else(|| anyhow!("yt-dlp is still being unpacked, try again in a moment"));
+    }
     let _timer_start = std::time::Instant::now();
 
     // Zipapp primeiro: sem bootstrap de 72 MB por processo. Se não há Python
@@ -2263,6 +2335,11 @@ fn extension_cookie_file() -> Option<std::path::PathBuf> {
 /// yt-dlp standalone binaries cannot discover runtimes from PATH on their
 /// own, so we locate the binary and pass it via `--js-runtimes runtime:path`.
 fn detect_js_runtime() -> Option<String> {
+    #[cfg(target_os = "android")]
+    {
+        let qjs = android_native_lib_dir()?.join("libqjs.so");
+        return qjs.exists().then(|| format!("quickjs:{}", qjs.display()));
+    }
     let runtimes: &[(&str, &str)] = if cfg!(target_os = "windows") {
         &[
             ("node", "node.exe"),
