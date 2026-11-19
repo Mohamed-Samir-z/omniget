@@ -62,8 +62,12 @@ pub fn command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command
             }
         }
     }
-    cmd.env_remove("PYTHONHOME");
-    cmd.env_remove("PYTHONPATH");
+    // On Android the bundled Python needs PYTHONHOME to find its stdlib.
+    #[cfg(not(target_os = "android"))]
+    {
+        cmd.env_remove("PYTHONHOME");
+        cmd.env_remove("PYTHONPATH");
+    }
     cmd.env("PYTHONIOENCODING", "utf-8");
     cmd.env("PYTHONUTF8", "1");
     cmd.env("PYTHONLEGACYWINDOWSSTDIO", "0");
@@ -92,8 +96,12 @@ pub fn std_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Comma
             }
         }
     }
-    cmd.env_remove("PYTHONHOME");
-    cmd.env_remove("PYTHONPATH");
+    // On Android the bundled Python needs PYTHONHOME to find its stdlib.
+    #[cfg(not(target_os = "android"))]
+    {
+        cmd.env_remove("PYTHONHOME");
+        cmd.env_remove("PYTHONPATH");
+    }
     cmd.env("PYTHONIOENCODING", "utf-8");
     cmd.env("PYTHONUTF8", "1");
     cmd.env("PYTHONLEGACYWINDOWSSTDIO", "0");
