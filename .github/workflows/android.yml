@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write # needed to publish the APK as a GitHub Release
 
 jobs:
   apk:
@@ -115,3 +115,16 @@ jobs:
           name: libreget-android-apk
           path: dist/libreget-android.apk
           if-no-files-found: error
+
+      # A Release gives a plain, direct .apk link that works from a phone
+      # browser (workflow artifacts are zipped and their links expire).
+      - name: Publish APK to a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=android-latest
+          gh release delete "$TAG" --cleanup-tag --yes || true
+          gh release create "$TAG" dist/libreget-android.apk \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Android build ${GITHUB_SHA::7}" \
+            --notes "Debug-quality Android build of commit $GITHUB_SHA. Download libreget-android.apk and install it."
