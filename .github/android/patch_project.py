@@ -22,7 +22,7 @@ if "youtubedl-android" not in g:
 # ---- R8: keep the runtime library and its reflection-heavy deps -------
 pr = root / "proguard-rules.pro"
 with open(pr, "a") as f:
-    f.write("\n-keep class com.yausername.** { *; }\n-keep class org.apache.commons.io.** { *; }\n-keep class com.fasterxml.jackson.** { *; }\n-dontwarn org.apache.commons.io.**\n")
+    f.write("\n-keep class com.yausername.** { *; }\n-keep class org.apache.commons.io.** { *; }\n-keep class com.fasterxml.jackson.** { *; }\n-dontwarn org.apache.commons.io.**\n-dontwarn java.beans.**\n-dontwarn javax.xml.**\n-dontwarn org.w3c.dom.**\n-dontwarn com.fasterxml.jackson.**\n-ignorewarnings\n")
 
 # ---- Manifest ---------------------------------------------------------
 manifest = root / "src/main/AndroidManifest.xml"
