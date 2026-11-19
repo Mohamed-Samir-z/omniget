@@ -272,7 +272,6 @@ pub fn run() {
     registry.register(Arc::new(
         libreget_core::platforms::DirectFileDownloader::new(),
     ));
-    #[cfg(not(target_os = "android"))]
     registry.register(Arc::new(
         platforms::generic_ytdlp::GenericYtdlpDownloader::new(),
     ));

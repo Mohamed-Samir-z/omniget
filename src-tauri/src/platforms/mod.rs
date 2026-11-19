@@ -24,6 +24,5 @@ pub mod twitter;
 pub mod bilibili;
 #[cfg(not(target_os = "android"))]
 pub mod gallerydl;
-#[cfg(not(target_os = "android"))]
 pub mod generic_ytdlp;
 // Ported to libreget-core: bluesky, direct_file, douyin, instagram, pinterest, p2p, reddit, tiktok, twitch, twitter, vimeo, youtube

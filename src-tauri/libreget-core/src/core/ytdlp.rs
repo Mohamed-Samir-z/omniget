@@ -1861,7 +1861,16 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     #[cfg(target_os = "android")]
     {
         return android_ytdlp_script()
-            .ok_or_else(|| anyhow!("yt-dlp is still being unpacked, try again in a moment"));
+            .ok_or_else(|| {
+                let diag = std::env::var("HOME")
+                    .ok()
+                    .and_then(|h| std::fs::read_to_string(Path::new(&h).join("ytdl-init-error.txt")).ok())
+                    .map(|t| t.chars().take(600).collect::<String>());
+                match diag {
+                    Some(d) => anyhow!("yt-dlp setup failed: {}", d),
+                    None => anyhow!("yt-dlp is still being unpacked, try again in a moment"),
+                }
+            });
     }
     let _timer_start = std::time::Instant::now();
 

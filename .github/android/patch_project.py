@@ -19,6 +19,11 @@ if "youtubedl-android" not in g:
         g, count=1)
     gradle.write_text(g)
 
+# ---- R8: keep the runtime library and its reflection-heavy deps -------
+pr = root / "proguard-rules.pro"
+with open(pr, "a") as f:
+    f.write("\n-keep class com.yausername.** { *; }\n-keep class org.apache.commons.io.** { *; }\n-keep class com.fasterxml.jackson.** { *; }\n-dontwarn org.apache.commons.io.**\n")
+
 # ---- Manifest ---------------------------------------------------------
 manifest = root / "src/main/AndroidManifest.xml"
 m = manifest.read_text()
@@ -41,7 +46,10 @@ if "YoutubeDL" not in k:
         "      try {\n"
         "        YoutubeDL.getInstance().init(applicationContext)\n"
         "        FFmpeg.getInstance().init(applicationContext)\n"
-        "      } catch (e: Throwable) { android.util.Log.e(\"libreget\", \"runtime init failed\", e) }\n"
+        "      } catch (e: Throwable) {\n"
+        "        android.util.Log.e(\"libreget\", \"runtime init failed\", e)\n"
+        "        try { java.io.File(applicationContext.filesDir, \"ytdl-init-error.txt\").writeText(android.util.Log.getStackTraceString(e)) } catch (_: Throwable) {}\n"
+        "      }\n"
         "    }.start()\n"
     )
     if "onCreate" in k:

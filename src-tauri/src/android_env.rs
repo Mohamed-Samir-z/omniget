@@ -140,5 +140,8 @@ fn setup_media_runtime(internal: &Path, data: &Path) {
         let target = native.join("libffmpeg.so");
         let _ = std::fs::remove_file(&link);
         let _ = std::os::unix::fs::symlink(&target, &link);
+        let probe = bin.join("ffprobe");
+        let _ = std::fs::remove_file(&probe);
+        let _ = std::os::unix::fs::symlink(native.join("libffprobe.so"), &probe);
     }
 }

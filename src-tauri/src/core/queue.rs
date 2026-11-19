@@ -2160,7 +2160,6 @@ async fn fetch_and_cache_info(
             "youtube" => {
                 libreget_core::platforms::YouTubeDownloader::fetch_with_ytdlp(url, ytdlp).await?
             }
-            #[cfg(not(target_os = "android"))]
             "generic" => {
                 if crate::platforms::generic_ytdlp::is_direct_media_url(url).is_some() {
                     downloader.get_media_info(url).await?
