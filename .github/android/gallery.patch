@@ -1,0 +1,220 @@
+diff --git a/src-tauri/libreget-core/src/core/mod.rs b/src-tauri/libreget-core/src/core/mod.rs
+index 2c98d70f..abb71208 100644
+--- a/src-tauri/libreget-core/src/core/mod.rs
++++ b/src-tauri/libreget-core/src/core/mod.rs
+@@ -35,3 +35,6 @@ pub mod spicetify;
+ pub mod subtitle_merge;
+ pub mod tools;
+ pub mod ytdlp;
++
++#[cfg(target_os = "android")]
++pub mod media_names;
+diff --git a/src-tauri/libreget-core/src/platforms/instagram.rs b/src-tauri/libreget-core/src/platforms/instagram.rs
+index f1a1cb12..8faf3b2b 100644
+--- a/src-tauri/libreget-core/src/platforms/instagram.rs
++++ b/src-tauri/libreget-core/src/platforms/instagram.rs
+@@ -834,7 +834,12 @@ impl PlatformDownloader for InstagramDownloader {
+ 
+             let filename = format!(
+                 "{}.{}",
+-                sanitize_filename::sanitize(&info.title),
++                {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                },
+                 quality.format
+             );
+             let output = opts.output_dir.join(&filename);
+@@ -882,7 +887,12 @@ impl PlatformDownloader for InstagramDownloader {
+         for (i, quality) in info.available_qualities.iter().enumerate() {
+             let filename = format!(
+                 "{}_{}.{}",
+-                sanitize_filename::sanitize(&info.title),
++                {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                },
+                 i + 1,
+                 quality.format,
+             );
+diff --git a/src-tauri/libreget-core/src/platforms/tiktok.rs b/src-tauri/libreget-core/src/platforms/tiktok.rs
+index 9b4cbfd1..fdb207d5 100644
+--- a/src-tauri/libreget-core/src/platforms/tiktok.rs
++++ b/src-tauri/libreget-core/src/platforms/tiktok.rs
+@@ -544,7 +544,12 @@ impl PlatformDownloader for TikTokDownloader {
+                     .ok_or_else(|| anyhow!("No video URL available"))?;
+ 
+                 if quality.format == "tiktok_direct" {
+-                    let filename = format!("{}.mp4", sanitize_filename::sanitize(&info.title));
++                    let filename = format!("{}.mp4", {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                });
+                     let output = opts.output_dir.join(&filename);
+ 
+                     let result = direct_downloader::download_direct_with_headers(
+@@ -609,11 +614,21 @@ impl PlatformDownloader for TikTokDownloader {
+ 
+                 for (i, quality) in info.available_qualities.iter().enumerate() {
+                     let filename = if count == 1 {
+-                        format!("{}.jpg", sanitize_filename::sanitize(&info.title))
++                        format!("{}.jpg", {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                })
+                     } else {
+                         format!(
+                             "{}_photo_{}.jpg",
+-                            sanitize_filename::sanitize(&info.title),
++                            {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                },
+                             i + 1
+                         )
+                     };
+@@ -650,7 +665,12 @@ impl PlatformDownloader for TikTokDownloader {
+                     .first()
+                     .ok_or_else(|| anyhow!("No audio URL available"))?;
+ 
+-                let filename = format!("{}.mp3", sanitize_filename::sanitize(&info.title));
++                let filename = format!("{}.mp3", {
++                    #[cfg(target_os = "android")]
++                    { crate::core::media_names::safe_media_stem(&info.title) }
++                    #[cfg(not(target_os = "android"))]
++                    { sanitize_filename::sanitize(&info.title) }
++                });
+                 let output = opts.output_dir.join(&filename);
+ 
+                 let bytes = direct_downloader::download_direct_with_headers(
+diff --git a/src-tauri/src/android_media.rs b/src-tauri/src/android_media.rs
+index 6c72ba15..7019dcce 100644
+--- a/src-tauri/src/android_media.rs
++++ b/src-tauri/src/android_media.rs
+@@ -64,33 +64,39 @@ where
+     }
+ }
+ 
+-/// Asks the system media scanner to index `path` (video, audio or image) so it
+-/// shows up in the gallery and in other players. Directories are ignored.
+-pub fn scan_file(_app: &AppHandle, path: &std::path::Path) {
++/// Register the finalized file and return only after MediaStore confirms its URI.
++/// Must run on a blocking worker, not on the UI or async executor thread.
++pub fn scan_file(path: &std::path::Path) -> Result<String, String> {
+     if !path.is_file() {
+-        return;
++        return Err("media file does not exist".to_string());
+     }
+-    let path = path.to_string_lossy().to_string();
+-    with_context("media scan", move |env, context| {
+-        let jpath = env.new_string(&path)?;
+-        let string_class = env.find_class("java/lang/String")?;
+-        let paths = env.new_object_array(1, &string_class, &jpath)?;
+-        // Passing null for the MIME types lets the scanner infer them from
+-        // the file extension.
+-        let null = JObject::null();
+-        env.call_static_method(
+-            "android/media/MediaScannerConnection",
+-            "scanFile",
+-            "(Landroid/content/Context;[Ljava/lang/String;[Ljava/lang/String;Landroid/media/MediaScannerConnection$OnScanCompletedListener;)V",
+-            &[
+-                JValue::Object(context),
+-                JValue::Object(&paths),
+-                JValue::Object(&null),
+-                JValue::Object(&null),
+-            ],
+-        )?;
+-        Ok(())
+-    });
++    let ctx = ndk_context::android_context();
++    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
++    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
++    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
++    let result = (|| -> JniResult<String> {
++        // Native worker threads need the application class loader for app classes.
++        let loader = env.call_method(&context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
++        let name = env.new_string("com.openselena.libreget.MediaLibrary")?;
++        let class = env.call_method(
++            &loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;",
++            &[JValue::Object(&name)],
++        )?.l()?;
++        let class = jni::objects::JClass::from(class);
++        let path = env.new_string(path.to_string_lossy())?;
++        let uri = env.call_static_method(
++            &class, "register", "(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;",
++            &[JValue::Object(&context), JValue::Object(&path)],
++        )?.l()?;
++        let uri = jni::objects::JString::from(uri);
++        let value: String = env.get_string(&uri)?.into();
++        Ok(value)
++    })();
++    if result.is_err() {
++        // A Java scan failure must not poison JNI calls for later downloads.
++        let _ = env.exception_clear();
++    }
++    result.map_err(|e| format!("MediaStore registration failed: {e}"))
+ }
+ 
+ /// Starts or stops the foreground service that keeps the process alive (with
+diff --git a/src-tauri/src/core/queue.rs b/src-tauri/src/core/queue.rs
+index 2e8d02a8..02113166 100644
+--- a/src-tauri/src/core/queue.rs
++++ b/src-tauri/src/core/queue.rs
+@@ -1901,10 +1901,6 @@ async fn spawn_download_inner(
+                     dl.file_size_bytes
+                 ),
+             );
+-            // Make the file show up in the gallery / media players.
+-            #[cfg(target_os = "android")]
+-            crate::android_media::scan_file(&app, &dl.file_path);
+-
+             let is_seeding = platform_name == "magnet" && dl.torrent_id.is_some();
+             if !is_seeding {
+                 if let Err(msg) = validate_download_output(&dl.file_path).await {
+@@ -1968,6 +1964,36 @@ async fn spawn_download_inner(
+                 }
+             }
+ 
++            // ffmpeg metadata embedding replaces the file. Scan only after
++            // that final rename, and wait for the committed MediaStore URI.
++            #[cfg(target_os = "android")]
++            if !is_seeding {
++                let mut scan_paths = vec![dl.file_path.clone()];
++                // Instagram's direct carousel result contains only the final
++                // path, but each successful item also needs a MediaStore row.
++                if platform_name == "instagram" && info.available_qualities.len() > 1
++                    && !info.available_qualities.iter().any(|q| q.format == "ytdlp")
++                {
++                    let stem = libreget_core::core::media_names::safe_media_stem(&info.title);
++                    for (index, quality) in info.available_qualities.iter().enumerate() {
++                        let path = opts.output_dir.join(format!("{}_{}.{}", stem, index + 1, quality.format));
++                        if path.is_file() && !scan_paths.contains(&path) { scan_paths.push(path); }
++                    }
++                }
++                for scan_path in scan_paths {
++                    let registration = tokio::task::spawn_blocking(move || {
++                        crate::android_media::scan_file(&scan_path)
++                    }).await;
++                    let message = match registration {
++                        Ok(Ok(uri)) => format!("[libreget] MediaStore registered: {uri}"),
++                        Ok(Err(error)) => format!("[libreget] WARNING: file saved, but gallery registration failed: {error}"),
++                        Err(error) => format!("[libreget] WARNING: file saved, but gallery registration worker failed: {error}"),
++                    };
++                    tracing::info!("{}", message);
++                    append_download_log(&app, item_id, message);
++                }
++            }
++
+             if from_hotkey && settings.download.copy_to_clipboard_on_hotkey {
+                 #[cfg(not(target_os = "android"))]
+                 {
