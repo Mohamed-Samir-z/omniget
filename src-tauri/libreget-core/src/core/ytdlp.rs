@@ -462,7 +462,7 @@ pub(crate) fn prepare_override_args(
         args.push("-o".to_string());
         args.push(
             output_dir
-                .join("%(title).200s [%(id)s].%(ext)s")
+                .join(if cfg!(target_os = "android") { "%(title).40s [%(id)s].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
                 .to_string_lossy()
                 .to_string(),
         );
@@ -3354,9 +3354,15 @@ pub async fn download_video(
     } else {
         200
     };
+    #[cfg(target_os = "android")]
+    let max_name = 40_usize;
     let template = filename_template
         .map(|t| t.to_string())
         .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
+    // Android file names are limited to 255 bytes; Arabic/emoji titles take 2-4
+    // bytes per character and yt-dlp adds `.f<id>.<ext>.part`, so keep titles short.
+    #[cfg(target_os = "android")]
+    let template = template.replace("%(title).200s", "%(title).40s");
     let output_template = output_dir.join(&template).to_string_lossy().to_string();
 
     std::fs::create_dir_all(output_dir)?;
@@ -3804,7 +3810,7 @@ pub async fn download_video(
         #[cfg(target_os = "android")]
         {
             if is_youtube {
-                const ANDROID_YT_CLIENTS: [&str; 3] = ["android_vr", "default", "web_safari,mweb"];
+                const ANDROID_YT_CLIENTS: [&str; 3] = ["web_safari", "android_vr", "default"];
                 yt_args.player_client = Some(ANDROID_YT_CLIENTS[attempt.min(2)].to_string());
                 yt_args.formats_dashy = false;
             }
@@ -3826,6 +3832,19 @@ pub async fn download_video(
             &effective_extra_flags,
             url,
         );
+
+        // Verbose output and no `--no-warnings` on Android so "Show log" reveals
+        // why a site fails (JS challenge, PO token, blocked IP, ...).
+        #[cfg(target_os = "android")]
+        {
+            args.retain(|a| a != "--no-warnings");
+            if !args.iter().any(|a| a == "-v" || a == "--verbose") {
+                args.insert(0, "-v".to_string());
+            }
+            if is_youtube && !args.iter().any(|a| a == "--force-ipv4") {
+                args.insert(0, "--force-ipv4".to_string());
+            }
+        }
 
         // A desktop-Chrome User-Agent on an Android-client URL is itself a 403.
         #[cfg(target_os = "android")]
@@ -4045,7 +4064,8 @@ pub async fn download_video(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
-        if is_terminal_ytdlp_error(&stderr_lower) {
+        let android_yt_ladder_left = cfg!(target_os = "android") && is_youtube && attempt + 1 < max_attempts;
+        if is_terminal_ytdlp_error(&stderr_lower) && !android_yt_ladder_left {
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
             tracing::warn!(
                 "[yt-dlp] source is gone, not retrying: {}",

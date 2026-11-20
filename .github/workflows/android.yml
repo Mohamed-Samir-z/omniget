@@ -91,6 +91,10 @@ jobs:
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
             KS=release.keystore; ALIAS="$KEY_ALIAS"; PASS="$KEYSTORE_PASSWORD"
+          elif [ -f .github/android/libreget.keystore ]; then
+            # Stable key kept in the repo so every build is signed the same way
+            # and installs over the previous one without uninstalling first.
+            KS=.github/android/libreget.keystore; ALIAS=libreget; PASS=libreget-android
           else
             # No keystore secrets configured: sign with a throwaway key so the
             # APK installs. Each run then has a different signature, so a new

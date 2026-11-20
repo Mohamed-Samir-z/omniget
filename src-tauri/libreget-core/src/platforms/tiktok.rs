@@ -399,16 +399,27 @@ impl PlatformDownloader for TikTokDownloader {
             }
         };
 
-        if let Ok(info) = self.fallback_ytdlp(&original_url, post_id.as_deref()).await {
-            return Ok(info);
-        }
+        let ytdlp_err = match self.fallback_ytdlp(&original_url, post_id.as_deref()).await {
+            Ok(info) => return Ok(info),
+            Err(e) => e,
+        };
+        tracing::warn!("[tiktok] yt-dlp failed: {}", ytdlp_err);
 
         let pid = post_id.unwrap_or_else(|| "unknown".to_string());
         let detail = match self.fetch_detail(&pid).await {
             Ok(d) => d,
             Err(first_err) => {
                 tracing::warn!("[tiktok] native scraper failed: {}", first_err);
-                return Err(first_err);
+                #[cfg(target_os = "android")]
+                {
+                    let y: String = ytdlp_err.to_string().chars().take(600).collect();
+                    return Err(anyhow!("{first_err} | yt-dlp: {y}"));
+                }
+                #[cfg(not(target_os = "android"))]
+                {
+                    let _ = &ytdlp_err;
+                    return Err(first_err);
+                }
             }
         };
 
