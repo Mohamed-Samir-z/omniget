@@ -298,3 +298,7 @@ skills-lock.json
 /scratch/
 /.scratch/
 
+
+# Android signing material must remain outside version control.
+*.keystore
+*.jks
