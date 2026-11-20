@@ -4184,7 +4184,10 @@ pub async fn download_video(
             // de player_client resolve — o que muda o resultado e o yt-dlp se
             // apresentar como um navegador de verdade. O binario empacotado ja
             // traz curl_cffi, entao o caso comum e ter alvo disponivel.
-            if super::impersonation::stderr_indicates_fingerprint_block(&stderr_lower)
+            // The Android build has no curl_cffi, so `--impersonate` always aborts
+            // with "Impersonate target ... is not available".
+            if !cfg!(target_os = "android")
+                && super::impersonation::stderr_indicates_fingerprint_block(&stderr_lower)
                 && !extra_args.iter().any(|a| a == "--impersonate")
             {
                 match impersonate_targets().await {
