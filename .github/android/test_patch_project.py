@@ -22,6 +22,8 @@ class RuntimeBundleTests(unittest.TestCase):
             (app / "build.gradle.kts").write_text("android { defaultConfig {} }\ndependencies {}\n")
             (app / "src/main/AndroidManifest.xml").write_text("<manifest><application></application></manifest>")
             (root / "src-tauri/libreget-core/src/core").mkdir(parents=True)
+            (root / "src-tauri/icons").mkdir(parents=True)
+            (root / "src-tauri/icons/icon.png").write_bytes(b"icon fixture")
             original = pathlib.Path.cwd()
             try:
                 import os
