@@ -3666,7 +3666,10 @@ pub async fn download_video(
         base_args.push("--embed-metadata".to_string());
     }
 
-    if embed_thumbnail_enabled() {
+    // The bundled Android ffmpeg cannot convert the webp thumbnails YouTube
+    // serves ("Preprocessing: Conversion failed!"), which aborts the whole
+    // download, so thumbnails are never embedded there.
+    if embed_thumbnail_enabled() && !cfg!(target_os = "android") {
         base_args.push("--embed-thumbnail".to_string());
         base_args.push("--convert-thumbnails".to_string());
         base_args.push("jpg".to_string());
@@ -3795,7 +3798,20 @@ pub async fn download_video(
             None
         };
 
-        let args = build_attempt_args(
+        // Android: googlevideo answers 403 to the default (tv) client without a
+        // PO token. `android_vr` needs none, so lead with it and rotate to the
+        // other clients on later attempts. DASH-fragment mode is pointless here.
+        #[cfg(target_os = "android")]
+        {
+            if is_youtube {
+                const ANDROID_YT_CLIENTS: [&str; 3] = ["android_vr", "default", "web_safari,mweb"];
+                yt_args.player_client = Some(ANDROID_YT_CLIENTS[attempt.min(2)].to_string());
+                yt_args.formats_dashy = false;
+            }
+        }
+
+        #[allow(unused_mut)]
+        let mut args = build_attempt_args(
             &base_args,
             is_youtube,
             &yt_args,
@@ -3810,6 +3826,17 @@ pub async fn download_video(
             &effective_extra_flags,
             url,
         );
+
+        // A desktop-Chrome User-Agent on an Android-client URL is itself a 403.
+        #[cfg(target_os = "android")]
+        {
+            if is_youtube {
+                while let Some(pos) = args.iter().position(|a| a == "--user-agent") {
+                    args.remove(pos + 1);
+                    args.remove(pos);
+                }
+            }
+        }
 
         let engine = if use_aria2c && !use_cfb && aria2c_path.is_some() {
             "aria2c"
@@ -4838,6 +4865,11 @@ fn sanitize_log_line(line: &str) -> String {
 /// 429 e rede nunca entram aqui.
 pub(crate) fn is_terminal_ytdlp_error(stderr_lower: &str) -> bool {
     if stderr_lower.contains("http error 429") {
+        return false;
+    }
+    // A 403 on fragments ("fragment 1 not found, unable to continue") is a
+    // client/token problem that another player_client can fix, not a dead URL.
+    if stderr_lower.contains("http error 403") {
         return false;
     }
     const PATTERNS: &[&str] = &[
