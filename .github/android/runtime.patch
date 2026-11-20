@@ -47,9 +47,18 @@ index 0ed1caf6..ca7fb6c7 100644
      fn network_and_rate_limit_still_retry() {
          assert!(!is_terminal_category(
 diff --git a/src-tauri/libreget-core/src/core/ytdlp.rs b/src-tauri/libreget-core/src/core/ytdlp.rs
-index 647f9de1..a16828ea 100644
+index 647f9de1..544017f1 100644
 --- a/src-tauri/libreget-core/src/core/ytdlp.rs
 +++ b/src-tauri/libreget-core/src/core/ytdlp.rs
+@@ -462,7 +462,7 @@ pub(crate) fn prepare_override_args(
+         args.push("-o".to_string());
+         args.push(
+             output_dir
+-                .join(if cfg!(target_os = "android") { "%(title).40s [%(id)s].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
++                .join(if cfg!(target_os = "android") { "%(title,id|download).120B [%(id).32B].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
+                 .to_string_lossy()
+                 .to_string(),
+         );
 @@ -1503,9 +1503,17 @@ pub fn android_ytdl_base() -> Option<PathBuf> {
      )
  }
@@ -108,7 +117,49 @@ index 647f9de1..a16828ea 100644
          let stderr_lower = stderr.to_lowercase();
          if stderr_lower.contains("http error 429") {
              rate_limit_429_increment();
-@@ -3804,16 +3827,12 @@ pub async fn download_video(
+@@ -3355,14 +3378,19 @@ pub async fn download_video(
+         200
+     };
+     #[cfg(target_os = "android")]
+-    let max_name = 40_usize;
++    let max_name = 180_usize;
+     let template = filename_template
+         .map(|t| t.to_string())
+         .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
+-    // Android file names are limited to 255 bytes; Arabic/emoji titles take 2-4
+-    // bytes per character and yt-dlp adds `.f<id>.<ext>.part`, so keep titles short.
++    // Bound UTF-8 bytes, not letters: keep Arabic and emoji intact, while
++    // leaving room below the 255-byte component limit for format/part suffixes.
++    // Missing titles fall back to the ID without another extraction request.
+     #[cfg(target_os = "android")]
+-    let template = template.replace("%(title).200s", "%(title).40s");
++    let template = template
++        .replace("%(title).200s", "%(title,id|download).120B")
++        .replace("%(title).40s", "%(title,id|download).120B")
++        .replace("%(title)s", "%(title,id|download).120B")
++        .replace("%(id)s", "%(id).32B");
+     let output_template = output_dir.join(&template).to_string_lossy().to_string();
+ 
+     std::fs::create_dir_all(output_dir)?;
+@@ -3486,6 +3514,17 @@ pub async fn download_video(
+         "--progress".to_string(),
+     ];
+     base_args.extend(js_runtime_args());
++    #[cfg(target_os = "android")]
++    if url::Url::parse(url).ok().and_then(|parsed| parsed.host_str().map(str::to_owned))
++        .is_some_and(|host| host == "facebook.com" || host.ends_with(".facebook.com") || host == "fb.watch")
++    {
++        // Facebook captions often append a block of hashtags. Keep the title
++        // before the first hashtag; an empty title falls back to the video ID.
++        base_args.extend([
++            "--replace-in-metadata".to_string(), "title".to_string(),
++            r"(?s)\s*[#＃].*$".to_string(), String::new(),
++        ]);
++    }
+ 
+     if mode == "audio" {
+         let target_fmt = audio_format.unwrap_or("m4a");
+@@ -3804,16 +3843,12 @@ pub async fn download_video(
              None
          };
  
