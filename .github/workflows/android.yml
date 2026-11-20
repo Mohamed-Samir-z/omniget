@@ -2,6 +2,12 @@ name: Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Replace android-latest only after the APK is approved"
+        type: boolean
+        required: false
+        default: false
   push:
     branches: [android]
 
@@ -137,6 +143,7 @@ jobs:
       # A Release gives a plain, direct .apk link that works from a phone
       # browser (workflow artifacts are zipped and their links expire).
       - name: Publish APK to a GitHub Release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
