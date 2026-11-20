@@ -30,6 +30,18 @@ class GalleryIntegrationTests(unittest.TestCase):
         self.assertIn('scan_paths.push(path)', queue)
         self.assertIn('for scan_path in scan_paths', queue)
 
+    def test_notifications_use_real_progress_and_a_custom_icon(self):
+        service = Path(__file__).with_name('DownloadService.kt').read_text()
+        self.assertIn('R.drawable.ic_omniget_download', service)
+        self.assertIn('.setProgress(100,', service)
+        self.assertIn('.setOngoing(true)', service)
+        self.assertIn('.setOnlyAlertOnce(true)', service)
+        self.assertIn('PendingIntent.getActivity', service)
+        self.assertIn('stopForeground(STOP_FOREGROUND_REMOVE)', service)
+        queue = (ROOT / 'src-tauri/src/core/queue.rs').read_text()
+        self.assertIn('crate::android_media::update_download_notification', queue)
+        self.assertIn('let total = state.iter().filter', queue)
+
     def test_android_names_are_byte_bounded_and_unicode_safe(self):
         source = (ROOT / 'src-tauri/libreget-core/src/core/ytdlp.rs').read_text()
         self.assertIn('%(title,id|download).120B', source)
