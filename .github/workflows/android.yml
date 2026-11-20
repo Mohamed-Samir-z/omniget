@@ -73,6 +73,9 @@ jobs:
       - name: Generate the Android project
         run: pnpm tauri android init --ci
 
+      - name: Test Android runtime patcher
+        run: python3 .github/android/test_patch_project.py
+
       - name: Bundle yt-dlp, Python and ffmpeg
         run: python3 .github/android/patch_project.py
 
