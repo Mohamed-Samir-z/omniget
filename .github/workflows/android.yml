@@ -79,6 +79,12 @@ jobs:
       - name: Bundle yt-dlp, Python and ffmpeg
         run: python3 .github/android/patch_project.py
 
+      - name: Test gallery registration and filenames
+        run: |
+          python3 .github/android/test_gallery_registration.py
+          rustc --edition 2021 --test .github/android/media_names.rs -o /tmp/media-names-test
+          /tmp/media-names-test
+
       - name: Build release APK
         run: pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
 
