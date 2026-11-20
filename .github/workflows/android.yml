@@ -80,10 +80,14 @@ jobs:
         run: pnpm tauri android init --ci
 
       - name: Test Android runtime patcher
-        run: python3 .github/android/test_patch_project.py
+        run: |
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_download_startup.py
 
       - name: Bundle yt-dlp, Python and ffmpeg
-        run: python3 .github/android/patch_project.py
+        run: |
+          python3 .github/android/patch_project.py
+          python3 .github/android/test_download_startup.py --yt-dlp src-tauri/gen/android/app/src/main/res/raw/omniget_ytdlp
 
       - name: Test gallery registration and filenames
         run: |
