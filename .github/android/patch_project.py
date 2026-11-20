@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
 """Patch the generated Tauri Android project so yt-dlp, Python, QuickJS and
 ffmpeg (youtubedl-android) are bundled and unpacked at startup."""
-import pathlib, re, sys
+import hashlib, io, pathlib, re, sys, urllib.request, zipfile
 
 root = pathlib.Path("src-tauri/gen/android/app")
 VER = "0.18.1"
+# The native runtime library bundles an older yt-dlp. Keep the Python/ffmpeg
+# libraries, but package an independently pinned extractor and its EJS assets.
+YTDLP_VERSION = "2026.10.26"
+YTDLP_SHA256 = "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3"
+YTDLP_URL = f"https://github.com/yt-dlp/yt-dlp/releases/download/{YTDLP_VERSION}/yt-dlp"
+with urllib.request.urlopen(YTDLP_URL, timeout=60) as response:
+    ytdlp_bundle = response.read()
+if hashlib.sha256(ytdlp_bundle).hexdigest() != YTDLP_SHA256:
+    sys.exit("Pinned yt-dlp checksum mismatch; refusing to bundle")
+with zipfile.ZipFile(io.BytesIO(ytdlp_bundle)) as archive:
+    for required in ("yt_dlp/version.py", "yt_dlp_ejs/yt/solver/core.min.js",
+                     "yt_dlp_ejs/yt/solver/lib.min.js"):
+        if required not in archive.namelist():
+            sys.exit(f"Pinned yt-dlp is missing required asset: {required}")
+raw = root / "src/main/res/raw"
+raw.mkdir(parents=True, exist_ok=True)
+(raw / "omniget_ytdlp").write_bytes(ytdlp_bundle)
+print(f"Bundled verified yt-dlp {YTDLP_VERSION} with EJS solver assets")
 
 # ---- Gradle -----------------------------------------------------------
 gradle = root / "build.gradle.kts"
@@ -72,6 +90,22 @@ if "YoutubeDL" not in k:
         "\n    Thread {\n"
         "      try {\n"
         "        YoutubeDL.getInstance().init(applicationContext)\n"
+        "        val runtimeDir = java.io.File(applicationContext.noBackupFilesDir, \"youtubedl-android/yt-dlp\")\n"
+        "        val script = java.io.File(runtimeDir, \"yt-dlp\")\n"
+        f"        val expectedHash = \"{YTDLP_SHA256}\"\n"
+        "        fun digest(file: java.io.File): String {\n"
+        "          val hash = java.security.MessageDigest.getInstance(\"SHA-256\")\n"
+        "          file.inputStream().use { input -> val buffer = ByteArray(65536); while (true) { val n = input.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) } }\n"
+        "          return hash.digest().joinToString(\"\") { \"%02x\".format(it.toInt() and 255) }\n"
+        "        }\n"
+        "        if (!script.exists() || digest(script) != expectedHash) {\n"
+        "          val pending = java.io.File(runtimeDir, \"yt-dlp.pending\")\n"
+        "          applicationContext.resources.openRawResource(R.raw.omniget_ytdlp).use { input -> pending.outputStream().use { output -> input.copyTo(output) } }\n"
+        "          check(digest(pending) == expectedHash) { \"Bundled yt-dlp checksum mismatch\" }\n"
+        "          check(java.io.File(runtimeDir, \"app\").let { !it.exists() || it.deleteRecursively() }) { \"Could not clear stale yt-dlp cache\" }\n"
+        "          check(pending.renameTo(script)) { \"Could not replace bundled yt-dlp\" }\n"
+        "        }\n"
+        "        java.io.File(runtimeDir, \".bundle-sha256\").writeText(expectedHash)\n"
         "        FFmpeg.getInstance().init(applicationContext)\n        java.io.File(applicationContext.filesDir, \"runtime-ready\").writeText(\"1\")\n"
         "      } catch (e: Throwable) {\n"
         "        android.util.Log.e(\"libreget\", \"runtime init failed\", e)\n"
