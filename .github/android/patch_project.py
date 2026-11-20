@@ -138,52 +138,37 @@ if "YoutubeDL" not in k:
     pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
     media_template = pathlib.Path(__file__).resolve().with_name("MediaLibrary.kt").read_text()
     (act.parent / "MediaLibrary.kt").write_text(media_template.replace("@PACKAGE@", pkg))
-    (act.parent / "DownloadService.kt").write_text(f"""package {pkg}
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
-import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.os.Build
-import android.os.IBinder
-import android.os.PowerManager
-
-/** Keeps the process alive while the app is in the background so downloads continue. */
-class DownloadService : Service() {{
-    private var wake: PowerManager.WakeLock? = null
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {{
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) {{
-            nm.createNotificationChannel(NotificationChannel("downloads", "Downloads", NotificationManager.IMPORTANCE_LOW))
-        }}
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "downloads") else Notification.Builder(this)
-        val n = builder
-            .setContentTitle("OmniGet")
-            .setContentText("Downloads keep running in the background")
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setOngoing(true)
-            .build()
-        try {{
-            if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-            else startForeground(1, n)
-        }} catch (e: Throwable) {{ android.util.Log.e("libreget", "startForeground failed", e) }}
-        if (wake == null) {{
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
-            wake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "libreget:downloads").also {{ it.acquire() }}
-        }}
-        return START_STICKY
-    }}
-
-    override fun onDestroy() {{
-        try {{ wake?.release() }} catch (_: Throwable) {{}}
-        super.onDestroy()
-    }}
-}}
-""")
+    service_template = pathlib.Path(__file__).resolve().with_name("DownloadService.kt").read_text()
+    (act.parent / "DownloadService.kt").write_text(service_template.replace("@PACKAGE@", pkg))
+    drawable = root / "src/main/res/drawable"
+    drawable.mkdir(parents=True, exist_ok=True)
+    (drawable / "ic_omniget_download.xml").write_text(
+        pathlib.Path(__file__).resolve().with_name("ic_omniget_download.xml").read_text())
+    # Preserve the existing duck/penguin artwork chosen by the owner.
+    import shutil
+    icon = pathlib.Path("src-tauri/icons/icon.png")
+    for density in ("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"):
+        target = root / f"src/main/res/mipmap-{density}"
+        target.mkdir(parents=True, exist_ok=True)
+        for name in ("ic_launcher", "ic_launcher_round"):
+            for old in target.glob(f"{name}.*"):
+                old.unlink()
+            shutil.copyfile(icon, target / f"{name}.png")
+    # Do not leave generated adaptive placeholders overriding the chosen icon.
+    for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+        for old in (root / "src/main/res").glob(f"mipmap-anydpi*/{name}"):
+            old.unlink()
+    m = manifest.read_text()
+    for attr, value in (("label", "omniget"), ("icon", "@mipmap/ic_launcher"), ("roundIcon", "@mipmap/ic_launcher_round")):
+        if f"android:{attr}=" in m:
+            m = re.sub(rf'android:{attr}="[^"]*"', f'android:{attr}="{value}"', m)
+        else:
+            m = m.replace("<application", f'<application android:{attr}="{value}"', 1)
+    manifest.write_text(m)
+    # Android UI branding only; package ID and signing/update identity stay put.
+    for locale in pathlib.Path("src/lib/i18n").glob("*.json"):
+        text = locale.read_text()
+        text = re.sub(r'("hero_title"\s*:\s*)"LibreGet"', r'\1"omniget"', text)
+        locale.write_text(text)
 print(act.read_text())
 print(gradle.read_text())
