@@ -60,7 +60,6 @@ if "YoutubeDL" not in k:
     svc = (
         "\n    try {\n"
         "      if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(\"android.permission.POST_NOTIFICATIONS\"), 1)\n"
-        "      androidx.core.content.ContextCompat.startForegroundService(this, android.content.Intent(this, DownloadService::class.java))\n"
         "      val prefs = getSharedPreferences(\"libreget\", 0)\n"
         "      val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager\n"
         "      if (!prefs.getBoolean(\"battery_asked\", false) && !pm.isIgnoringBatteryOptimizations(packageName)) {\n"

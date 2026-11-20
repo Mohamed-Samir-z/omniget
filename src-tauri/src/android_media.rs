@@ -34,14 +34,44 @@ where
         .map_err(|e| e.to_string())
 }
 
+/// Runs `f` with a JNI environment and the application context from *any*
+/// thread, whether or not the activity is currently in the foreground. The
+/// webview-thread route used by `run_on_activity` only runs while the app is on
+/// screen, which would delay gallery indexing until the user came back.
+fn with_context<F>(what: &'static str, f: F)
+where
+    F: FnOnce(&mut JNIEnv, &JObject) -> JniResult<()>,
+{
+    let ctx = ndk_context::android_context();
+    let vm = match unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) } {
+        Ok(vm) => vm,
+        Err(e) => {
+            tracing::warn!("[android] {}: no JavaVM: {}", what, e);
+            return;
+        }
+    };
+    let mut env = match vm.attach_current_thread() {
+        Ok(env) => env,
+        Err(e) => {
+            tracing::warn!("[android] {}: attach failed: {}", what, e);
+            return;
+        }
+    };
+    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+    if let Err(e) = f(&mut env, &context) {
+        tracing::warn!("[android] {} failed: {}", what, e);
+        let _ = env.exception_clear();
+    }
+}
+
 /// Asks the system media scanner to index `path` (video, audio or image) so it
 /// shows up in the gallery and in other players. Directories are ignored.
-pub fn scan_file(app: &AppHandle, path: &std::path::Path) {
+pub fn scan_file(_app: &AppHandle, path: &std::path::Path) {
     if !path.is_file() {
         return;
     }
     let path = path.to_string_lossy().to_string();
-    let _ = run_on_activity(app, "media scan", move |env, activity| {
+    with_context("media scan", move |env, context| {
         let jpath = env.new_string(&path)?;
         let string_class = env.find_class("java/lang/String")?;
         let paths = env.new_object_array(1, &string_class, &jpath)?;
@@ -53,12 +83,58 @@ pub fn scan_file(app: &AppHandle, path: &std::path::Path) {
             "scanFile",
             "(Landroid/content/Context;[Ljava/lang/String;[Ljava/lang/String;Landroid/media/MediaScannerConnection$OnScanCompletedListener;)V",
             &[
-                JValue::Object(activity),
+                JValue::Object(context),
                 JValue::Object(&paths),
                 JValue::Object(&null),
                 JValue::Object(&null),
             ],
         )?;
+        Ok(())
+    });
+}
+
+/// Starts or stops the foreground service that keeps the process alive (with
+/// its notification) so downloads continue in the background. It runs only
+/// while something is downloading.
+pub fn set_download_service(active: bool) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static RUNNING: AtomicBool = AtomicBool::new(false);
+    if RUNNING.swap(active, Ordering::SeqCst) == active {
+        return;
+    }
+    with_context("download service", move |env, context| {
+        let loader = env
+            .call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?
+            .l()?;
+        let name = env.new_string("com.openselena.libreget.DownloadService")?;
+        let class = env
+            .call_method(
+                &loader,
+                "loadClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                &[JValue::Object(&name)],
+            )?
+            .l()?;
+        let intent = env.new_object(
+            "android/content/Intent",
+            "(Landroid/content/Context;Ljava/lang/Class;)V",
+            &[JValue::Object(context), JValue::Object(&class)],
+        )?;
+        if active {
+            env.call_method(
+                context,
+                "startForegroundService",
+                "(Landroid/content/Intent;)Landroid/content/ComponentName;",
+                &[JValue::Object(&intent)],
+            )?;
+        } else {
+            env.call_method(
+                context,
+                "stopService",
+                "(Landroid/content/Intent;)Z",
+                &[JValue::Object(&intent)],
+            )?;
+        }
         Ok(())
     });
 }

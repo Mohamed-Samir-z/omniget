@@ -1115,6 +1115,12 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
     let total = crate::tray::compute_total_active(app);
     crate::tray::update_active_count(app, total);
     crate::core::awake::sync(total > 0);
+    // Android has no tray to count active items, so derive it from the queue
+    // and run the foreground service (notification + wake lock) only then.
+    #[cfg(target_os = "android")]
+    crate::android_media::set_download_service(
+        state.iter().any(|i| i.status == QueueStatus::Active),
+    );
 
     let active_items: Vec<_> = state
         .iter()

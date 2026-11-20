@@ -33,7 +33,12 @@ pub fn rebuild_menu(
     Ok(())
 }
 
-pub fn update_active_count(_app: &AppHandle, _count: u32) {}
+pub fn update_active_count(_app: &AppHandle, _count: u32) {
+    // No tray on a phone: use the count to run the foreground service (and its
+    // notification) only while downloads are actually active.
+    #[cfg(target_os = "android")]
+    crate::android_media::set_download_service(_count > 0);
+}
 
 pub fn update_speed_tooltip(_app: &AppHandle, _count: u32, _total_speed_bps: f64) {}
 
