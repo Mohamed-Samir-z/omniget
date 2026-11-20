@@ -98,10 +98,10 @@ index 9b4cbfd1..fdb207d5 100644
  
                  let bytes = direct_downloader::download_direct_with_headers(
 diff --git a/src-tauri/src/android_media.rs b/src-tauri/src/android_media.rs
-index 6c72ba15..7019dcce 100644
+index 6c72ba15..ab030290 100644
 --- a/src-tauri/src/android_media.rs
 +++ b/src-tauri/src/android_media.rs
-@@ -64,33 +64,39 @@ where
+@@ -64,31 +64,54 @@ where
      }
  }
  
@@ -134,8 +134,6 @@ index 6c72ba15..7019dcce 100644
 -                JValue::Object(&null),
 -            ],
 -        )?;
--        Ok(())
--    });
 +    let ctx = ndk_context::android_context();
 +    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| e.to_string())?;
 +    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
@@ -163,14 +161,74 @@ index 6c72ba15..7019dcce 100644
 +        let _ = env.exception_clear();
 +    }
 +    result.map_err(|e| format!("MediaStore registration failed: {e}"))
++}
++
++/// Update the existing queue notification from already available progress.
++pub fn update_download_notification(title: &str, percent: i32, count: u32) {
++    if count == 0 { return; }
++    let title = title.to_string();
++    with_context("download notification", move |env, context| {
++        let loader = env.call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
++        let name = env.new_string("com.openselena.libreget.DownloadService")?;
++        let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
++        let class = jni::objects::JClass::from(class);
++        let title = env.new_string(&title)?;
++        env.call_static_method(&class, "update", "(Ljava/lang/String;II)V", &[
++            JValue::Object(&title), JValue::Int(percent), JValue::Int(count as i32),
++        ])?;
+         Ok(())
+     });
  }
- 
- /// Starts or stops the foreground service that keeps the process alive (with
 diff --git a/src-tauri/src/core/queue.rs b/src-tauri/src/core/queue.rs
-index 2e8d02a8..02113166 100644
+index 2e8d02a8..c7c6b5ad 100644
 --- a/src-tauri/src/core/queue.rs
 +++ b/src-tauri/src/core/queue.rs
-@@ -1901,10 +1901,6 @@ async fn spawn_download_inner(
+@@ -1112,7 +1112,10 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
+         tracing::debug!("[perf] emit_queue_state called {} times", n);
+     }
+     let _ = app.emit("queue-state-update", &state);
++    #[cfg(not(target_os = "android"))]
+     let total = crate::tray::compute_total_active(app);
++    #[cfg(target_os = "android")]
++    let total = state.iter().filter(|item| item.status == QueueStatus::Active).count() as u32;
+     crate::tray::update_active_count(app, total);
+     crate::core::awake::sync(total > 0);
+     // Android has no tray to count active items, so derive it from the queue
+@@ -1135,12 +1138,16 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
+     let total_speed: f64 = active_items.iter().map(|i| i.speed_bytes_per_sec).sum();
+     crate::tray::update_speed_tooltip(app, total, total_speed);
+     crate::tray::update_taskbar_badge(app, total, avg_percent);
++    #[cfg(target_os = "android")]
++    if let Some(item) = active_items.first() {
++        crate::android_media::update_download_notification(&item.title, (avg_percent * 100.0) as i32, total);
++    }
+ 
+     if let Some(window) = app.get_webview_window("main") {
+         let title = if total > 0 {
+-            format!("({}) LibreGet", total)
++            format!("({}) {}", total, if cfg!(target_os = "android") { "omniget" } else { "LibreGet" })
+         } else {
+-            "LibreGet".into()
++            if cfg!(target_os = "android") { "omniget".into() } else { "LibreGet".into() }
+         };
+         let _ = window.set_title(&title);
+     }
+@@ -1794,6 +1801,14 @@ async fn spawn_download_inner(
+                     current_fragment,
+                     update.planned_formats.as_ref(),
+                 );
++                #[cfg(target_os = "android")]
++                {
++                    let active: Vec<_> = q.items.iter().filter(|item| item.status == QueueStatus::Active).collect();
++                    let count = active.len() as u32;
++                    let percent = if count > 0 { active.iter().map(|item| item.percent).sum::<f64>() / count as f64 } else { 0.0 };
++                    crate::android_media::update_download_notification(&item_title, if phase_value < 0.0 { -1 } else { percent as i32 }, count);
++                }
++
+             }
+ 
+             let _ = app_progress.emit(
+@@ -1901,10 +1916,6 @@ async fn spawn_download_inner(
                      dl.file_size_bytes
                  ),
              );
@@ -181,7 +239,7 @@ index 2e8d02a8..02113166 100644
              let is_seeding = platform_name == "magnet" && dl.torrent_id.is_some();
              if !is_seeding {
                  if let Err(msg) = validate_download_output(&dl.file_path).await {
-@@ -1968,6 +1964,36 @@ async fn spawn_download_inner(
+@@ -1968,6 +1979,36 @@ async fn spawn_download_inner(
                  }
              }
  
