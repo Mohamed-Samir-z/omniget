@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Patch the generated Tauri Android project so yt-dlp, Python, QuickJS and
 ffmpeg (youtubedl-android) are bundled and unpacked at startup."""
-import hashlib, io, pathlib, re, sys, urllib.request, zipfile
+import hashlib, io, pathlib, re, subprocess, sys, urllib.request, zipfile
 
 root = pathlib.Path("src-tauri/gen/android/app")
+# Android-only source changes live in a reviewable patch instead of changing
+# desktop behavior. Fail closed if upstream changed and the patch no longer fits.
+runtime_patch = pathlib.Path(__file__).resolve().with_name("runtime.patch")
+subprocess.run(["git", "apply", "--check", str(runtime_patch)], check=True)
+subprocess.run(["git", "apply", str(runtime_patch)], check=True)
 VER = "0.18.1"
 # The native runtime library bundles an older yt-dlp. Keep the Python/ffmpeg
 # libraries, but package an independently pinned extractor and its EJS assets.
