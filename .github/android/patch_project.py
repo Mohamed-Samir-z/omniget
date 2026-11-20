@@ -9,6 +9,12 @@ root = pathlib.Path("src-tauri/gen/android/app")
 runtime_patch = pathlib.Path(__file__).resolve().with_name("runtime.patch")
 subprocess.run(["git", "apply", "--check", str(runtime_patch)], check=True)
 subprocess.run(["git", "apply", str(runtime_patch)], check=True)
+gallery_patch = pathlib.Path(__file__).resolve().with_name("gallery.patch")
+subprocess.run(["git", "apply", "--check", str(gallery_patch)], check=True)
+subprocess.run(["git", "apply", str(gallery_patch)], check=True)
+media_names = pathlib.Path("src-tauri/libreget-core/src/core/media_names.rs")
+media_names.parent.mkdir(parents=True, exist_ok=True)
+media_names.write_text(pathlib.Path(__file__).resolve().with_name("media_names.rs").read_text())
 VER = "0.18.1"
 # The native runtime library bundles an older yt-dlp. Keep the Python/ffmpeg
 # libraries, but package an independently pinned extractor and its EJS assets.
@@ -130,6 +136,8 @@ if "YoutubeDL" not in k:
             k = re.sub(r"(TauriActivity\(\))", r"\1 " + body.replace("\\", "\\\\"), k, count=1)
     act.write_text(k)
     pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
+    media_template = pathlib.Path(__file__).resolve().with_name("MediaLibrary.kt").read_text()
+    (act.parent / "MediaLibrary.kt").write_text(media_template.replace("@PACKAGE@", pkg))
     (act.parent / "DownloadService.kt").write_text(f"""package {pkg}
 
 import android.app.Notification
