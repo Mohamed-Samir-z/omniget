@@ -21,6 +21,7 @@ class RuntimeBundleTests(unittest.TestCase):
             kotlin.write_text("package com.example\nimport android.os.Bundle\nclass MainActivity : TauriActivity()\n")
             (app / "build.gradle.kts").write_text("android { defaultConfig {} }\ndependencies {}\n")
             (app / "src/main/AndroidManifest.xml").write_text("<manifest><application></application></manifest>")
+            (root / "src-tauri/libreget-core/src/core").mkdir(parents=True)
             original = pathlib.Path.cwd()
             try:
                 import os
