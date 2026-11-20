@@ -80,42 +80,35 @@ jobs:
         run: pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
 
       - name: Sign the APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+          KEYSTORE="$RUNNER_TEMP/omniget-release.keystore"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+
           UNSIGNED="$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)"
           test -n "$UNSIGNED" || { echo "no unsigned APK found"; exit 1; }
-
           BT="$ANDROID_HOME/build-tools/34.0.0"
           mkdir -p dist
-
-          if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-            KS=release.keystore; ALIAS="$KEY_ALIAS"; PASS="$KEYSTORE_PASSWORD"
-          elif [ -f .github/android/libreget.keystore ]; then
-            # Stable key kept in the repo so every build is signed the same way
-            # and installs over the previous one without uninstalling first.
-            KS=.github/android/libreget.keystore; ALIAS=libreget; PASS=libreget-android
-          else
-            # No keystore secrets configured: sign with a throwaway key so the
-            # APK installs. Each run then has a different signature, so a new
-            # APK must be installed over an uninstalled old one. Add the
-            # secrets below to keep updates in place.
-            keytool -genkeypair -v -keystore release.keystore -alias libreget \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android -dname "CN=LibreGet Android"
-            KS=release.keystore; ALIAS=libreget; PASS=android
-          fi
-
           "$BT/zipalign" -f -p 4 "$UNSIGNED" dist/aligned.apk
-          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ALIAS" \
-            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+          "$BT/apksigner" sign --ks "$KEYSTORE" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
             --out dist/libreget-android.apk dist/aligned.apk
-          "$BT/apksigner" verify dist/libreget-android.apk
+          "$BT/apksigner" verify --verbose dist/libreget-android.apk
           rm dist/aligned.apk
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
       - name: Inspect the signed APK
         run: |
