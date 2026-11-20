@@ -1,0 +1,132 @@
+diff --git a/src-tauri/libreget-core/src/core/errors.rs b/src-tauri/libreget-core/src/core/errors.rs
+index 0ed1caf6..ca7fb6c7 100644
+--- a/src-tauri/libreget-core/src/core/errors.rs
++++ b/src-tauri/libreget-core/src/core/errors.rs
+@@ -16,7 +16,7 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
+     if lower.contains("fragment") && (lower.contains("not found") || lower.contains("404"))
+         || lower.contains("downloaded file is empty")
+         || lower.contains("conflicting range")
+-        || lower.contains("unable to download video data")
++        || lower.contains("unable to download video data") && lower.contains("404")
+         || lower.contains("no video formats found")
+     {
+         return (
+@@ -38,11 +38,18 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
+         || lower.contains("login")
+         || lower.contains("sign in")
+         || lower.contains("authentication")
+-        || lower.contains("403")
+     {
++        #[cfg(target_os = "android")]
++        return ("auth_required", "The site requested login or browser cookies. A public link can also be rate-limited. Check the download log for details.");
++        #[cfg(not(target_os = "android"))]
+         return ("auth_required", "This content requires login. Install the browser extension and visit the site while logged in.");
+     }
+ 
++    // A media URL can expire or be blocked without requiring an account.
++    if lower.contains("403") || lower.contains("forbidden") {
++        return ("access_denied", "The site denied access (HTTP 403). This may be a blocked or expired media URL, not necessarily a login requirement.");
++    }
++
+     if lower.contains("captcha")
+         || lower.contains("blocking")
+         || lower.contains("rate limit")
+@@ -118,6 +125,14 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn forbidden_is_not_evidence_of_login() {
++        for message in ["HTTP Error 403: Forbidden", "ERROR: unable to download video data: HTTP Error 403"] {
++            assert_eq!(classify_download_error(message).0, "access_denied");
++        }
++        assert_eq!(classify_download_error("HTTP 403: login required").0, "auth_required");
++    }
++
+     #[test]
+     fn network_and_rate_limit_still_retry() {
+         assert!(!is_terminal_category(
+diff --git a/src-tauri/libreget-core/src/core/ytdlp.rs b/src-tauri/libreget-core/src/core/ytdlp.rs
+index 647f9de1..a16828ea 100644
+--- a/src-tauri/libreget-core/src/core/ytdlp.rs
++++ b/src-tauri/libreget-core/src/core/ytdlp.rs
+@@ -1503,9 +1503,17 @@ pub fn android_ytdl_base() -> Option<PathBuf> {
+     )
+ }
+ 
++#[cfg(target_os = "android")]
++const ANDROID_YTDLP_BUNDLE_SHA256: &str = "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3";
++
+ #[cfg(target_os = "android")]
+ fn android_ytdlp_script() -> Option<PathBuf> {
+     let dir = android_ytdl_base()?.join("yt-dlp");
++    // Wait for MainActivity to install the pinned bundle before exposing an
++    // old library script or a stale precompiled directory during an upgrade.
++    if std::fs::read_to_string(dir.join(".bundle-sha256")).ok()?.trim() != ANDROID_YTDLP_BUNDLE_SHA256 {
++        return None;
++    }
+     // Preferred: the zipapp unpacked into a directory whose bytecode has been
+     // precompiled (see `android_prepare_ytdlp`). Python can run a directory
+     // with a `__main__.py` directly and then reuses its `__pycache__`, which
+@@ -1530,9 +1538,12 @@ pub fn android_prepare_ytdlp() {
+             let Some(base) = android_ytdl_base() else { return };
+             let ready_flag = Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
+             for _ in 0..240 {
+-                if ready_flag.exists() { break; }
++                let bundle_ready = std::fs::read_to_string(base.join("yt-dlp/.bundle-sha256"))
++                    .is_ok_and(|hash| hash.trim() == ANDROID_YTDLP_BUNDLE_SHA256);
++                if ready_flag.exists() && bundle_ready { break; }
+                 std::thread::sleep(std::time::Duration::from_millis(500));
+             }
++            if android_ytdlp_script().is_none() { return; }
+             let Some(py) = android_python() else { return };
+             let zip = base.join("yt-dlp").join("yt-dlp");
+             let app = base.join("yt-dlp").join("app");
+@@ -2657,6 +2668,8 @@ pub async fn get_video_info(
+             args.push(proxy_url);
+         }
+         args.extend(effective_extra_flags.iter().cloned());
++        #[cfg(target_os = "android")]
++        args.retain(|arg| arg != "--no-warnings");
+         args.push(url.to_string());
+ 
+         let _slot = acquire_ytdlp_slot("video info").await;
+@@ -2725,6 +2738,16 @@ pub async fn get_video_info(
+             stderr.len(),
+             stderr.trim()
+         );
++        // Android's on-device log needs the actual extractor warnings, not
++        // only the translated final error. Keep the existing redaction path.
++        #[cfg(target_os = "android")]
++        if let Some(dl_id) = log_hook::current_download_id() {
++            for line in stderr.lines().filter(|line| {
++                line.contains("WARNING:") || line.contains("ERROR:")
++            }).take(12) {
++                log_hook::emit_log(dl_id, &sanitize_log_line(line));
++            }
++        }
+         let stderr_lower = stderr.to_lowercase();
+         if stderr_lower.contains("http error 429") {
+             rate_limit_429_increment();
+@@ -3804,16 +3827,12 @@ pub async fn download_video(
+             None
+         };
+ 
+-        // Android: googlevideo answers 403 to the default (tv) client without a
+-        // PO token. `android_vr` needs none, so lead with it and rotate to the
+-        // other clients on later attempts. DASH-fragment mode is pointless here.
++        // Preserve the latest extractor's default client choice and any
++        // error-driven retry choice. The old Android rotation overwrote both,
++        // including the requested-format fallback back to yt-dlp defaults.
+         #[cfg(target_os = "android")]
+-        {
+-            if is_youtube {
+-                const ANDROID_YT_CLIENTS: [&str; 3] = ["web_safari", "android_vr", "default"];
+-                yt_args.player_client = Some(ANDROID_YT_CLIENTS[attempt.min(2)].to_string());
+-                yt_args.formats_dashy = false;
+-            }
++        if is_youtube {
++            yt_args.formats_dashy = false;
+         }
+ 
+         #[allow(unused_mut)]
