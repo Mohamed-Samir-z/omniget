@@ -1954,7 +1954,7 @@ async fn spawn_download_inner(
             append_download_log(
                 &app,
                 item_id,
-                "[clip] Normalizing clip timestamps and duration for sharing".into(),
+                "[clip] Normalizing clip timestamps and duration for sharing",
             );
             let (path, duration) = crate::core::clip::finish(
                 &result.file_path,
