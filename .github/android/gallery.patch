@@ -1,16 +1,16 @@
 diff --git a/src-tauri/libreget-core/src/core/mod.rs b/src-tauri/libreget-core/src/core/mod.rs
-index 2c98d70f..abb71208 100644
+index 49b4422..276afaf 100644
 --- a/src-tauri/libreget-core/src/core/mod.rs
 +++ b/src-tauri/libreget-core/src/core/mod.rs
-@@ -35,3 +35,6 @@ pub mod spicetify;
- pub mod subtitle_merge;
+@@ -35,3 +35,6 @@ pub mod subtitle_merge;
  pub mod tools;
+ pub mod trash_compat;
  pub mod ytdlp;
 +
 +#[cfg(target_os = "android")]
 +pub mod media_names;
 diff --git a/src-tauri/libreget-core/src/platforms/instagram.rs b/src-tauri/libreget-core/src/platforms/instagram.rs
-index f1a1cb12..8faf3b2b 100644
+index 4fdd1f7..66920ec 100644
 --- a/src-tauri/libreget-core/src/platforms/instagram.rs
 +++ b/src-tauri/libreget-core/src/platforms/instagram.rs
 @@ -834,7 +834,12 @@ impl PlatformDownloader for InstagramDownloader {
@@ -42,7 +42,7 @@ index f1a1cb12..8faf3b2b 100644
                  quality.format,
              );
 diff --git a/src-tauri/libreget-core/src/platforms/tiktok.rs b/src-tauri/libreget-core/src/platforms/tiktok.rs
-index 9b4cbfd1..fdb207d5 100644
+index 9b4cbfd..fdb207d 100644
 --- a/src-tauri/libreget-core/src/platforms/tiktok.rs
 +++ b/src-tauri/libreget-core/src/platforms/tiktok.rs
 @@ -544,7 +544,12 @@ impl PlatformDownloader for TikTokDownloader {
@@ -98,7 +98,7 @@ index 9b4cbfd1..fdb207d5 100644
  
                  let bytes = direct_downloader::download_direct_with_headers(
 diff --git a/src-tauri/src/android_media.rs b/src-tauri/src/android_media.rs
-index 6c72ba15..ab030290 100644
+index 6c72ba1..ab03029 100644
 --- a/src-tauri/src/android_media.rs
 +++ b/src-tauri/src/android_media.rs
 @@ -64,31 +64,54 @@ where
@@ -180,10 +180,10 @@ index 6c72ba15..ab030290 100644
      });
  }
 diff --git a/src-tauri/src/core/queue.rs b/src-tauri/src/core/queue.rs
-index 2e8d02a8..c7c6b5ad 100644
+index dcaf5e3..2c4e1f7 100644
 --- a/src-tauri/src/core/queue.rs
 +++ b/src-tauri/src/core/queue.rs
-@@ -1112,7 +1112,10 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
+@@ -1116,7 +1116,10 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
          tracing::debug!("[perf] emit_queue_state called {} times", n);
      }
      let _ = app.emit("queue-state-update", &state);
@@ -194,7 +194,7 @@ index 2e8d02a8..c7c6b5ad 100644
      crate::tray::update_active_count(app, total);
      crate::core::awake::sync(total > 0);
      // Android has no tray to count active items, so derive it from the queue
-@@ -1135,12 +1138,16 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
+@@ -1139,12 +1142,16 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
      let total_speed: f64 = active_items.iter().map(|i| i.speed_bytes_per_sec).sum();
      crate::tray::update_speed_tooltip(app, total, total_speed);
      crate::tray::update_taskbar_badge(app, total, avg_percent);
@@ -213,7 +213,7 @@ index 2e8d02a8..c7c6b5ad 100644
          };
          let _ = window.set_title(&title);
      }
-@@ -1794,6 +1801,14 @@ async fn spawn_download_inner(
+@@ -1801,6 +1808,14 @@ async fn spawn_download_inner(
                      current_fragment,
                      update.planned_formats.as_ref(),
                  );
@@ -228,7 +228,7 @@ index 2e8d02a8..c7c6b5ad 100644
              }
  
              let _ = app_progress.emit(
-@@ -1901,10 +1916,6 @@ async fn spawn_download_inner(
+@@ -1908,10 +1923,6 @@ async fn spawn_download_inner(
                      dl.file_size_bytes
                  ),
              );
@@ -239,7 +239,7 @@ index 2e8d02a8..c7c6b5ad 100644
              let is_seeding = platform_name == "magnet" && dl.torrent_id.is_some();
              if !is_seeding {
                  if let Err(msg) = validate_download_output(&dl.file_path).await {
-@@ -1968,6 +1979,36 @@ async fn spawn_download_inner(
+@@ -1975,6 +1986,36 @@ async fn spawn_download_inner(
                  }
              }
  
