@@ -70,7 +70,7 @@ pub enum WalRecord {
         #[serde(default)]
         position: u32,
         #[serde(default)]
-        options: RecoveryOptions,
+        options: Box<RecoveryOptions>,
     },
     Started {
         id: u64,
@@ -192,7 +192,7 @@ pub fn replay(records: &[WalRecord]) -> Vec<RecoveredItem> {
                         format_id: format_id.clone(),
                         referer: referer.clone(),
                         position: *position,
-                        options: options.clone(),
+                        options: options.as_ref().clone(),
                         percent: 0.0,
                         was_running: false,
                     },
@@ -277,7 +277,7 @@ pub fn compact(records: &[WalRecord]) -> Vec<WalRecord> {
                 format_id: i.format_id,
                 referer: i.referer,
                 position: i.position,
-                options: i.options,
+                options: Box::new(i.options),
             }];
             if i.was_running {
                 out.push(WalRecord::Started { id: i.id });
@@ -310,7 +310,7 @@ mod tests {
             format_id: None,
             referer: None,
             position: pos,
-            options: RecoveryOptions::default(),
+            options: Box::default(),
         }
     }
 
