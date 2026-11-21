@@ -325,7 +325,7 @@ impl PlatformDownloader for YouTubeDownloader {
             .map(|args| args.to_vec())
             .unwrap_or_default();
 
-        ytdlp::download_video(
+        ytdlp::download_video_full(
             &ytdlp_path,
             video_url,
             &opts.output_dir,
@@ -341,6 +341,7 @@ impl PlatformDownloader for YouTubeDownloader {
             opts.download_subtitles,
             &extra_flags,
             opts.audio_format.as_deref(),
+            opts.audio_language.as_deref(),
         )
         .await
     }
@@ -399,7 +400,7 @@ impl YouTubeDownloader {
                 .map(|args| args.to_vec())
                 .unwrap_or_default();
 
-            match ytdlp::download_video(
+            match ytdlp::download_video_full(
                 ytdlp_path,
                 &entry.url,
                 &playlist_dir,
@@ -415,6 +416,7 @@ impl YouTubeDownloader {
                 opts.download_subtitles,
                 &extra_flags,
                 opts.audio_format.as_deref(),
+                opts.audio_language.as_deref(),
             )
             .await
             {
