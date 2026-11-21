@@ -462,7 +462,11 @@ pub(crate) fn prepare_override_args(
         args.push("-o".to_string());
         args.push(
             output_dir
-                .join(if cfg!(target_os = "android") { "%(title).40s [%(id)s].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
+                .join(if cfg!(target_os = "android") {
+                    "%(title).40s [%(id)s].%(ext)s"
+                } else {
+                    "%(title).200s [%(id)s].%(ext)s"
+                })
                 .to_string_lossy()
                 .to_string(),
         );
@@ -1527,10 +1531,15 @@ pub fn android_prepare_ytdlp() {
         .name("ytdlp-prepare".into())
         .spawn(|| {
             let started = std::time::Instant::now();
-            let Some(base) = android_ytdl_base() else { return };
-            let ready_flag = Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
+            let Some(base) = android_ytdl_base() else {
+                return;
+            };
+            let ready_flag =
+                Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
             for _ in 0..240 {
-                if ready_flag.exists() { break; }
+                if ready_flag.exists() {
+                    break;
+                }
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
             let Some(py) = android_python() else { return };
@@ -1539,11 +1548,32 @@ pub fn android_prepare_ytdlp() {
             let mut report = String::new();
             if !app.join(".ready").exists() && zip.exists() {
                 let _ = std::fs::remove_dir_all(&app);
-                let script = "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
-                let r = std::process::Command::new(&py).args(["-c", script]).arg(&zip).arg(&app).output();
-                report.push_str(&format!("extract: {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string()))));
-                let r = std::process::Command::new(&py).args(["-m", "compileall", "-q"]).arg(&app).output();
-                report.push_str(&format!("compile: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string())), started.elapsed()));
+                let script =
+                    "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
+                let r = std::process::Command::new(&py)
+                    .args(["-c", script])
+                    .arg(&zip)
+                    .arg(&app)
+                    .output();
+                report.push_str(&format!(
+                    "extract: {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stderr).to_string()
+                    ))
+                ));
+                let r = std::process::Command::new(&py)
+                    .args(["-m", "compileall", "-q"])
+                    .arg(&app)
+                    .output();
+                report.push_str(&format!(
+                    "compile: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stderr).to_string()
+                    )),
+                    started.elapsed()
+                ));
                 if app.join("__main__.py").exists() {
                     let _ = std::fs::write(app.join(".ready"), b"1");
                     reset_ytdlp_cache();
@@ -1551,16 +1581,41 @@ pub fn android_prepare_ytdlp() {
             }
             if let Some(script) = android_ytdlp_script() {
                 let t = std::time::Instant::now();
-                let r = std::process::Command::new(&py).arg(&script).arg("--version").output();
-                report.push_str(&format!("yt-dlp --version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).trim().to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+                let r = std::process::Command::new(&py)
+                    .arg(&script)
+                    .arg("--version")
+                    .output();
+                report.push_str(&format!(
+                    "yt-dlp --version: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stdout).trim().to_string(),
+                        String::from_utf8_lossy(&o.stderr).trim().to_string()
+                    )),
+                    t.elapsed()
+                ));
             } else {
                 report.push_str("yt-dlp script missing\n");
             }
             let t = std::time::Instant::now();
-            let ff = std::env::var("HOME").ok().map(|h| Path::new(&h).join("data/com.openselena.libreget/bin/ffmpeg"));
+            let ff = std::env::var("HOME")
+                .ok()
+                .map(|h| Path::new(&h).join("data/com.openselena.libreget/bin/ffmpeg"));
             if let Some(ff) = ff {
                 let r = std::process::Command::new(&ff).arg("-version").output();
-                report.push_str(&format!("ffmpeg -version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+                report.push_str(&format!(
+                    "ffmpeg -version: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .to_string(),
+                        String::from_utf8_lossy(&o.stderr).trim().to_string()
+                    )),
+                    t.elapsed()
+                ));
             }
             report.push_str(&format!("total: {:?}\n", started.elapsed()));
             tracing::info!("[android] runtime self-test:\n{}", report);
@@ -1734,7 +1789,10 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
 
 pub fn is_ytdlp_zipapp(path: &Path) -> bool {
     #[cfg(target_os = "android")]
-    if matches!(path.file_name().and_then(|n| n.to_str()), Some("yt-dlp") | Some("app")) {
+    if matches!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some("yt-dlp") | Some("app")
+    ) {
         return true;
     }
     path.extension()
@@ -1925,17 +1983,18 @@ async fn usable_zipapp() -> Option<PathBuf> {
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     #[cfg(target_os = "android")]
     {
-        return android_ytdlp_script()
-            .ok_or_else(|| {
-                let diag = std::env::var("HOME")
-                    .ok()
-                    .and_then(|h| std::fs::read_to_string(Path::new(&h).join("ytdl-init-error.txt")).ok())
-                    .map(|t| t.chars().take(600).collect::<String>());
-                match diag {
-                    Some(d) => anyhow!("yt-dlp setup failed: {}", d),
-                    None => anyhow!("yt-dlp is still being unpacked, try again in a moment"),
-                }
-            });
+        return android_ytdlp_script().ok_or_else(|| {
+            let diag = std::env::var("HOME")
+                .ok()
+                .and_then(|h| {
+                    std::fs::read_to_string(Path::new(&h).join("ytdl-init-error.txt")).ok()
+                })
+                .map(|t| t.chars().take(600).collect::<String>());
+            match diag {
+                Some(d) => anyhow!("yt-dlp setup failed: {}", d),
+                None => anyhow!("yt-dlp is still being unpacked, try again in a moment"),
+            }
+        });
     }
     let _timer_start = std::time::Instant::now();
 
@@ -4138,7 +4197,8 @@ pub async fn download_video_full(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
-        let android_yt_ladder_left = cfg!(target_os = "android") && is_youtube && attempt + 1 < max_attempts;
+        let android_yt_ladder_left =
+            cfg!(target_os = "android") && is_youtube && attempt + 1 < max_attempts;
         if is_terminal_ytdlp_error(&stderr_lower) && !android_yt_ladder_left {
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
             tracing::warn!(
