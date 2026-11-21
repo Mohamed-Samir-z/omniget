@@ -3643,6 +3643,19 @@
       "manage_chat": "管理 {{title}}"
     }
   },
+  "share": {
+    "title": "下载分享的链接",
+    "type": "类型",
+    "video": "视频",
+    "audio": "音频",
+    "more_options": "在应用中查看更多选项",
+    "added": "已添加到下载",
+    "open_downloads": "查看下载",
+    "back_home": "返回首页",
+    "starting": "正在启动…",
+    "failed": "无法开始下载",
+    "no_output_dir": "请先在应用中设置下载文件夹"
+  },
   "settings": {
     "title": "设置",
     "manage_preferences": "管理应用偏好设置和系统配置",
@@ -4296,6 +4309,8 @@
     "no_formats": "该视频没有可用格式",
     "formats_error": "加载格式失败",
     "preset_best": "最佳",
+    "audio_track": "音轨",
+    "audio_track_default": "默认",
     "preset_music": "音乐",
     "preset_custom": "自定义",
     "formats_presets_label": "格式预设",
