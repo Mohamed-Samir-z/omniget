@@ -1,0 +1,44 @@
+name: Publish feature round 1 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build1-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44872013763
+          SHA=4815a83fda12a93fb51ce3e5e196bfdfba54b352
+          TAG=android-feature-round-1-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 1:
+          - Android share target: sharing a video link from any app opens omniget's compact sheet with video/audio mode, quality choice and a quick Download button, or jump into the full app with the link prefilled.
+          - Dubbed audio-track selection: when a video has multiple audio languages, pick the track in the format selector.
+          - Clip trimming was verified end to end (works on YouTube and other yt-dlp-backed sites).
+
+          This is the exact signed APK from successful Android APK run 44872013763, commit 4815a83fda12a93fb51ce3e5e196bfdfba54b352.
+
+          IMPORTANT: download and install this APK over a VPN connection. Home Wi-Fi has been silently corrupting large downloads, which previously caused "invalid package" install failures.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 1, TEST BUILD' --notes-file notes.md
