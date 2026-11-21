@@ -176,6 +176,7 @@ pub struct QueueItemInfo {
 }
 
 pub struct QueueItem {
+    pub clip_checkpoint_id: String,
     pub id: u64,
     pub url: String,
     pub platform: String,
@@ -229,7 +230,7 @@ pub struct QueueItem {
     pub ytdlp_argv_override: Option<Vec<String>>,
 }
 
-fn persist_job_choices(item: &QueueItem) {
+pub(crate) fn persist_job_choices(item: &QueueItem) {
     let args = item.custom_ytdlp_args.as_deref().unwrap_or(&[]);
     let option = |name: &str| args.windows(2).find(|p| p[0] == name).map(|p| p[1].clone());
     let subtitle_track = if args.iter().any(|v| v == "--no-write-subs") {
@@ -258,6 +259,7 @@ fn persist_job_choices(item: &QueueItem) {
         format_id: item.format_id.clone(),
         referer: item.referer.clone(),
         options: crate::core::queue_wal::RecoveryOptions {
+            clip_checkpoint_id: Some(item.clip_checkpoint_id.clone()),
             cookie_slug: item.cookie_slug.clone(),
             time_range: option("--download-sections")
                 .map(|s| s.trim_start_matches('*').to_string()),
@@ -427,6 +429,7 @@ impl DownloadQueue {
             thumbnail_url_override: None,
             retry_count: 0,
             max_retries: self.default_max_retries,
+            clip_checkpoint_id: uuid::Uuid::new_v4().to_string(),
             resume_state: None,
             concurrent_segments: None,
             segment_size_bytes: None,
@@ -513,6 +516,7 @@ impl DownloadQueue {
                 thumbnail_url_override: entry.thumbnail_url.clone(),
                 retry_count: 0,
                 max_retries: 0,
+                clip_checkpoint_id: uuid::Uuid::new_v4().to_string(),
                 resume_state: None,
                 concurrent_segments: None,
                 segment_size_bytes: None,
@@ -719,7 +723,11 @@ impl DownloadQueue {
                     _ => {}
                 }
             }
-            if success || item.audio_languages.is_none() {
+            if success
+                || (item.audio_languages.is_none()
+                    && crate::core::clip::ClipRange::from_args(item.custom_ytdlp_args.as_deref())
+                        .is_none())
+            {
                 crate::core::recovery::remove(id);
             }
 
@@ -1425,6 +1433,7 @@ async fn spawn_download_inner(
         audio_languages,
         torrent_files,
         argv_override,
+        clip_checkpoint_id,
     ) = {
         let q = queue.lock().await;
         let item = match q.items.iter().find(|i| i.id == item_id) {
@@ -1453,6 +1462,7 @@ async fn spawn_download_inner(
             item.audio_languages.clone(),
             item.torrent_files.clone(),
             item.ytdlp_argv_override.clone(),
+            item.clip_checkpoint_id.clone(),
         )
     };
 
@@ -1478,6 +1488,27 @@ async fn spawn_download_inner(
     }
 
     let clip_range = crate::core::clip::ClipRange::from_args(custom_ytdlp_args.as_deref());
+    let media_info = media_info.or_else(|| {
+        if clip_range.is_none() {
+            return None;
+        }
+        match crate::core::clip::ClipJob::saved_metadata(
+            std::path::Path::new(&output_dir),
+            &clip_checkpoint_id,
+        )
+        .and_then(|value| {
+            value
+                .map(serde_json::from_value::<MediaInfo>)
+                .transpose()
+                .map_err(Into::into)
+        }) {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!("clip metadata checkpoint: {}", error);
+                None
+            }
+        }
+    });
     let info_start = std::time::Instant::now();
     let mut info = match media_info {
         Some(i) if !i.available_qualities.is_empty() => {
@@ -2038,12 +2069,26 @@ async fn spawn_download_inner(
             platform_name, log_title, url
         ),
     );
+    let mut clip_workspace = None;
     let dl_future = async {
         // Each clip has isolated intermediates so even simultaneous downloads
         // cannot reuse yt-dlp's source-title output or an existing .part file.
         if let Some(range) = clip_range.as_ref() {
             range.expected_duration(info.duration_seconds)?;
-            let job = crate::core::clip::ClipJob::new(&opts.output_dir, item_id)?;
+            let job = clip_workspace.insert(crate::core::clip::ClipJob::open(
+                &opts.output_dir,
+                &clip_checkpoint_id,
+            )?);
+            let identity = serde_json::to_string(&(
+                &url,
+                &custom_ytdlp_args,
+                &opts.quality,
+                &opts.format_id,
+                &opts.audio_languages,
+                &opts.audio_language,
+                &opts.download_mode,
+                &opts.audio_format,
+            ))?;
             let mut isolated = opts.clone();
             isolated.output_dir = job.directory.clone();
             isolated.filename_template = Some("source.%(ext)s".into());
@@ -2057,9 +2102,26 @@ async fn spawn_download_inner(
                     }
                 }
             }
-            let mut result = tokio::select! {
-                r = downloader.download(&info, &isolated, tx) => r?,
-                _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+            let mut result = if let Some((file_path, duration_seconds)) = job.source(&identity)? {
+                append_download_log(&app, item_id, "[clip] Reusing verified downloaded source; restarting only interrupted final processing");
+                crate::models::media::DownloadResult {
+                    file_size_bytes: std::fs::metadata(&file_path)?.len(),
+                    file_path,
+                    duration_seconds,
+                    torrent_id: None,
+                }
+            } else {
+                let downloaded = tokio::select! {
+                    r = downloader.download(&info, &isolated, tx) => r?,
+                    _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+                };
+                job.save_metadata(&serde_json::to_value(&info)?)?;
+                job.save_source(
+                    &downloaded.file_path,
+                    &identity,
+                    downloaded.duration_seconds,
+                )?;
+                downloaded
             };
             append_download_log(
                 &app,
@@ -2304,6 +2366,13 @@ async fn spawn_download_inner(
                 }
                 q.get_state()
             };
+            // Remove the retained source only after all processing and the
+            // successful queue journal transition, not at transfer completion.
+            if let Some(job) = clip_workspace.take() {
+                if let Err(error) = job.complete() {
+                    tracing::warn!("clip cleanup: {}", error);
+                }
+            }
             #[cfg(target_os = "android")]
             if !is_seeding && dl.file_path.is_file() {
                 crate::android_media::notify_complete(&dl.file_path, &info.title);

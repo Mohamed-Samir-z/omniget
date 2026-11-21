@@ -59,6 +59,7 @@ pub async fn enqueue_external_inner(
     let initial_path = args.output_path.to_string_lossy().to_string();
 
     let item = QueueItem {
+        clip_checkpoint_id: uuid::Uuid::new_v4().to_string(),
         id: queue_id,
         url: args.url.unwrap_or_default(),
         platform: args.platform.clone(),

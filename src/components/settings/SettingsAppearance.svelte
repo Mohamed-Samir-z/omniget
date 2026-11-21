@@ -38,7 +38,7 @@
       <div class="setting-row" data-search-keywords="language 语言 語言 idioma langue lingua sprache">
         <div class="setting-col">
           <span class="setting-label">{$t('settings.appearance.language')}</span>
-          <span class="setting-path">{$t('settings.appearance.lang_en')} · {$t('settings.appearance.lang_zh')} · {$t('settings.appearance.lang_pt')}</span>
+          <span class="setting-path">{$t('settings.language_hint')}</span>
         </div>
         <select class="select" value={settings.appearance.language} onchange={changeLanguage} aria-label={$t('settings.appearance.language') as string}>
           <option value="ar">العربية</option>

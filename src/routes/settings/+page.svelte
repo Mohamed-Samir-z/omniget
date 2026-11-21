@@ -550,17 +550,18 @@
   }
 </script>
 
+<div class="settings-page">
 {#if settings}
   <div class="settings settings-mac">
     <section class="manual-update-check" aria-label={$t('settings.update_check')}>
       <div class="update-text">
-        <strong>{$t('settings.update_check')}</strong>
-        {#if android}<p>{$t('settings.update_approved_channel')}</p>{/if}
+        <strong>{$t('settings.updates_heading')}</strong>
+        {#if android}<details class="update-channel-details"><summary>{$t('settings.update_channel_details')}</summary><p>{$t('settings.update_approved_channel')}</p></details>{/if}
         {#if updateInfo.error}<p role="alert">{updateInfo.error}</p>
         {:else if checked && !checking && !updateInfo.available}<p>{$t(updateInfo.reason === 'dev-build' ? 'settings.update_unstamped' : 'settings.update_current')}</p>{/if}
       </div>
       <button class="update-btn" onclick={() => refreshUpdateInfo()} disabled={checking || updating}>
-        {$t(checking ? 'settings.update_checking' : updateInfo.error ? 'settings.update_retry' : 'settings.update_check')}
+        {$t(checking ? 'settings.update_checking' : updateInfo.error ? 'settings.update_retry' : 'settings.update_check_action')}
       </button>
     </section>
     {#if updateInfo.available}
@@ -713,7 +714,9 @@
 
 
 <DeveloperCard />
+</div>
 
 <style>
+.settings-page{display:contents}.update-channel-details{font-size:12px;color:var(--text-muted);line-height:1.6}.update-channel-details summary{cursor:pointer;padding-top:6px}@media(max-width:768px){.settings-page{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;overflow-y:auto}.settings-page :global(.settings-mac){flex:0 0 auto}.settings-page :global(.settings-mac-body){overflow:visible}.settings-page :global(.settings-mac-content){overflow:visible}.manual-update-check{margin:12px!important;padding:14px!important;background:var(--surface)!important;border-color:var(--border)!important;flex-direction:row!important;align-items:center!important}.manual-update-check .update-text{color:var(--text)!important}.manual-update-check button{font-size:12px!important;max-width:46%;align-self:center!important}.manual-update-check .update-text strong{font-size:13px}.settings-page :global(.developer){width:calc(100% - 24px);margin:12px auto}}
 .manual-update-check{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border:1px solid var(--border-subtle,#444);border-radius:14px;margin:12px 0;background:var(--surface-raised,#222)}.manual-update-check .update-text{font-size:13px;color:var(--text-primary,#eee)}.manual-update-check p{line-height:1.5;margin:6px 0 0;color:var(--text-secondary,#aaa)}.manual-update-check [role=alert]{color:var(--danger,#ef7777);overflow-wrap:anywhere}.manual-update-check button{flex-shrink:0;background:var(--accent,#ffa600);color:#201600;border:0;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}.manual-update-check button:disabled{opacity:.6;cursor:wait}@media(max-width:480px){.manual-update-check{align-items:flex-start;flex-direction:column}.manual-update-check button{align-self:flex-end}}
 </style>

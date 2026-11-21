@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
   import SubtitleChoice from "$components/home/SubtitleChoice.svelte";
   import DeveloperCard from "$components/DeveloperCard.svelte";
-  import ClipTimeFields from "$components/librebox/ClipTimeFields.svelte";
+  import DownloadTiming from "$components/home/DownloadTiming.svelte";
   import { validTimeRange } from "$lib/clip-time";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
@@ -341,37 +342,6 @@
     return ms;
   }
 
-  function schedulePart(v: string, part: "date" | "time"): string {
-    if (!v) return "";
-    const [date, time = ""] = v.split("T");
-    return part === "date" ? date : time;
-  }
-
-  function withSchedulePart(current: string, part: "date" | "time", value: string): string {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    let [date, time = ""] = current ? current.split("T") : ["", ""];
-    if (part === "date") date = value;
-    else time = value;
-    if (!date && !time) return "";
-    if (!date) {
-      const now = new Date();
-      date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    }
-    if (!time) time = "00:00";
-    return `${date}T${time}`;
-  }
-
-  function setSchedulePreset(kind: "1h" | "tonight" | "1d") {
-    const d = new Date();
-    if (kind === "1h") d.setHours(d.getHours() + 1);
-    else if (kind === "1d") d.setDate(d.getDate() + 1);
-    else {
-      d.setHours(22, 0, 0, 0);
-      if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
-    }
-    const pad = (n: number) => String(n).padStart(2, "0");
-    scheduleAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
 
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -717,6 +687,10 @@
   async function handleAction() {
     if (libreState.kind !== "detected") return;
     const info = libreState.info;
+    if (isAndroid() && scheduleAt && (clipStart.trim() || clipEnd.trim() || scheduleStop)) {
+      showToast("error", $t("timing.android_hint") as string);
+      return;
+    }
     if (!validTimeRange(clipStart, clipEnd)) {
       showToast("error", $t("clip.invalid_range") as string);
       return;
@@ -1250,36 +1224,7 @@
                               <input id="referer-input" class="referer-input" type="text" placeholder={$t('librebox.referer_placeholder')} bind:value={referer} spellcheck="false" />
                             </div>
                           {/if}
-                          {#if libreState.info.content_type !== "playlist"}
-                            <div class="timerange-wrapper">
-                              <span class="timerange-label">{$t('librebox.timerange_label')}</span>
-                              <div class="timerange-inputs">
-                                <ClipTimeFields label={$t('librebox.timerange_start') as string} bind:value={clipStart} />
-                                <ClipTimeFields label={$t('librebox.timerange_end') as string} optionalEnd bind:value={clipEnd} />
-                              </div>
-                              <span class="timerange-hint">{$t('clip.hint')}</span>
-                            </div>
-                          {/if}
-                          <div class="timerange-wrapper">
-                            <span class="timerange-label">{$t('librebox.schedule_label')}</span>
-                            <span class="timerange-hint">{$t('downloads.schedule_system_note')}</span>
-                            <div class="schedule-presets">
-                              <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1h')}>{$t('librebox.schedule_1h')}</button>
-                              <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('tonight')}>{$t('librebox.schedule_tonight')}</button>
-                              <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1d')}>{$t('librebox.schedule_1d')}</button>
-                              {#if scheduleAt || scheduleStop}
-                                <button type="button" class="schedule-preset" onclick={() => { scheduleAt = ""; scheduleStop = ""; }}>{$t('librebox.schedule_clear')}</button>
-                              {/if}
-                            </div>
-                            <div class="timerange-inputs schedule-row">
-                              <input class="timerange-input schedule-date" type="date" value={schedulePart(scheduleAt, "date")} oninput={(e) => { scheduleAt = withSchedulePart(scheduleAt, "date", e.currentTarget.value); }} aria-label={$t('librebox.schedule_start') as string} />
-                              <input class="timerange-input schedule-time" type="time" step="60" value={schedulePart(scheduleAt, "time")} oninput={(e) => { scheduleAt = withSchedulePart(scheduleAt, "time", e.currentTarget.value); }} aria-label={$t('librebox.schedule_start') as string} />
-                              <span class="timerange-sep" aria-hidden="true">&#8211;</span>
-                              <input class="timerange-input schedule-date" type="date" value={schedulePart(scheduleStop, "date")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "date", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
-                              <input class="timerange-input schedule-time" type="time" step="60" value={schedulePart(scheduleStop, "time")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "time", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
-                            </div>
-                            <span class="timerange-hint">{$t('librebox.schedule_hint')} {$t('schedule_app_required')}</span>
-                          </div>
+                          <DownloadTiming bind:clipStart bind:clipEnd bind:scheduleAt bind:scheduleStop isPlaylist={libreState.info.content_type === "playlist"} />
                           <FormatSelector
                             platform={libreState.info.platform}
                             isPlaylist={libreState.info.content_type === "playlist"}
@@ -1634,21 +1579,14 @@
   }
 
   .referer-input-wrapper,
-  .timerange-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
 
-  .referer-label,
-  .timerange-label {
+  .referer-label {
     font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-dim);
   }
 
-  .referer-input,
-  .timerange-input {
+  .referer-input {
     height: var(--control-h);
     padding: 0 var(--space-2);
     font-size: var(--text-base);
@@ -1660,79 +1598,15 @@
     transition: box-shadow var(--duration-fast) var(--ease-out);
   }
 
-  .referer-input::placeholder,
-  .timerange-input::placeholder {
+  .referer-input::placeholder {
     color: var(--text-dim);
   }
 
-  .referer-input:focus-visible,
-  .timerange-input:focus-visible {
+  .referer-input:focus-visible {
     outline: none;
     box-shadow:
       inset 0 0 0 var(--hairline) var(--accent),
       0 0 0 3px var(--accent-soft);
-  }
-
-  .timerange-inputs {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .timerange-input {
-    width: 96px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .timerange-sep {
-    color: var(--text-dim);
-  }
-
-  .timerange-hint {
-    font-size: var(--text-xs);
-    color: var(--text-dim);
-  }
-
-  .schedule-presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 2px;
-  }
-
-  .schedule-preset {
-    height: 24px;
-    padding: 0 var(--space-3);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    background: var(--fill-1);
-    border: none;
-    border-radius: var(--radius-full);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-  }
-
-  .schedule-preset:hover {
-    background: var(--fill-2);
-    color: var(--text);
-  }
-
-  .schedule-row {
-    flex-wrap: wrap;
-  }
-
-  .schedule-date {
-    width: auto;
-    flex: 1 1 auto;
-    min-width: 8.6em;
-  }
-
-  .schedule-time {
-    width: auto;
-    flex: 0 1 auto;
-    min-width: 5.4em;
   }
 
   .course-upsell {

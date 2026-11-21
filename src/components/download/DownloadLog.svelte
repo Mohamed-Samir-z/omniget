@@ -25,7 +25,7 @@
   // resposta mais barata para "o que ele está fazendo agora?" sem abrir 200
   // linhas (padrão do Seal, `currentLine`).
   let lastLine = $state("");
-  let showLast = $derived(!expanded && !!lastLine && (status === "downloading" || status === "paused" || status === "error"));
+  let showLast = $derived(!isAndroid() && !expanded && !!lastLine && (status === "downloading" || status === "paused" || status === "error"));
 
   function isNoise(line: string): boolean {
     const l = line.trim();
@@ -153,7 +153,7 @@
     <span>{expanded ? $t("downloads.log.hide") : $t("downloads.log.show")}</span>
   </button>
 
-  <button type="button" class="log-toggle" onclick={prepareReport} disabled={reportBusy}>{$t('downloads.report_prepare')}</button>
+  {#if expanded || status === "error"}<button type="button" class="log-toggle" onclick={prepareReport} disabled={reportBusy}>{$t('downloads.report_prepare')}</button>{/if}
   {#if report}
     <div class="log-panel">
       <p class="report-review">{$t('downloads.report_review')}</p>

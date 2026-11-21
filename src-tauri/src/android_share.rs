@@ -119,6 +119,7 @@ pub extern "C" fn Java_com_openselena_libreget_MainActivity_nativeShareAction(
             None,
             None,
             Some(String::new()),
+            None,
         ))
         .map(|_| ())
     })();

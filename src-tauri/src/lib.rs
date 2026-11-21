@@ -912,6 +912,7 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            commands::downloads::open_developer_contact,
             local_bridge::media_stream_url,
             android_update::check_android_update,
             android_update::download_android_update,
@@ -1638,6 +1639,14 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            #[cfg(target_os = "android")]
+            if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+                let state = app_handle.state::<AppState>();
+                // Closing a transient share UI is not permission to terminate
+                // active queue work, including post-download clip processing.
+                let busy = state.download_queue.try_lock().map(|q| q.items.iter().any(|item| matches!(item.status, core::queue::QueueStatus::Active | core::queue::QueueStatus::Queued | core::queue::QueueStatus::Paused))).unwrap_or(true);
+                if busy { api.prevent_exit(); return; }
+            }
             if let tauri::RunEvent::ExitRequested { .. } = &event {
                 let state = app_handle.state::<AppState>();
                 let session_mutex = state.torrent_session.clone();

@@ -105,22 +105,126 @@ fn duration_matches(expected: f64, actual: f64, source_known: bool, rounding: f6
     actual <= expected + rounding && (!source_known || actual >= expected - shortfall)
 }
 
+/// Durable job workspace. A completed source survives interruption; only a
+/// verified final publish or an explicit discard may remove it.
 pub struct ClipJob {
     pub directory: PathBuf,
+    _lock: std::fs::File,
 }
-
 impl ClipJob {
-    pub fn new(parent: &Path, id: u64) -> anyhow::Result<Self> {
-        let directory = parent.join(format!(".omniget-clip-{id}-{}", uuid::Uuid::new_v4()));
+    pub fn open(parent: &Path, key: &str) -> anyhow::Result<Self> {
+        use fs4::FileExt;
+        let key = uuid::Uuid::parse_str(key).context("Invalid clip recovery identity")?;
+        let directory = parent.join(format!(".omniget-clip-{key}"));
         std::fs::create_dir_all(&directory)?;
-        Ok(Self { directory })
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(directory.join("workspace.lock"))?;
+        FileExt::try_lock(&lock).context("This clip is already running")?;
+        Ok(Self {
+            directory,
+            _lock: lock,
+        })
+    }
+    /// A complete source also retains its original media description so a
+    /// cold restart need not contact the platform before final processing.
+    pub fn save_metadata(&self, value: &serde_json::Value) -> anyhow::Result<()> {
+        let pending = self.directory.join("media-info.pending");
+        use std::io::Write;
+        let mut file = std::fs::File::create(&pending)?;
+        file.write_all(&serde_json::to_vec(value)?)?;
+        file.sync_all()?;
+        std::fs::rename(pending, self.directory.join("media-info.json"))?;
+        Ok(())
+    }
+    pub fn saved_metadata(parent: &Path, key: &str) -> anyhow::Result<Option<serde_json::Value>> {
+        let key = uuid::Uuid::parse_str(key)?;
+        let directory = parent.join(format!(".omniget-clip-{key}"));
+        if !directory.join("source-checkpoint.json").is_file() {
+            return Ok(None);
+        }
+        let path = directory.join("media-info.json");
+        if !path.is_file() {
+            return Ok(None);
+        }
+        Ok(Some(serde_json::from_slice(&std::fs::read(path)?)?))
+    }
+    pub fn discard_if_idle(parent: &Path, key: &str) -> anyhow::Result<()> {
+        let key = uuid::Uuid::parse_str(key)?;
+        if !parent.join(format!(".omniget-clip-{key}")).exists() {
+            return Ok(());
+        }
+        Self::open(parent, &key.to_string())?.complete()
+    }
+    /// The marker is written only after the downloader and all metadata steps
+    /// return successfully, never inferred from a .part filename or size.
+    pub fn save_source(&self, source: &Path, identity: &str, duration: f64) -> anyhow::Result<()> {
+        let name = source
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow!("Invalid clip source name"))?;
+        anyhow::ensure!(
+            source.parent() == Some(self.directory.as_path()),
+            "Clip source is outside its workspace"
+        );
+        let hash = source_hash(source)?;
+        let value = serde_json::json!({"version":1,"identity":identity,"name":name,"sha256":hash,"duration":duration});
+        let pending = self.directory.join("source-checkpoint.pending");
+        let mut file = std::fs::File::create(&pending)?;
+        use std::io::Write;
+        file.write_all(&serde_json::to_vec(&value)?)?;
+        file.sync_all()?;
+        std::fs::rename(pending, self.directory.join("source-checkpoint.json"))?;
+        Ok(())
+    }
+    pub fn source(&self, identity: &str) -> anyhow::Result<Option<(PathBuf, f64)>> {
+        let marker = self.directory.join("source-checkpoint.json");
+        if !marker.exists() {
+            return Ok(None);
+        }
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(marker)?)?;
+        anyhow::ensure!(
+            value["version"] == 1 && value["identity"].as_str() == Some(identity),
+            "Clip recovery choices do not match this workspace"
+        );
+        let name = value["name"]
+            .as_str()
+            .ok_or_else(|| anyhow!("Invalid clip checkpoint"))?;
+        anyhow::ensure!(
+            Path::new(name).components().count() == 1
+                && !name.contains(['/', '\\'])
+                && name != "."
+                && name != "..",
+            "Invalid clip checkpoint filename"
+        );
+        let path = self.directory.join(name);
+        anyhow::ensure!(
+            value["sha256"].as_str() == Some(source_hash(&path)?.as_str()),
+            "Saved clip source changed; it was not reused"
+        );
+        Ok(Some((path, value["duration"].as_f64().unwrap_or(0.0))))
+    }
+    pub fn complete(self) -> anyhow::Result<()> {
+        std::fs::remove_dir_all(&self.directory).context("Cannot clean finished clip workspace")
     }
 }
-
-impl Drop for ClipJob {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.directory);
+fn source_hash(path: &Path) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = file.read(&mut buffer)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buffer[..n]);
     }
+    Ok(format!("{:x}", hash.finalize()))
 }
 
 struct ReservedName(PathBuf);
@@ -391,11 +495,20 @@ pub async fn finish(
         .parent()
         .ok_or_else(|| anyhow!("Clip folder missing"))?
         .join(format!("normalized.{ext}"));
-    let mut args: Vec<String> = ["-nostdin", "-y", "-fflags", "+genpts", "-i"]
+    let mut args: Vec<String> = ["-nostdin", "-y", "-fflags", "+genpts"]
         .into_iter()
         .map(str::to_owned)
         .collect();
-    args.push(input.to_string_lossy().into_owned());
+    // A phone must not allocate decoder/encoder workers for every CPU while
+    // another link is being shared or downloaded. Quality/resolution stay put.
+    #[cfg(target_os = "android")]
+    args.extend([
+        "-threads".into(),
+        "2".into(),
+        "-filter_threads".into(),
+        "1".into(),
+    ]);
+    args.extend(["-i".into(), input.to_string_lossy().into_owned()]);
     args.extend(
         ["-map_metadata", "-1", "-map_chapters", "-1"]
             .into_iter()
@@ -420,6 +533,10 @@ pub async fn finish(
             .into_iter()
             .map(str::to_owned),
         );
+    }
+    #[cfg(target_os = "android")]
+    if video {
+        args.extend(["-threads:v".into(), "2".into()]);
     }
     if audio {
         let codec = if video {
@@ -558,6 +675,102 @@ pub async fn finish(
     finish_subtitles(input, &reserved.0, range.start, duration, token).await?;
     let path = reserved.commit();
     Ok((path, duration))
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    fn root() -> PathBuf {
+        let p = std::env::temp_dir().join(format!("clip-checkpoint-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+    #[test]
+    fn successful_source_survives_drop_and_reopens_without_download() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        {
+            let job = ClipJob::open(&root, &key).unwrap();
+            let input = job.directory.join("source.mkv");
+            std::fs::write(&input, b"downloaded-source").unwrap();
+            job.save_source(&input, "exact-choices", 363.0).unwrap();
+        }
+        let job = ClipJob::open(&root, &key).unwrap();
+        let (input, duration) = job.source("exact-choices").unwrap().unwrap();
+        assert_eq!(std::fs::read(input).unwrap(), b"downloaded-source");
+        assert_eq!(duration, 363.0);
+        job.complete().unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+    #[test]
+    fn metadata_is_recoverable_only_after_a_completed_source() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        let metadata = serde_json::json!({"title":"Saved title", "duration_seconds":363.0});
+        job.save_metadata(&metadata).unwrap();
+        assert!(ClipJob::saved_metadata(&root, &key).unwrap().is_none());
+        let input = job.directory.join("source.mkv");
+        std::fs::write(&input, b"complete").unwrap();
+        job.save_source(&input, "choices", 363.0).unwrap();
+        drop(job);
+        assert_eq!(
+            ClipJob::saved_metadata(&root, &key).unwrap(),
+            Some(metadata)
+        );
+        ClipJob::discard_if_idle(&root, &key).unwrap();
+        assert!(ClipJob::saved_metadata(&root, &key).unwrap().is_none());
+        std::fs::remove_dir(root).unwrap();
+    }
+    #[test]
+    fn discard_never_deletes_a_running_workspace() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        assert!(ClipJob::discard_if_idle(&root, &key).is_err());
+        assert!(job.directory.is_dir());
+        drop(job);
+        ClipJob::discard_if_idle(&root, &key).unwrap();
+        assert!(!root.join(format!(".omniget-clip-{key}")).exists());
+        assert!(ClipJob::discard_if_idle(&root, "../outside").is_err());
+        std::fs::remove_dir(root).unwrap();
+    }
+    #[test]
+    fn partial_transfer_is_not_falsely_reused() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        std::fs::write(job.directory.join("source.mkv.part"), b"partial").unwrap();
+        assert!(job.source("choices").unwrap().is_none());
+        assert!(job.directory.join("source.mkv.part").exists());
+        job.complete().unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+    #[test]
+    fn changed_source_and_choices_fail_closed() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        let input = job.directory.join("source.mkv");
+        std::fs::write(&input, b"good").unwrap();
+        job.save_source(&input, "choices", 10.0).unwrap();
+        assert!(job.source("other-choices").is_err());
+        std::fs::write(&input, b"evil").unwrap();
+        assert!(job.source("choices").is_err());
+        job.complete().unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+    #[test]
+    fn duplicate_workers_do_not_share_mutable_source() {
+        let root = root();
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        assert!(ClipJob::open(&root, &key).is_err());
+        drop(job);
+        let job = ClipJob::open(&root, &key).unwrap();
+        job.complete().unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
 }
 
 #[cfg(test)]
