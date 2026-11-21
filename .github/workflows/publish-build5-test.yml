@@ -1,0 +1,53 @@
+name: Publish feature round 5 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build5-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44897943112
+          SHA=1167623bd28436d82cafdcbbec5835eac8c16e6d
+          TAG=android-feature-round-5-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 5, cumulative with feature rounds 1 to 4:
+          - Native Android share popup with Video / MP3, video quality and quick Download. It reuses the existing download queue, including Wi-Fi-only settings.
+          - More options opens the full app with the shared link prefilled, without automatically adding a download.
+          - A translucent Android activity hosts the popup. No overlay permission and no ads were added.
+          - The full app now labels the global-format audio mode Audio (Default), distinct from explicit per-job MP3.
+
+          Verification: all eight PR checks passed for the feature and the Android path-type fix. Four native popup behavior tests and native renders, popup/patcher/gallery checks and 148 frontend tests passed. This signed Android APK build succeeded.
+
+          IMPORTANT: real-phone cold-start and warm-start sharing from Facebook, visibility of the source app behind the popup, and Download / More options still need device verification. Android startup splash behavior may vary. These are not claims of device verification.
+
+          Known issues queued for the next build: repeated trimmed clips may collide on filenames; some trimmed files can report the original duration; mobile trim time fields require a colon that the numeric keyboard may not offer. These are not fixed in this build.
+
+          Scheduling remains in More options. Keep omniget running until the scheduled time; it is not an Android system alarm and will not wake a closed app.
+
+          This is the exact signed APK from successful Android APK run 44897943112, commit 1167623bd28436d82cafdcbbec5835eac8c16e6d.
+
+          IMPORTANT: download and install this APK over a VPN connection. Home Wi-Fi has been silently corrupting large downloads, which previously caused "invalid package" install failures.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 5, TEST BUILD' --notes-file notes.md
