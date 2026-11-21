@@ -1,0 +1,35 @@
+name: Apply reviewed Build 3 sources
+on:
+  push:
+    branches: [android-resume-wifi]
+    paths: [.github/workflows/apply-build3.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: android-resume-wifi
+      - name: Apply exact source delta
+        env:
+          PATCH_ZLIB: eNqNkT1vgzAQhnd+xTVDCwKTkA/akDRKh1admyEjcrAdWQGb+EM0qvrfa6Ch6hYvtu/ufe49m3DGAKEjN4DHWhXIYKt4exoXsqqwIHpMZCNKiYmOlYbDLVUeF4R+woRNF0v2GMdJ+sSWZAbJZJLO5x5C6LZuXhiGN3bcbgEliySNUgi7fQkuVNsDYH0RBTABimpb0RyXZT5IfQ/ahes6g65Flr3U9bvjlzTqc9pgQ4fsrr2tH/IIXF132bi6ANAGPhy/NGs7m0awM4qL4wa+vLBlcAZ3hWo5maCmkeqU17LkxSXLBiutMdlQ4t87N8FV2S5FjVUCXpXyR3vMjSMDkwr2HL1xOFB3pv10bWYAjmIjc90Z8YNg1fO++6FKasDvJstdEa24iaCQVritfybi4kpRYXQAz87M1UunrKyBswt3gPjaMD9bamlcyuLkBzFunNPVf90v2inP8d9v+M7bD/mE0rA=
+          PATCH_SHA256: c44799dbe68bdc7f2ffdeb3f1162ab95a3e0fad8ef5b57832968aa90506f5f9c
+        run: |
+          python3 - <<'PYCODE'
+          import os, base64, zlib, hashlib, pathlib
+          patch = zlib.decompress(base64.b64decode(os.environ['PATCH_ZLIB']))
+          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256']
+          pathlib.Path('/tmp/build3.patch').write_bytes(patch)
+          PYCODE
+          git apply --check /tmp/build3.patch
+          git apply /tmp/build3.patch
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_resume_policy.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git restore .github/workflows/android.yml
+          git add src-tauri src .github/android
+          git commit -m 'Android: resumable downloads, Wi-Fi policy, verified updates'
+          git push origin HEAD:android-resume-wifi
