@@ -849,6 +849,7 @@ pub async fn download_from_url(
     referer: Option<String>,
     cookie_slug: Option<String>,
     time_range: Option<String>,
+    audio_language: Option<String>,
     playlist_items: Option<Vec<u32>>,
     torrent_files: Option<Vec<usize>>,
     scheduled_at: Option<u64>,
@@ -865,6 +866,12 @@ pub async fn download_from_url(
         Some(r) if !r.is_empty() && is_valid_time_range(r) => {
             Some(vec!["--download-sections".to_string(), format!("*{}", r)])
         }
+        _ => None,
+    };
+
+    let audio_language = match audio_language.as_deref().map(str::trim) {
+        Some(l) if !l.is_empty() && ytdlp::is_valid_audio_language(l) => Some(l.to_string()),
+        Some(l) if !l.is_empty() => return Err(format!("Invalid audio language: {}", l)),
         _ => None,
     };
 
@@ -958,6 +965,7 @@ pub async fn download_from_url(
             false,
             cookie_slug,
             custom_ytdlp_args,
+            audio_language,
             torrent_files,
             scheduled_at,
             stop_at,
@@ -1105,6 +1113,7 @@ pub async fn download_with_custom_args(
             false,
             cookie_slug,
             Some(custom_args),
+            None,
             None,
             None,
             None,
@@ -1416,6 +1425,7 @@ pub async fn restore_recovery(
             item.quality,
             item.format_id,
             item.referer,
+            None,
             None,
             None,
             None,
