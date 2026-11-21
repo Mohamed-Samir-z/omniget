@@ -97,7 +97,7 @@ export type AppSettings = {
   start_minimized: boolean;
   legal_acknowledged?: boolean;
   last_download_options?: {
-    mode?: "auto" | "audio" | "mute" | null;
+    mode?: "auto" | "audio" | "mute" | "mp3" | null;
     quality?: string | null;
   };
   accessibility?: {

@@ -17,8 +17,9 @@
 
   let sharedUrl = $state("");
   let hostLabel = $state("");
-  let mode = $state<"video" | "audio">("video");
+  let mode = $state<"video" | "audio" | "mp3">("video");
   let quality = $state("best");
+  let scheduledAt = $state("");
   let busy = $state(false);
   let done = $state(false);
   let error = $state("");
@@ -53,12 +54,16 @@
       error = $t("share.no_output_dir") as string;
       return;
     }
+    if (scheduledAt && (!Number.isFinite(new Date(scheduledAt).getTime()) || new Date(scheduledAt).getTime() <= Date.now())) {
+      error = $t("schedule_future_required") as string;
+      return;
+    }
     busy = true;
     try {
       await invoke<DownloadStarted>("download_from_url", {
         url: sharedUrl,
         outputDir,
-        downloadMode: mode === "audio" ? "audio" : null,
+        downloadMode: mode === "video" ? null : mode,
         quality,
         formatId: null,
         referer: null,
@@ -67,7 +72,7 @@
         audioLanguage: null,
         playlistItems: null,
         torrentFiles: null,
-        scheduledAt: null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).getTime() : null,
         stopAt: null,
       });
       done = true;
@@ -110,6 +115,7 @@
         <div class="share-pills">
           <button class="share-pill" class:active={mode === "video"} onclick={() => (mode = "video")}>{$t("share.video")}</button>
           <button class="share-pill" class:active={mode === "audio"} onclick={() => (mode = "audio")}>{$t("share.audio")}</button>
+          <button class="share-pill" class:active={mode === "mp3"} onclick={() => (mode = "mp3")}>MP3</button>
         </div>
       </div>
 
@@ -123,6 +129,12 @@
           </div>
         </div>
       {/if}
+
+      <details class="share-schedule">
+        <summary>{$t("librebox.schedule_label")}</summary>
+        <input type="datetime-local" bind:value={scheduledAt} aria-label={$t("librebox.schedule_start") as string} />
+        <p>{$t("schedule_app_required")}</p>
+      </details>
 
       {#if error}
         <span class="share-error">{error}</span>
@@ -139,10 +151,16 @@
 </div>
 
 <style>
+  .share-schedule { font-size: 13px; color: var(--text-muted); }
+  .share-schedule input { width: 100%; margin-top: 8px; padding: 10px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .share-schedule p { margin: 8px 0 0; line-height: 1.4; }
   .share-shell {
-    min-height: 100vh;
+    min-height: 0;
+    flex: 1;
+    width: 100%;
+    overflow-y: auto;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     padding: 16px;
     background: transparent;

@@ -1488,8 +1488,16 @@ async fn spawn_download_inner(
                 },
             );
 
-            let info_future =
-                fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref());
+            // A native downloader's cached URLs are not interchangeable with
+            // yt-dlp metadata. MP3 explicitly uses the generic converter.
+            let info_future = async {
+                if download_mode.as_deref() == Some("mp3") {
+                    downloader.get_media_info(&url).await
+                } else {
+                    fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref())
+                        .await
+                }
+            };
             let scoped_info_future = libreget_core::core::log_hook::CURRENT_COOKIE_SLUG.scope(
                 cookie_slug.clone(),
                 libreget_core::core::log_hook::CURRENT_DOWNLOAD_ID.scope(item_id, info_future),
@@ -1650,7 +1658,15 @@ async fn spawn_download_inner(
     } else {
         (raw_quality, download_mode)
     };
-    let audio_format = if download_mode.as_deref() == Some("audio") {
+    let force_mp3 = download_mode.as_deref() == Some("mp3");
+    let download_mode = if force_mp3 {
+        Some("audio".to_string())
+    } else {
+        download_mode
+    };
+    let audio_format = if force_mp3 {
+        Some("mp3".to_string())
+    } else if download_mode.as_deref() == Some("audio") {
         Some(settings.download.music_audio_format.clone())
     } else {
         None

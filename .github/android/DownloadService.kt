@@ -12,12 +12,12 @@ import android.os.SystemClock
 class DownloadService : Service() {
     private var wake: PowerManager.WakeLock? = null
     companion object {
-        private data class Progress(val title: String, val percent: Int, val count: Int)
-        @Volatile private var progress = Progress("Preparing download", -1, 1)
+        private data class Progress(val title: String, val percent: Int, val count: Int, val speed: Long)
+        @Volatile private var progress = Progress("Preparing download", -1, 1, 0)
         @Volatile private var instance: DownloadService? = null
         private var lastUpdate = 0L
-        @JvmStatic @Synchronized fun update(title: String, percent: Int, count: Int) {
-            val next = Progress(title.take(160), percent.coerceIn(-1, 100), count.coerceAtLeast(1))
+        @JvmStatic @Synchronized fun update(title: String, percent: Int, count: Int, speed: Long) {
+            val next = Progress(title.take(160), percent.coerceIn(-1, 100), count.coerceAtLeast(1), speed.coerceAtLeast(0))
             val now = SystemClock.elapsedRealtime()
             if (next == progress && now - lastUpdate < 1000) return
             progress = next
@@ -42,10 +42,16 @@ class DownloadService : Service() {
             p.percent >= 100 -> "Finalizing and adding to media library"
             else -> "${p.percent}% downloaded"
         }
+        val speedLabel = when {
+            p.speed >= 1048576 -> String.format(java.util.Locale.US, "%.1f MB/s", p.speed / 1048576.0)
+            p.speed >= 1024 -> String.format(java.util.Locale.US, "%.0f KB/s", p.speed / 1024.0)
+            else -> "${p.speed} B/s"
+        }
+        val detail = if (p.speed > 0 && p.percent in 0..99) "$status · $speedLabel" else status
         val notification = builder
             .setContentTitle(if (p.count > 1) "omniget · ${p.count} downloads" else "omniget")
-            .setContentText("${p.title} · $status")
-            .setStyle(Notification.BigTextStyle().bigText("${p.title}\n$status"))
+            .setContentText("${p.title} · $detail")
+            .setStyle(Notification.BigTextStyle().bigText("${p.title}\n$detail"))
             .setSmallIcon(R.drawable.ic_omniget_download)
             .setContentIntent(tap)
             .setOnlyAlertOnce(true)
@@ -70,7 +76,7 @@ class DownloadService : Service() {
     }
     override fun onDestroy() {
         instance = null
-        progress = Progress("Preparing download", -1, 1)
+        progress = Progress("Preparing download", -1, 1, 0)
         stopForeground(STOP_FOREGROUND_REMOVE)
         try { wake?.release() } catch (_: Throwable) {}
         super.onDestroy()

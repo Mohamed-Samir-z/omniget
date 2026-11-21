@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
 
-  let { downloadMode = $bindable("auto" as "auto" | "audio" | "mute"), onChange = undefined } = $props();
+  let { downloadMode = $bindable("auto" as "auto" | "audio" | "mute" | "mp3"), onChange = undefined } = $props();
 </script>
 
 <div class="mode-group">
@@ -28,6 +28,7 @@
     </svg>
     {$t('librebox.mode_audio')}
   </button>
+  <button class="mode-btn" class:active={downloadMode === "mp3"} onclick={() => { downloadMode = "mp3"; onChange?.(); }}>MP3</button>
   <button
     class="mode-btn"
     class:active={downloadMode === "mute"}
@@ -45,6 +46,7 @@
 <style>
   .mode-group {
     display: flex;
+    flex-wrap: wrap;
     background: var(--fill-2);
     border-radius: var(--radius-md);
     padding: 2px;
