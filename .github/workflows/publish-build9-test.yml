@@ -1,0 +1,56 @@
+name: Publish feature round 9 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build9-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publish the verified signed artifact as a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44940189466
+          SHA=09b91c613e0c065320b542b73478c40799590c84
+          TAG=android-feature-round-9-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for device verification, cumulative with builds 1 through 8. Not a stable release. android-latest is unchanged.
+          
+          Added:
+          1. Arabic UI and RTL layout, 4,696 matching frontend keys, Tajawal font, and localized native share, notification, schedule and startup text.
+          2. Android-aware settings hide unsupported desktop controls without changing stored preferences.
+          3. Interrupted-job recovery preserves clip, source subtitles, account, selected audio languages, playlist/torrent choices and timing through journal compaction. Invalid or expired jobs are not silently restored; failed restores remain visible.
+          4. A copy-only, allowlisted diagnostic summary excludes raw logs, URLs, paths, accounts, headers and tokens. Nothing is sent automatically.
+          5. Completed system schedules appear in normal history with Open, Share and record removal.
+          6. Multiple source audio languages in one MKV, for full videos and clips. Track order, language labels and first-track default are preserved. Use an external player with track selection, such as VLC; no new in-app player is included.
+          7. Exactly one automatic multi-audio retry. After two failed attempts, the concise alert groups available languages in green, unavailable languages in red and unverified languages neutrally. Retry the requested set or explicitly download only the checked available set. No silent partial success or endless automatic loop.
+          
+          Fixed:
+          - Keep the illustrated splash until frontend paint and WebView visual-state handoff. Slow starts show Retry instead of exposing an empty WebView.
+          - Preserve source subtitles alongside trimmed clips and rebase SRT cue times without depending on FFmpeg-version seeking behavior.
+          - Preserve and verify all requested audio tracks through metadata processing and section-download paths.
+          - Retain recovery records when restoration fails and reject missing selected accounts or expired stop times.
+          - Narrow-screen Arabic navigation, diagnostic wrapping and language-choice layout.
+          
+          Verified: all eight checks passed on final PR head 6efa5ed6cc151a3da1a15472200fc336b57fa650. The merge tree is identical. Signed Android build 44940189466 succeeded. Validation includes 158 frontend tests, production type checking, real full/section three-language extractor fixtures, audio metadata/count/order checks, clip/subtitle media tests, 19 journal/recovery tests, native popup/file/splash and WorkManager tests, and inspected 320/412px previews. Existing phantom-duration, EOF, concurrent clip naming, Android-safe filename and truncation regressions pass.
+          
+          Limits: no physical-phone validation is claimed. Confirm startup handoff, Instagram first-share timing, gallery/notifications, background scheduling, external sharing/playback and VLC track switching on the device. Source availability can change. System schedules retain their existing single-public-link option limits and Android power-management/force-stop restrictions; multi-audio scheduling is rejected rather than ignored. Recovery preserves choices, not a guarantee of source access or byte-range resume. Some specialist translations and third-party error text may still need wording polish.
+          
+          Exact signed APK from successful run 44940189466, commit 09b91c613e0c065320b542b73478c40799590c84.
+          Install over the existing app. Download the complete APK over a reliable connection, preferably VPN if local downloads are corrupted.
+          
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 9, TEST BUILD' --notes-file notes.md
