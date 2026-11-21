@@ -3314,6 +3314,27 @@ pub fn is_valid_audio_language(lang: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+pub fn multi_audio_selector(languages: &[String], height: Option<u32>) -> anyhow::Result<String> {
+    if languages.is_empty()
+        || languages.len() > 16
+        || languages.iter().any(|l| !is_valid_audio_language(l))
+    {
+        anyhow::bail!("Invalid audio language selection");
+    }
+    let mut selector = height
+        .filter(|h| *h > 0)
+        .map(|h| format!("bv[height<={h}]"))
+        .unwrap_or_else(|| "bv".into());
+    let mut seen = std::collections::HashSet::new();
+    for language in languages {
+        if !seen.insert(language) {
+            anyhow::bail!("Duplicate audio language");
+        }
+        selector.push_str(&format!("+ba[language={language}]"));
+    }
+    Ok(selector)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn download_video(
     ytdlp: &Path,
@@ -3349,6 +3370,7 @@ pub async fn download_video(
         extra_flags,
         audio_format,
         None,
+        None,
     )
     .await
 }
@@ -3371,6 +3393,7 @@ pub async fn download_video_full(
     extra_flags: &[String],
     audio_format: Option<&str>,
     audio_language: Option<&str>,
+    audio_languages: Option<&[String]>,
 ) -> anyhow::Result<DownloadResult> {
     let _timer_start = std::time::Instant::now();
 
@@ -3479,6 +3502,17 @@ pub async fn download_video_full(
         _ => format_selector,
     };
 
+    let multiple = audio_languages.filter(|v| !v.is_empty());
+    let format_selector = if let Some(languages) = multiple {
+        if !ffmpeg_available || mode == "audio" || mode == "mute" || format_id.is_some() {
+            anyhow::bail!(
+                "Multiple audio tracks require FFmpeg and video mode without an explicit format"
+            );
+        }
+        multi_audio_selector(languages, quality_height)?
+    } else {
+        format_selector
+    };
     let dir_len = output_dir.to_string_lossy().len();
     let max_name = if cfg!(target_os = "windows") {
         250_usize.saturating_sub(dir_len).min(200)
@@ -3632,9 +3666,31 @@ pub async fn download_video_full(
 
     if mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
-        base_args.push("mp4".to_string());
+        base_args.push(if multiple.is_some() { "mkv" } else { "mp4" }.to_string());
     }
 
+    if let Some(languages) = multiple {
+        base_args.extend([
+            "--audio-multistreams".into(),
+            "--remux-video".into(),
+            "mkv".into(),
+        ]);
+        // Some source containers omit language tags. yt-dlp's requested_formats
+        // order follows the strict selector, so label at the merger itself.
+        let labels = languages
+            .iter()
+            .enumerate()
+            .map(|(i, l)| format!("-metadata:s:a:{i} language={l}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        base_args.extend([
+            "--postprocessor-args".into(),
+            format!("Merger+ffmpeg_o:{labels}"),
+        ]);
+        // Section downloads merge in FFmpegDownloader rather than MergerPP.
+        // Apply the same ordered labels on that path before clip normalization.
+        base_args.extend(["--downloader-args".into(), format!("ffmpeg_o:{labels}")]);
+    }
     if ffmpeg_available {
         base_args.push("--postprocessor-args".to_string());
         base_args.push("ffmpeg:-threads 2".to_string());
@@ -3896,7 +3952,8 @@ pub async fn download_video_full(
         Vec::new()
     };
 
-    let max_attempts: usize = 3;
+    // The queue owns the one automatic retry for multi-audio, including final processing.
+    let max_attempts: usize = if multiple.is_some() { 1 } else { 3 };
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
@@ -3981,6 +4038,25 @@ pub async fn download_video_full(
             &effective_extra_flags,
             url,
         );
+
+        if multiple.is_some() {
+            // No hidden extractor/fragment/HTTP retry loops inside a job attempt.
+            let end = args.len().saturating_sub(1);
+            args.splice(
+                end..end,
+                [
+                    "--retries",
+                    "0",
+                    "--fragment-retries",
+                    "0",
+                    "--extractor-retries",
+                    "0",
+                    "--file-access-retries",
+                    "0",
+                ]
+                .map(str::to_owned),
+            );
+        }
 
         // Verbose output and no `--no-warnings` on Android so "Show log" reveals
         // why a site fails (JS challenge, PO token, blocked IP, ...).
@@ -4455,6 +4531,12 @@ pub async fn download_video_full(
                 || stderr_lower.contains("ffmpeg") && stderr_lower.contains("not found")
                 || stderr_lower.contains("postprocessing")
             {
+                if multiple.is_some() {
+                    tracing::warn!(
+                        "Selected audio tracks unavailable; refusing a single-track fallback"
+                    );
+                    break;
+                }
                 if format_already_simplified {
                     tracing::warn!(
                         "[yt-dlp] format/postprocessing error after simplification, giving up"
@@ -6738,4 +6820,69 @@ mod e2e {
         assert!(!uniq.is_empty(), "stream info parsed");
         let _ = std::fs::remove_dir_all(&out);
     }
+}
+
+#[cfg(test)]
+mod multi_audio_tests {
+    use super::multi_audio_selector;
+    #[test]
+    fn strict_three_language_selection_has_no_single_track_fallback() {
+        let languages = ["ar", "en", "fr"].map(str::to_owned);
+        assert_eq!(
+            multi_audio_selector(&languages, Some(720)).unwrap(),
+            "bv[height<=720]+ba[language=ar]+ba[language=en]+ba[language=fr]"
+        );
+        assert!(!multi_audio_selector(&languages, None)
+            .unwrap()
+            .contains('/'));
+        assert_eq!(
+            multi_audio_selector(&["ar".into()], None).unwrap(),
+            "bv+ba[language=ar]"
+        );
+    }
+    #[test]
+    fn rejects_empty_duplicate_and_injected_languages() {
+        for values in [vec![], vec!["en", "en"], vec!["ar", "en]/b"]] {
+            assert!(multi_audio_selector(
+                &values.into_iter().map(str::to_owned).collect::<Vec<_>>(),
+                None
+            )
+            .is_err());
+        }
+    }
+}
+
+/// Probe each requested source track after two failed job attempts. A format
+/// check is not a download guarantee, and network/account uncertainty stays unknown.
+pub async fn audio_track_choices(
+    ytdlp: &Path,
+    url: &str,
+    languages: &[String],
+    referer: Option<&str>,
+) -> serde_json::Value {
+    let mut available = Vec::new();
+    let mut unavailable = Vec::new();
+    let mut unknown = Vec::new();
+    for language in languages {
+        let mut flags = vec![
+            "--check-formats".into(),
+            "-f".into(),
+            format!("ba[language={language}]"),
+        ];
+        if let Some(referer) = referer {
+            flags.extend(["--referer".into(), referer.into()]);
+        }
+        match get_video_info(ytdlp, url, &flags).await {
+            Ok(_) => available.push(language.clone()),
+            Err(error) => {
+                let text = error.to_string().to_ascii_lowercase();
+                if text.contains("requested format") && text.contains("not available") {
+                    unavailable.push(language.clone());
+                } else {
+                    unknown.push(language.clone());
+                }
+            }
+        }
+    }
+    serde_json::json!({"requested": languages, "available": available, "unavailable": unavailable, "unknown": unknown})
 }

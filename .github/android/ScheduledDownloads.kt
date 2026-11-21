@@ -25,6 +25,7 @@ object ScheduledDownloads {
             val value = when (action) {
                 "schedule" -> schedule(context, payload)
                 "list" -> list(context)
+                "locale" -> { NativeText.language(context, payload); "" }
                 "cancel" -> { cancel(context, payload); "" }
                 "forget" -> { forget(context, payload); "" }
                 else -> error("Unsupported schedule action")
@@ -38,10 +39,10 @@ object ScheduledDownloads {
     @JvmStatic @Synchronized fun schedule(context: Context, json: String): String {
         val spec = JSONObject(json)
         val uri = android.net.Uri.parse(spec.getString("url"))
-        require(uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) { "A valid HTTP or HTTPS link is required" }
+        require(uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) { NativeText.t(context, "A valid HTTP or HTTPS link is required") }
         val delay = spec.getLong("at") - System.currentTimeMillis()
-        require(delay > 0) { "Choose a future download time" }
-        require(json.toByteArray().size < 8000) { "Scheduled download options are too large" }
+        require(delay > 0) { NativeText.t(context, "Choose a future download time") }
+        require(json.toByteArray().size < 8000) { NativeText.t(context, "Scheduled download options are too large") }
         val request = OneTimeWorkRequest.Builder(ScheduledDownloadWorker::class.java)
             .setInputData(Data.Builder().putString("spec", json).build())
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
@@ -51,7 +52,7 @@ object ScheduledDownloads {
         val id = request.id.toString()
         // Save the description first. A failed enqueue removes it; a process death
         // in between leaves a visible interrupted record instead of a false success.
-        check(prefs(context).edit().putString(id, json).commit()) { "Could not save the schedule" }
+        check(prefs(context).edit().putString(id, json).commit()) { NativeText.t(context, "Could not save the schedule") }
         try { WorkManager.getInstance(context).enqueue(request).result.get(30, TimeUnit.SECONDS) }
         catch (e: Exception) { prefs(context).edit().remove(id).commit(); throw e }
         return id
@@ -59,6 +60,7 @@ object ScheduledDownloads {
     @Synchronized fun record(context: Context, id: String, state: String, path: String = "", error: String = "") {
         val original = prefs(context).getString(id, null) ?: return
         val spec = JSONObject(original).put("lastState", state).put("lastPath", path).put("lastError", error)
+        if (state in listOf("SUCCEEDED", "FAILED", "CANCELLED")) spec.put("finishedAt", System.currentTimeMillis())
         prefs(context).edit().putString(id, spec.toString()).commit()
     }
     @JvmStatic fun list(context: Context): String {
@@ -69,6 +71,7 @@ object ScheduledDownloads {
                 val spec = JSONObject(value as String)
                 val work = states[id]
                 records.put(JSONObject().put("id", id).put("url", spec.getString("url")).put("at", spec.getLong("at"))
+                    .put("finishedAt", spec.optLong("finishedAt", spec.getLong("at")))
                     .put("state", work?.state?.name ?: spec.optString("lastState", "INTERRUPTED"))
                     .put("percent", work?.progress?.getInt("percent", -1) ?: -1)
                     .put("path", work?.outputData?.getString("path") ?: spec.optString("lastPath"))
@@ -83,8 +86,8 @@ object ScheduledDownloads {
     }
     @JvmStatic fun forget(context: Context, id: String) {
         val state = WorkManager.getInstance(context).getWorkInfoById(UUID.fromString(id)).get(20, TimeUnit.SECONDS)?.state
-        require(state == null || state.isFinished) { "Cancel this scheduled download before removing it" }
-        check(prefs(context).edit().remove(id).commit()) { "Could not remove the schedule" }
+        require(state == null || state.isFinished) { NativeText.t(context, "Cancel this scheduled download before removing it") }
+        check(prefs(context).edit().remove(id).commit()) { NativeText.t(context, "Could not remove the schedule") }
     }
 }
 
@@ -101,15 +104,15 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
     }
     private fun foreground(percent: Int): ForegroundInfo {
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("scheduled", "Scheduled downloads", NotificationManager.IMPORTANCE_LOW))
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("scheduled", NativeText.t(applicationContext, "Scheduled downloads"), NotificationManager.IMPORTANCE_LOW))
         val tap = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)?.let {
             PendingIntent.getActivity(applicationContext, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(applicationContext, "scheduled") else Notification.Builder(applicationContext)
-        val notification = builder.setSmallIcon(R.drawable.ic_omniget_download).setContentTitle("omniget · Scheduled download")
-            .setContentText(if (percent < 0) "Preparing download" else "$percent% downloaded")
+        val notification = builder.setSmallIcon(R.drawable.ic_omniget_download).setContentTitle(NativeText.t(applicationContext, "omniget · Scheduled download"))
+            .setContentText(if (percent < 0) NativeText.t(applicationContext, "Preparing download") else NativeText.percent(applicationContext, percent))
             .setProgress(100, percent.coerceAtLeast(0), percent < 0).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(tap)
-            .addAction(Notification.Action.Builder(null, "Cancel", WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)).build()).build()
+            .addAction(Notification.Action.Builder(null, NativeText.t(applicationContext, "Cancel"), WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)).build()).build()
         val notificationId = (id.hashCode() and 0x1fffffff) + 200
         return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             else ForegroundInfo(notificationId, notification)
@@ -127,12 +130,12 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
             MediaRuntime.start(applicationContext)
             val deadline = android.os.SystemClock.elapsedRealtime() + 120000
             while (!MediaRuntime.ready && MediaRuntime.error == null && !isStopped && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(200)
-            check(!isStopped) { "Scheduled download cancelled" }
+            check(!isStopped) { NativeText.t(applicationContext, "Scheduled download cancelled") }
             MediaRuntime.error?.let { error(it) }
-            check(MediaRuntime.ready) { "The download engine did not become ready. Retry the schedule." }
+            check(MediaRuntime.ready) { NativeText.t(applicationContext, "The download engine did not become ready. Retry the schedule.") }
             val output = File(spec.getString("output")).canonicalFile
-            check(output.isDirectory || output.mkdirs()) { "The download folder is unavailable" }
-            stage = File(output, ".omniget-schedule-$id").also { check(it.isDirectory || it.mkdirs()) { "Cannot create a download workspace" } }
+            check(output.isDirectory || output.mkdirs()) { NativeText.t(applicationContext, "The download folder is unavailable") }
+            stage = File(output, ".omniget-schedule-$id").also { check(it.isDirectory || it.mkdirs()) { NativeText.t(applicationContext, "Cannot create a download workspace") } }
             val manifest = File(stage, "finished-path.txt")
             val args = mutableListOf("--windows-filenames", "--no-playlist", "--no-overwrites", "--no-mtime", "--print-to-file", "after_move:filepath", manifest.path,
                 "-o", File(stage, "%(title).160B [%(id)s].%(ext)s").path)
@@ -148,7 +151,7 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
             val subtitles = spec.optString("subtitleTrack")
             if (subtitles.isNotEmpty()) {
                 val (kind, lang) = subtitles.split(':', limit = 2)
-                require(lang.matches(Regex("[A-Za-z0-9_-]{1,40}"))) { "Invalid subtitle language" }
+                require(lang.matches(Regex("[A-Za-z0-9_-]{1,40}"))) { NativeText.t(applicationContext, "Invalid subtitle language") }
                 args.addAll(listOf("--write-subs", if (kind == "auto") "--write-auto-subs" else "--no-write-auto-subs", "--sub-langs", lang, "--convert-subs", "srt"))
             } else args.addAll(listOf("--no-write-subs", "--no-write-auto-subs"))
             if (spec.optBoolean("wifiOnly")) {
@@ -162,7 +165,7 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
                 if (!onWifi()) return Result.retry()
             }
             var lastProgress = -2
-            check(!isStopped) { "Scheduled download cancelled" }
+            check(!isStopped) { NativeText.t(applicationContext, "Scheduled download cancelled") }
             YoutubeDL.getInstance().execute(YoutubeDLRequest(spec.getString("url")).addCommands(args), processId, false) { value, _, _ ->
                 val percent = value.toInt().coerceIn(0, 100)
                 if (percent != lastProgress) {
@@ -171,20 +174,20 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
                     if (percent == 100 || percent % 2 == 0) setForegroundAsync(foreground(percent))
                 }
             }
-            check(!isStopped) { "Scheduled download cancelled" }
-            val source = File(manifest.readLines().lastOrNull { it.isNotBlank() } ?: error("No completed file was reported")).canonicalFile
-            require(source.parentFile == stage.canonicalFile && source.isFile && source.length() > 0) { "The completed file is missing or invalid" }
+            check(!isStopped) { NativeText.t(applicationContext, "Scheduled download cancelled") }
+            val source = File(manifest.readLines().lastOrNull { it.isNotBlank() } ?: error(NativeText.t(applicationContext, "No completed file was reported"))).canonicalFile
+            require(source.parentFile == stage.canonicalFile && source.isFile && source.length() > 0) { NativeText.t(applicationContext, "The completed file is missing or invalid") }
             var target = File(output, source.name)
             var suffix = 1
             while (target.exists()) { target = File(output, "${source.nameWithoutExtension} (${suffix++}).${source.extension}") }
             // Reserve the final name atomically so concurrent workers cannot overwrite it.
             while (!target.createNewFile()) { target = File(output, "${source.nameWithoutExtension} (${suffix++}).${source.extension}") }
-            if (!source.renameTo(target)) { target.delete(); error("Could not move the completed download") }
+            if (!source.renameTo(target)) { target.delete(); error(NativeText.t(applicationContext, "Could not move the completed download")) }
             saved = target
             // Preserve source-provided subtitle sidecars with the final media name.
             stage.listFiles()?.filter { it.isFile && it.name.startsWith(source.nameWithoutExtension + ".") && it.extension in listOf("srt", "vtt", "ass") }?.forEach {
                 val tail = it.name.removePrefix(source.nameWithoutExtension)
-                check(it.renameTo(File(output, target.nameWithoutExtension + tail))) { "Could not save subtitle sidecar" }
+                check(it.renameTo(File(output, target.nameWithoutExtension + tail))) { NativeText.t(applicationContext, "Could not save subtitle sidecar") }
             }
             MediaLibrary.register(applicationContext, target.path)
             try { MediaActions.complete(applicationContext, target.path, target.nameWithoutExtension) } catch (e: Exception) { android.util.Log.w("libreget", "Completion notification unavailable", e) }
@@ -192,8 +195,8 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
             ScheduledDownloads.record(applicationContext, id.toString(), "SUCCEEDED", target.path)
             Result.success(Data.Builder().putString("path", target.path).build())
         } catch (e: Exception) {
-            android.util.Log.e("libreget", "Scheduled download failed", e)
-            val message = (e.message ?: "Scheduled download failed").take(1500)
+            android.util.Log.e("libreget", NativeText.t(applicationContext, "Scheduled download failed"), e)
+            val message = (e.message ?: NativeText.t(applicationContext, "Scheduled download failed")).take(1500)
             if (wifiLost.get() && !isStopped) Result.retry()
             else {
                 ScheduledDownloads.record(applicationContext, id.toString(), if (isStopped) "CANCELLED" else "FAILED", saved?.path ?: "", message)

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
   import { t } from "$lib/i18n";
   import ContextHint from "$components/hints/ContextHint.svelte";
   import { getSettings, updateSettings, toggleBool } from "../settings-helpers";
@@ -135,6 +136,7 @@
       </div>
       <button class="toggle" class:on={settings.download.auto_download_on_paste} onclick={() => toggleBool("download", "auto_download_on_paste", settings.download.auto_download_on_paste)} role="switch" aria-checked={settings.download.auto_download_on_paste} aria-label={$t('settings.download.auto_download_on_paste') as string}><span class="toggle-knob"></span></button>
     </div>
+    {#if !isAndroid()}
     <div class="divider"></div>
     <div class="setting-row">
       <div class="setting-col">
@@ -211,5 +213,6 @@
         <option value="wav">WAV</option>
       </select>
     </div>
+    {/if}
   </div>
 {/if}

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { BUILD_INFO } from "$lib/build-info";
+  import { diagnosticReport } from "$lib/diagnostic-report";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { isAndroid } from "$lib/platform";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -9,6 +13,8 @@
   let { id, status = "downloading" }: Props = $props();
 
   let expanded = $state(false);
+  let report = $state("");
+  let reportBusy = $state(false);
   let lines = $state<string[]>([]);
   let loading = $state(false);
   let preEl: HTMLPreElement | null = $state(null);
@@ -92,6 +98,19 @@
     atBottom = preEl.scrollHeight - preEl.scrollTop - preEl.clientHeight <= threshold;
   }
 
+  async function prepareReport() {
+    if (reportBusy) return;
+    reportBusy = true;
+    try {
+      await refresh();
+      const version = await getVersion().catch(() => "unknown");
+      report = diagnosticReport({ version, build: BUILD_INFO.commit, status, lines, platform: isAndroid() ? "Android" : "desktop" });
+    } finally { reportBusy = false; }
+  }
+  async function copyReport() {
+    try { await navigator.clipboard.writeText(report); showToast("success", $t("downloads.log.copied")); }
+    catch { showToast("error", $t("downloads.log.copy_failed")); }
+  }
   async function copyLog() {
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
@@ -134,6 +153,15 @@
     <span>{expanded ? $t("downloads.log.hide") : $t("downloads.log.show")}</span>
   </button>
 
+  <button type="button" class="log-toggle" onclick={prepareReport} disabled={reportBusy}>{$t('downloads.report_prepare')}</button>
+  {#if report}
+    <div class="log-panel">
+      <p class="report-review">{$t('downloads.report_review')}</p>
+      <pre class="report-content" dir="ltr">{report}</pre>
+      <button type="button" class="log-copy" onclick={copyReport}>{$t('downloads.report_copy')}</button>
+      <button type="button" class="log-copy" onclick={() => report = ''}>{$t('common.close')}</button>
+    </div>
+  {/if}
   {#if expanded}
     <div class="log-panel">
       <div class="log-header">
@@ -217,6 +245,25 @@
     border-radius: var(--border-radius);
     background: var(--popup-bg);
     overflow: hidden;
+  }
+
+  .report-review { padding: 12px; margin: 0; font-size: 12px; line-height: 1.7; }
+
+  pre.report-content {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: none;
+    padding: 12px;
+    overflow: visible;
+    white-space: pre-wrap;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    unicode-bidi: isolate;
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   .log-header {

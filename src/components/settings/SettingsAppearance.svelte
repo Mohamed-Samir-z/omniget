@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import RichPresencePanel from "./RichPresencePanel.svelte";
@@ -40,6 +41,7 @@
           <span class="setting-path">{$t('settings.appearance.lang_en')} · {$t('settings.appearance.lang_zh')} · {$t('settings.appearance.lang_pt')}</span>
         </div>
         <select class="select" value={settings.appearance.language} onchange={changeLanguage} aria-label={$t('settings.appearance.language') as string}>
+          <option value="ar">العربية</option>
           <option value="en">{$t('settings.appearance.lang_en')}</option>
           <option value="ru">{$t('settings.appearance.lang_ru')}</option>
           <option value="pt">{$t('settings.appearance.lang_pt')}</option>
@@ -54,6 +56,7 @@
           <option value="lo">{$t('settings.appearance.lang_lo')}</option>
         </select>
       </div>
+      {#if !isAndroid()}
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col">
@@ -88,6 +91,7 @@
           <span class="toggle-knob"></span>
         </button>
       </div>
+      {/if}
     </div>
   </section>
 
@@ -206,6 +210,7 @@
     </div>
   </section>
 
+  {#if !isAndroid()}
   {#if searchActive || rpcDrillOpen}
     {#if rpcDrillOpen && !searchActive}
       <SettingsDrillBack
@@ -224,4 +229,5 @@
       />
     </nav>
   {/if}
+{/if}
 {/if}

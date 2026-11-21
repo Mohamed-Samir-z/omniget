@@ -214,6 +214,7 @@ pub struct QueueItem {
     pub cookie_slug: Option<String>,
     pub custom_ytdlp_args: Option<Vec<String>>,
     pub audio_language: Option<String>,
+    pub audio_languages: Option<Vec<String>>,
     pub torrent_files: Option<Vec<usize>>,
     pub scheduled_at_ms: Option<u64>,
     pub stop_at_ms: Option<u64>,
@@ -226,6 +227,50 @@ pub struct QueueItem {
     pub started_at_ms: Option<u64>,
     /// Comando completo escrito pelo usuário em "editar e tentar de novo".
     pub ytdlp_argv_override: Option<Vec<String>>,
+}
+
+fn persist_job_choices(item: &QueueItem) {
+    let args = item.custom_ytdlp_args.as_deref().unwrap_or(&[]);
+    let option = |name: &str| args.windows(2).find(|p| p[0] == name).map(|p| p[1].clone());
+    let subtitle_track = if args.iter().any(|v| v == "--no-write-subs") {
+        Some(String::new())
+    } else {
+        option("--sub-langs").map(|lang| {
+            format!(
+                "{}:{}",
+                if args.iter().any(|v| v == "--write-auto-subs") {
+                    "auto"
+                } else {
+                    "manual"
+                },
+                lang
+            )
+        })
+    };
+    crate::core::recovery::persist(crate::core::recovery::RecoveryItem {
+        id: item.id,
+        url: item.url.clone(),
+        title: item.title.clone(),
+        platform: item.platform.clone(),
+        output_dir: item.output_dir.clone(),
+        download_mode: item.download_mode.clone(),
+        quality: item.quality.clone(),
+        format_id: item.format_id.clone(),
+        referer: item.referer.clone(),
+        options: crate::core::queue_wal::RecoveryOptions {
+            cookie_slug: item.cookie_slug.clone(),
+            time_range: option("--download-sections")
+                .map(|s| s.trim_start_matches('*').to_string()),
+            subtitle_track,
+            audio_language: item.audio_language.clone(),
+            audio_languages: item.audio_languages.clone(),
+            playlist_items: option("--playlist-items")
+                .map(|s| s.split(',').filter_map(|v| v.parse().ok()).collect()),
+            torrent_files: item.torrent_files.clone(),
+            scheduled_at: item.scheduled_at_ms,
+            stop_at: item.stop_at_ms,
+        },
+    });
 }
 
 impl QueueItem {
@@ -334,6 +379,7 @@ impl DownloadQueue {
         cookie_slug: Option<String>,
         custom_ytdlp_args: Option<Vec<String>>,
         audio_language: Option<String>,
+        audio_languages: Option<Vec<String>>,
         torrent_files: Option<Vec<usize>>,
         scheduled_at_ms: Option<u64>,
         stop_at_ms: Option<u64>,
@@ -388,6 +434,7 @@ impl DownloadQueue {
             cookie_slug,
             custom_ytdlp_args,
             audio_language,
+            audio_languages,
             torrent_files,
             scheduled_at_ms,
             stop_at_ms,
@@ -400,17 +447,7 @@ impl DownloadQueue {
             started_at_ms: None,
             ytdlp_argv_override: None,
         };
-        crate::core::recovery::persist(crate::core::recovery::RecoveryItem {
-            id: item.id,
-            url: item.url.clone(),
-            title: item.title.clone(),
-            platform: item.platform.clone(),
-            output_dir: item.output_dir.clone(),
-            download_mode: item.download_mode.clone(),
-            quality: item.quality.clone(),
-            format_id: item.format_id.clone(),
-            referer: item.referer.clone(),
-        });
+        persist_job_choices(&item);
         self.items.push(item);
     }
 
@@ -483,6 +520,7 @@ impl DownloadQueue {
                 cookie_slug: None,
                 custom_ytdlp_args: None,
                 audio_language: None,
+                audio_languages: None,
                 torrent_files: None,
                 scheduled_at_ms: None,
                 stop_at_ms: None,
@@ -681,7 +719,9 @@ impl DownloadQueue {
                     _ => {}
                 }
             }
-            crate::core::recovery::remove(id);
+            if success || item.audio_languages.is_none() {
+                crate::core::recovery::remove(id);
+            }
 
             if !item.external {
                 let entry = crate::core::queue_history::HistoryEntry {
@@ -957,6 +997,7 @@ impl DownloadQueue {
                 item.retry_count = 0;
                 item.ytdlp_argv_override = None;
                 item.reset_run_state();
+                persist_job_choices(item);
                 return true;
             }
         }
@@ -1381,6 +1422,7 @@ async fn spawn_download_inner(
         cookie_slug,
         custom_ytdlp_args,
         audio_language,
+        audio_languages,
         torrent_files,
         argv_override,
     ) = {
@@ -1408,6 +1450,7 @@ async fn spawn_download_inner(
             item.cookie_slug.clone(),
             item.custom_ytdlp_args.clone(),
             item.audio_language.clone(),
+            item.audio_languages.clone(),
             item.torrent_files.clone(),
             item.ytdlp_argv_override.clone(),
         )
@@ -1589,6 +1632,45 @@ async fn spawn_download_inner(
         info_start.elapsed()
     );
 
+    // Retain explicit playlist choices after cold-start metadata lookup too.
+    if let Some(args) = custom_ytdlp_args.as_ref() {
+        if let Some(indices) = args
+            .windows(2)
+            .find(|p| p[0] == "--playlist-items")
+            .map(|p| &p[1])
+        {
+            let selected: std::collections::HashSet<usize> =
+                indices.split(',').filter_map(|v| v.parse().ok()).collect();
+            if info.media_type == crate::models::media::MediaType::Playlist {
+                info.available_qualities = info
+                    .available_qualities
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(i, _)| selected.contains(&(i + 1)))
+                    .map(|(_, q)| q)
+                    .collect();
+            } else {
+                // Never silently turn a selected playlist into an unrelated single video.
+                info.available_qualities.clear();
+            }
+            if info.available_qualities.is_empty() {
+                let state = {
+                    let mut q = queue.lock().await;
+                    q.mark_complete(
+                        item_id,
+                        false,
+                        Some("Selected playlist entries are no longer available".into()),
+                        None,
+                        None,
+                    );
+                    q.get_state()
+                };
+                emit_queue_state_from_state(&app, state);
+                try_start_next(app, queue).await;
+                return;
+            }
+        }
+    }
     if is_generic_title(&info.title) {
         let pokemon = libreget_core::core::pokemon_names::random_pokemon_name();
         info.title = format!("video_{}", pokemon);
@@ -1703,8 +1785,23 @@ async fn spawn_download_inner(
         ytdlp_path,
         torrent_listen_port: Some(settings.advanced.torrent_listen_port),
         torrent_id_slot: Some(torrent_id_slot.clone()),
-        custom_ytdlp_args: custom_ytdlp_args.clone(),
+        // Selection has already filtered playlist metadata. Do not apply
+        // original playlist indices to each individual entry URL again.
+        custom_ytdlp_args: custom_ytdlp_args.as_ref().map(|args| {
+            let mut filtered = Vec::new();
+            let mut i = 0;
+            while i < args.len() {
+                if args[i] == "--playlist-items" {
+                    i += 2;
+                } else {
+                    filtered.push(args[i].clone());
+                    i += 1;
+                }
+            }
+            filtered
+        }),
         audio_language,
+        audio_languages: audio_languages.clone(),
         torrent_files: torrent_files.clone(),
         torrent_auto_trackers: settings.advanced.torrent_auto_trackers,
         torrent_upnp: settings.advanced.torrent_upnp,
@@ -1999,6 +2096,32 @@ async fn spawn_download_inner(
             ),
         );
     }
+    let dl_future = async {
+        let dl = dl_future.await?;
+        if opts.audio_languages.is_some() {
+            if settings.download.embed_metadata && ffmpeg::is_ffmpeg_available().await {
+                let metadata = MetadataEmbed {
+                    title: Some(info.title.clone()),
+                    artist: Some(info.author.clone()),
+                    thumbnail_url: info.thumbnail_url.clone(),
+                    ..Default::default()
+                };
+                ffmpeg::embed_metadata(
+                    &dl.file_path,
+                    &metadata,
+                    settings.download.embed_thumbnail,
+                    shared_http_client(),
+                )
+                .await?;
+            }
+            ffmpeg::finalize_audio_tracks(
+                &dl.file_path,
+                opts.audio_languages.as_deref().unwrap_or_default(),
+            )
+            .await?;
+        }
+        Ok::<_, anyhow::Error>(dl)
+    };
     let result = libreget_core::core::log_hook::CURRENT_ARGV_OVERRIDE
         .scope(
             argv_override.clone(),
@@ -2091,7 +2214,8 @@ async fn spawn_download_inner(
                 }
             }
 
-            if settings.download.embed_metadata
+            if opts.audio_languages.is_none()
+                && settings.download.embed_metadata
                 && platform_name != "magnet"
                 && ffmpeg::is_ffmpeg_available().await
             {
@@ -2194,7 +2318,7 @@ async fn spawn_download_inner(
                 format!("[libreget] download failed: {}", raw_err),
             );
             let (category, hint) = libreget_core::core::errors::classify_download_error(&raw_err);
-            let user_msg = if category != "unknown" {
+            let mut user_msg = if category != "unknown" {
                 format!("{} ({})", hint, raw_err)
             } else {
                 raw_err.clone()
@@ -2209,13 +2333,23 @@ async fn spawn_download_inner(
             let retry_decision = {
                 let mut q = queue.lock().await;
                 if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
-                    if item.downloaded_bytes > 5 * 1024 * 1024 {
+                    let multi_audio = item.audio_languages.is_some();
+                    if !multi_audio && item.downloaded_bytes > 5 * 1024 * 1024 {
                         item.retry_count = 0;
                     }
-                    let retryable = is_retryable_category(category);
+                    let retryable = !raw_err.to_ascii_lowercase().contains("cancel")
+                        && (multi_audio || is_retryable_category(category));
                     let attempt = item.retry_count;
-                    let max = item.max_retries;
-                    if retryable && attempt < max {
+                    let max = if multi_audio { 1 } else { item.max_retries };
+                    let allowed = if multi_audio {
+                        crate::core::multi_audio_policy::should_retry(
+                            attempt,
+                            raw_err.to_ascii_lowercase().contains("cancel"),
+                        )
+                    } else {
+                        retryable && attempt < max
+                    };
+                    if allowed {
                         item.retry_count = attempt + 1;
                         Some((attempt + 1, max))
                     } else {
@@ -2257,6 +2391,28 @@ async fn spawn_download_inner(
                 return;
             }
 
+            if let Some(languages) = opts
+                .audio_languages
+                .as_deref()
+                .filter(|_| !raw_err.to_ascii_lowercase().contains("cancel"))
+            {
+                let choices = if let Some(path) = opts.ytdlp_path.as_deref() {
+                    libreget_core::core::log_hook::CURRENT_COOKIE_SLUG
+                        .scope(
+                            cookie_slug.clone(),
+                            libreget_core::core::ytdlp::audio_track_choices(
+                                path,
+                                &url,
+                                languages,
+                                opts.referer.as_deref(),
+                            ),
+                        )
+                        .await
+                } else {
+                    serde_json::json!({"requested":languages,"available":[],"unavailable":[],"unknown":languages})
+                };
+                user_msg = format!("MULTI_AUDIO_CHOICE:{}", choices);
+            }
             let state = {
                 let mut q = queue.lock().await;
                 q.mark_complete(item_id, false, Some(user_msg), None, None);

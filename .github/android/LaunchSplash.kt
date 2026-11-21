@@ -5,7 +5,25 @@ class LaunchSplash(private val activity: MainActivity) {
     private var cover: android.widget.FrameLayout? = null
     private var ready = false
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val failSafe = Runnable { dismiss() }
+    private val failSafe = Runnable { showSlowStart() }
+    private fun showSlowStart() {
+        val frame = cover ?: return
+        val controls = android.widget.LinearLayout(activity).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(24, 24, 24, 24)
+        }
+        controls.addView(android.widget.TextView(activity).apply {
+            text = NativeText.t(activity, "The app is taking longer to start. You can retry without removing your downloads.")
+            setTextColor(0xff242824.toInt())
+            gravity = android.view.Gravity.CENTER
+        })
+        controls.addView(android.widget.Button(activity).apply {
+            text = NativeText.t(activity, "Retry")
+            setOnClickListener { activity.recreate() }
+        })
+        frame.addView(controls, android.widget.FrameLayout.LayoutParams(-1, -2, android.view.Gravity.BOTTOM))
+    }
 
     fun show() {
         if (ready || cover != null || activity.intent?.action == android.content.Intent.ACTION_SEND) return
@@ -15,9 +33,10 @@ class LaunchSplash(private val activity: MainActivity) {
         fun dp(n: Int) = (n * density).toInt()
         val frame = android.widget.FrameLayout(activity).apply {
             setBackgroundColor(background)
+            layoutDirection = NativeText.direction(activity)
             isClickable = true
             importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES
-            contentDescription = "omniget is starting"
+            contentDescription = NativeText.t(activity, "omniget is starting")
         }
         val column = android.widget.LinearLayout(activity).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -40,7 +59,7 @@ class LaunchSplash(private val activity: MainActivity) {
         frame.addView(column, android.widget.FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER))
         cover = frame
         activity.addContentView(frame, android.view.ViewGroup.LayoutParams(-1, -1))
-        // A frontend error must not trap the user behind a permanent splash.
+        // A timeout is not proof of a painted WebView. Keep a visible recovery action.
         handler.postDelayed(failSafe, 12000)
     }
 

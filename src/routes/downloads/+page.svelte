@@ -1,5 +1,7 @@
 <script lang="ts">
-  import ScheduledDownloads from "$components/downloads/ScheduledDownloads.svelte";
+  import AudioTrackChoice from "$components/downloads/AudioTrackChoice.svelte";
+  import { audioChoice } from "$lib/multi-audio-choice";
+  import ScheduledDownloads, { type Scheduled } from "$components/downloads/ScheduledDownloads.svelte";
   import DeveloperCard from "$components/DeveloperCard.svelte";
   import CompletedFileActions from "$components/downloads/CompletedFileActions.svelte";
   import { onMount } from "svelte";
@@ -369,7 +371,7 @@
       if (finishedCount > 0) {
         actions.push({ id: "clear-finished", label: $t("downloads.clear_finished") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearFinished });
       }
-    } else if (viewMode === "history" && historyEntries.length > 0) {
+    } else if (viewMode === "history" && historyTimeline.length > 0) {
       actions.push({ id: "clear-history", label: $t("downloads.history_clear") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearHistory });
     }
     return setToolbar({
@@ -388,6 +390,15 @@
     });
   });
   let historyEntries = $state<HistoryEntry[]>([]);
+  let systemSchedules = $state<Scheduled[]>([]);
+  let historyTimeline = $derived([
+    ...historyEntries.map(entry => ({ kind: "download" as const, entry, time: entry.completed_at * 1000 })),
+    ...systemSchedules.filter(entry => !["ENQUEUED", "RUNNING", "BLOCKED"].includes(entry.state)).map(entry => ({ kind: "schedule" as const, entry, time: entry.finishedAt || entry.at })),
+  ].sort((a, b) => Number(b.time) - Number(a.time)));
+  async function forgetSchedule(id: string) {
+    try { await invoke("android_schedules", { action: "forget", id }); systemSchedules = systemSchedules.filter(item => item.id !== id); }
+    catch (e) { showToast("error", String(e)); }
+  }
   let historyLoading = $state(false);
 
   async function openFileFolder(filePath: string) {
@@ -417,6 +428,10 @@
     try {
       await invoke("clear_download_history");
       historyEntries = [];
+      for (const item of systemSchedules.filter(item => !["ENQUEUED", "RUNNING", "BLOCKED"].includes(item.state))) {
+        await invoke("android_schedules", { action: "forget", id: item.id });
+        systemSchedules = systemSchedules.filter(record => record.id !== item.id);
+      }
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
       showToast("error", msg);
@@ -670,14 +685,24 @@
         </div>
         {#if historyLoading}
           <p class="history-empty">{$t('downloads.history_loading')}</p>
-        {:else if historyEntries.length === 0}
+        {:else if historyTimeline.length === 0}
           <div class="history-empty-state">
             <img class="empty-state-art" src="/icons/history-64.png" alt="" width="72" height="72" draggable="false" />
             <p class="history-empty-text">{$t('downloads.history_empty')}</p>
           </div>
         {:else}
           <ul class="history-list">
-            {#each historyEntries as entry (entry.id)}
+            {#each historyTimeline as record (`${record.kind}-${record.entry.id}`)}
+              {#if record.kind === 'schedule'}
+                {@const scheduled = record.entry}
+                <li class="history-item" data-success={scheduled.state === 'SUCCEEDED'}>
+                  <div class="history-title" dir="auto">{scheduled.url}</div>
+                  <div class="history-meta"><time>{new Date(scheduled.finishedAt || scheduled.at).toLocaleString()}</time> · {$t('downloads.os_schedules')} · {$t(`downloads.${({SUCCEEDED:'schedule_complete',FAILED:'schedule_failed',CANCELLED:'schedule_cancelled'} as Record<string,string>)[scheduled.state] || 'schedule_interrupted'}`)}</div>
+                  {#if scheduled.error}<p dir="auto">{scheduled.error}</p>{/if}
+                  <div class="history-actions">{#if scheduled.path}<CompletedFileActions path={scheduled.path} />{/if}<button class="button" onclick={() => forgetSchedule(scheduled.id)}>{$t('downloads.schedule_remove')}</button></div>
+                </li>
+              {:else}
+                {@const entry = record.entry}
               <li class="history-item" data-success={entry.success}>
                 <div class="history-item-head">
                   {#if entry.thumbnail_url}
@@ -747,6 +772,7 @@
                   </button>
                 </div>
               </li>
+            {/if}
             {/each}
           </ul>
         {/if}
@@ -1091,7 +1117,11 @@
         {/if}
 
         {#if item.status === "error" && item.error}
-          <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+          {#if audioChoice(item.error)}
+            <AudioTrackChoice id={item.id} error={item.error} />
+          {:else}
+            <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+          {/if}
         {/if}
 
         {#if item.status !== "queued" && item.status !== "complete"}
@@ -1190,7 +1220,7 @@
   </div>
 {/snippet}
 
-<ScheduledDownloads />
+<ScheduledDownloads mode={viewMode} onitems={(items) => systemSchedules = items} />
 <DeveloperCard />
 
 <style>
@@ -1202,10 +1232,13 @@
     align-items: center;
     justify-content: center;
     flex: 1;
-    min-height: 0;
+    min-height: max-content;
+    padding-block: var(--space-5);
     gap: var(--space-4);
     color: var(--text-dim);
   }
+
+  .downloads-empty > :global(*) { flex-shrink: 0; }
 
   .empty-copy {
     display: flex;

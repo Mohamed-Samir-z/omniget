@@ -81,6 +81,8 @@ class RuntimeBundleTests(unittest.TestCase):
         self.assertIn("launchSplash.show()", kotlin)
         self.assertIn("launchSplash.hideForShare()", kotlin)
         self.assertIn("dismissLaunchSplash", kotlin)
+        self.assertIn("postVisualStateCallback", kotlin)
+        self.assertIn("override fun onComplete(requestId: Long)", kotlin)
         self.assertIn("launchSplash.dispose()", kotlin)
         self.assertIn("setExcludeFromRecents(!visible)", kotlin)
         self.assertIn("it.taskInfo?.taskId == taskId", kotlin)

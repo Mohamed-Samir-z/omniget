@@ -21,6 +21,8 @@ pub struct RecoveryItem {
     pub format_id: Option<String>,
     #[serde(default)]
     pub referer: Option<String>,
+    #[serde(default)]
+    pub options: crate::core::queue_wal::RecoveryOptions,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -91,6 +93,7 @@ fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal
         format_id: item.format_id.clone(),
         referer: item.referer.clone(),
         position,
+        options: Box::new(item.options.clone()),
     }
 }
 
@@ -105,6 +108,7 @@ fn recovered_to_item(r: &crate::core::queue_wal::RecoveredItem) -> RecoveryItem 
         quality: r.quality.clone(),
         format_id: r.format_id.clone(),
         referer: r.referer.clone(),
+        options: r.options.clone(),
     }
 }
 
@@ -253,6 +257,44 @@ mod migracao_tests {
         }
       ]
     }"#;
+
+    #[test]
+    fn full_job_choices_survive_journal_compaction_and_restart() {
+        use crate::core::queue_wal::{compact, decode_log, encode, RecoveryOptions};
+        let options = RecoveryOptions {
+            cookie_slug: Some("selected-account".into()),
+            time_range: Some("00:01:02-00:01:17".into()),
+            subtitle_track: Some("auto:ar".into()),
+            audio_language: Some("ar".into()),
+            audio_languages: Some(vec!["ar".into(), "en".into(), "fr".into()]),
+            playlist_items: Some(vec![2, 4]),
+            torrent_files: Some(vec![0, 3]),
+            scheduled_at: Some(1900000000000),
+            stop_at: Some(1900000060000),
+        };
+        let mut records = json_para_registros(JSON_0_7_X);
+        if let WalRecord::Enqueued {
+            options: stored, ..
+        } = &mut records[0]
+        {
+            **stored = options.clone();
+        }
+        let compacted = compact(&records);
+        let text = compacted
+            .iter()
+            .map(|r| encode(r).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let (decoded, dropped) = decode_log(&(text + "\n{truncated"));
+        assert_eq!(dropped, 1);
+        let item = recovered_to_item(&replay(&decoded)[0]);
+        assert_eq!(item.options, options);
+        let json = serde_json::to_string(&item).unwrap();
+        assert_eq!(
+            serde_json::from_str::<RecoveryItem>(&json).unwrap().options,
+            options
+        );
+    }
 
     #[test]
     fn migracao_preserva_o_referer() {

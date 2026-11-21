@@ -10,7 +10,6 @@ use crate::AppState;
 
 use crate::core::ytdlp;
 use crate::models::media::FormatInfo;
-use crate::models::media::MediaType;
 
 #[derive(Clone, Serialize)]
 pub struct PlatformInfo {
@@ -838,6 +837,7 @@ pub async fn download_from_url(
     cookie_slug: Option<String>,
     time_range: Option<String>,
     audio_language: Option<String>,
+    audio_languages: Option<Vec<String>>,
     playlist_items: Option<Vec<u32>>,
     torrent_files: Option<Vec<usize>>,
     scheduled_at: Option<u64>,
@@ -904,6 +904,44 @@ pub async fn download_from_url(
         }
     }
 
+    if let Some(items) = playlist_items.as_ref().filter(|v| !v.is_empty()) {
+        if items.contains(&0) {
+            return Err("Invalid playlist item".into());
+        }
+        custom_ytdlp_args.get_or_insert_with(Vec::new).extend([
+            "--playlist-items".into(),
+            items
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        ]);
+    }
+    let audio_languages = match audio_languages {
+        Some(languages) => {
+            if languages.is_empty()
+                || languages.len() > 16
+                || languages.iter().any(|l| !ytdlp::is_valid_audio_language(l))
+            {
+                return Err("Choose up to 16 valid source audio languages".into());
+            }
+            let mut unique = Vec::new();
+            for language in languages {
+                if !unique.contains(&language) {
+                    unique.push(language);
+                }
+            }
+            if matches!(download_mode.as_deref(), Some("mp3" | "audio" | "mute"))
+                || format_id.is_some()
+                || playlist_items.as_ref().is_some_and(|v| !v.is_empty())
+                || torrent_files.is_some()
+            {
+                return Err("Multiple audio tracks require a single video, not audio-only, mute, an explicit format, playlist or torrent".into());
+            }
+            Some(unique)
+        }
+        _ => None,
+    };
     let audio_language = match audio_language.as_deref().map(str::trim) {
         Some(l) if !l.is_empty() && ytdlp::is_valid_audio_language(l) => Some(l.to_string()),
         Some(l) if !l.is_empty() => return Err(format!("Invalid audio language: {}", l)),
@@ -924,6 +962,7 @@ pub async fn download_from_url(
             || playlist_items.as_ref().is_some_and(|v| !v.is_empty())
             || torrent_files.is_some()
             || audio_language.is_some()
+            || audio_languages.is_some()
             || cookie_slug
                 .as_deref()
                 .is_some_and(|s| !s.is_empty() && s != "_anonymous")
@@ -988,7 +1027,10 @@ pub async fn download_from_url(
         }
     };
     let force_mp3 = download_mode.as_deref() == Some("mp3");
-    let force_ytdlp = force_mp3 || subtitle_track.as_deref().is_some_and(|s| !s.is_empty());
+    let force_ytdlp = force_mp3
+        || subtitle_track.as_deref().is_some_and(|s| !s.is_empty())
+        || audio_languages.is_some()
+        || audio_language.is_some();
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
         if force_ytdlp || clip_range.is_some() {
             Arc::new(crate::platforms::GenericYtdlpDownloader::new())
@@ -999,31 +1041,12 @@ pub async fn download_from_url(
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
-    let cached_info = {
-        let info = if force_ytdlp || clip_range.is_some() {
-            None
-        } else {
-            queue::try_get_cached_info(&url).await
-        };
-        match (info, &playlist_items) {
-            (Some(mut info), Some(sel))
-                if !sel.is_empty() && info.media_type == MediaType::Playlist =>
-            {
-                let set: std::collections::HashSet<u32> = sel.iter().copied().collect();
-                let filtered: Vec<_> = info
-                    .available_qualities
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, _)| set.contains(&((*i as u32) + 1)))
-                    .map(|(_, q)| q.clone())
-                    .collect();
-                if !filtered.is_empty() {
-                    info.available_qualities = filtered;
-                }
-                Some(info)
-            }
-            (info, _) => info,
-        }
+    // Filter playlist entries after metadata is available, not only on a warm
+    // info cache. Recovery begins with an empty cache after a process restart.
+    let cached_info = if force_ytdlp || clip_range.is_some() {
+        None
+    } else {
+        queue::try_get_cached_info(&url).await
     };
 
     let state_to_emit = {
@@ -1050,6 +1073,7 @@ pub async fn download_from_url(
             cookie_slug,
             custom_ytdlp_args,
             audio_language,
+            audio_languages,
             torrent_files,
             scheduled_at,
             stop_at,
@@ -1197,6 +1221,7 @@ pub async fn download_with_custom_args(
             false,
             cookie_slug,
             Some(custom_args),
+            None,
             None,
             None,
             None,
@@ -1349,9 +1374,40 @@ pub async fn retry_download(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
+    audio_languages: Option<Vec<String>>,
 ) -> Result<String, String> {
     let state_to_emit = {
         let mut q = state.download_queue.lock().await;
+        if let Some(languages) = audio_languages {
+            let item = q
+                .items
+                .iter_mut()
+                .find(|item| item.id == download_id)
+                .ok_or("Download not found")?;
+            let queue::QueueStatus::Error { message, .. } = &item.status else {
+                return Err("No audio choice is waiting".into());
+            };
+            let json = message
+                .strip_prefix("MULTI_AUDIO_CHOICE:")
+                .ok_or("No audio choice is waiting")?;
+            let choice: serde_json::Value =
+                serde_json::from_str(json).map_err(|_| "Invalid audio choice")?;
+            let available = choice["available"]
+                .as_array()
+                .ok_or("No checked audio tracks")?;
+            if languages.is_empty()
+                || languages
+                    .iter()
+                    .any(|language| !available.iter().any(|v| v.as_str() == Some(language)))
+            {
+                return Err("Only explicitly checked available languages can be accepted".into());
+            }
+            let unique = languages.iter().collect::<std::collections::HashSet<_>>();
+            if unique.len() != languages.len() {
+                return Err("Duplicate audio language".into());
+            }
+            item.audio_languages = Some(languages);
+        }
         if q.retry(download_id) {
             Some(q.get_state())
         } else {
@@ -1503,32 +1559,73 @@ pub async fn restore_recovery(
     state: tauri::State<'_, AppState>,
 ) -> Result<u32, String> {
     let items = crate::core::recovery::list();
-    crate::core::recovery::clear_all();
     let mut restored: u32 = 0;
+    let mut failures = Vec::new();
     for item in items {
+        let options = item.options.clone();
+        if let Some(slug) = options
+            .cookie_slug
+            .as_deref()
+            .filter(|s| !s.is_empty() && *s != "_anonymous")
+        {
+            let domain = url::Url::parse(&item.url)
+                .ok()
+                .and_then(|u| u.host_str().map(crate::cookies::root_domain_of));
+            if domain
+                .as_deref()
+                .and_then(|d| crate::cookies::account_path_for_consumer(d, Some(slug)))
+                .is_none()
+            {
+                failures.push("The selected cookie account is missing or disabled. Restore it before retrying this job.".to_string());
+                continue;
+            }
+        }
+        // A missed start runs now. An expired stop must never restart a job.
+        if options.stop_at.is_some_and(|t| t <= queue::now_ms()) {
+            failures.push(
+                "A recovered job has an expired stop time. Discard it or choose a new time."
+                    .to_string(),
+            );
+            continue;
+        }
         match download_from_url(
             app.clone(),
             state.clone(),
-            item.url,
-            item.output_dir,
-            item.download_mode,
-            item.quality,
-            item.format_id,
-            item.referer,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            item.url.clone(),
+            item.output_dir.clone(),
+            item.download_mode.clone(),
+            item.quality.clone(),
+            item.format_id.clone(),
+            item.referer.clone(),
+            options.cookie_slug,
+            options.time_range,
+            options.audio_language,
+            options.audio_languages,
+            options.playlist_items,
+            options.torrent_files,
+            options.scheduled_at.filter(|t| *t > queue::now_ms()),
+            options.stop_at,
+            options.subtitle_track,
         )
         .await
         {
-            Ok(_) => restored += 1,
-            Err(e) => tracing::warn!("[recovery] restore failed: {}", e),
+            Ok(_) => {
+                crate::core::recovery::remove(item.id);
+                restored += 1;
+            }
+            Err(e) => {
+                tracing::warn!("[recovery] restore failed: {}", e);
+                failures.push(e);
+            }
         }
+    }
+    if !failures.is_empty() {
+        return Err(format!(
+            "Restored {} job(s); {} remain available for recovery. {}",
+            restored,
+            failures.len(),
+            failures[0]
+        ));
     }
     Ok(restored)
 }
@@ -1864,7 +1961,7 @@ mod tests {
 
 #[tauri::command]
 pub async fn android_schedules(action: String, id: Option<String>) -> Result<String, String> {
-    if !matches!(action.as_str(), "list" | "cancel" | "forget") {
+    if !matches!(action.as_str(), "list" | "cancel" | "forget" | "locale") {
         return Err("Unsupported schedule action".into());
     }
     #[cfg(target_os = "android")]

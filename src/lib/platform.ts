@@ -68,3 +68,8 @@ export function currentOs(): OsName {
   const raw = `${uaData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`;
   return /win/i.test(raw) ? "windows" : "linux";
 }
+
+/** Android has no desktop tray, autostart or global keyboard-shortcut integration. */
+export function isAndroid(): boolean {
+  return typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+}

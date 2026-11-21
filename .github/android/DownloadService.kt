@@ -13,7 +13,7 @@ class DownloadService : Service() {
     private var wake: PowerManager.WakeLock? = null
     companion object {
         private data class Progress(val title: String, val percent: Int, val count: Int, val speed: Long)
-        @Volatile private var progress = Progress("Preparing download", -1, 1, 0)
+        @Volatile private var progress = Progress("", -1, 1, 0)
         @Volatile private var instance: DownloadService? = null
         private var lastUpdate = 0L
         @JvmStatic @Synchronized fun update(title: String, percent: Int, count: Int, speed: Long) {
@@ -32,15 +32,15 @@ class DownloadService : Service() {
         val p = progress
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
-            manager.createNotificationChannel(NotificationChannel("downloads", "Downloads", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel("downloads", NativeText.t(this, "Downloads"), NotificationManager.IMPORTANCE_LOW))
         }
         val launch = packageManager.getLaunchIntentForPackage(packageName)
         val tap = launch?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) }
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "downloads") else Notification.Builder(this)
         val status = when {
-            p.percent < 0 -> "Preparing download"
-            p.percent >= 100 -> "Finalizing and adding to media library"
-            else -> "${p.percent}% downloaded"
+            p.percent < 0 -> NativeText.t(this, "Preparing download")
+            p.percent >= 100 -> NativeText.t(this, "Finalizing and adding to media library")
+            else -> NativeText.percent(this, p.percent)
         }
         val speedLabel = when {
             p.speed >= 1048576 -> String.format(java.util.Locale.US, "%.1f MB/s", p.speed / 1048576.0)
@@ -49,7 +49,7 @@ class DownloadService : Service() {
         }
         val detail = if (p.speed > 0 && p.percent in 0..99) "$status · $speedLabel" else status
         val notification = builder
-            .setContentTitle(if (p.count > 1) "omniget · ${p.count} downloads" else "omniget")
+            .setContentTitle(if (p.count > 1) NativeText.count(this, p.count) else "omniget")
             .setContentText("${p.title} · $detail")
             .setStyle(Notification.BigTextStyle().bigText("${p.title}\n$detail"))
             .setSmallIcon(R.drawable.ic_omniget_download)
@@ -76,7 +76,7 @@ class DownloadService : Service() {
     }
     override fun onDestroy() {
         instance = null
-        progress = Progress("Preparing download", -1, 1, 0)
+        progress = Progress("", -1, 1, 0)
         stopForeground(STOP_FOREGROUND_REMOVE)
         try { wake?.release() } catch (_: Throwable) {}
         super.onDestroy()

@@ -208,7 +208,10 @@
 
     // Drain external URLs that arrived before the frontend was ready
     // (cold start from a share intent, deep link or CLI argument).
-    invoke<Omit<ExternalUrlEvent, "id">[]>("register_external_frontend")
+    // onMount alone is not a first-paint signal. Flush the UI through two
+    // animation frames; Android also waits for WebView visual-state completion.
+    new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      .then(() => invoke<Omit<ExternalUrlEvent, "id">[]>("register_external_frontend"))
       .then((pending) => {
         for (const event of pending) {
           handleExternalUrlEvent(event);
@@ -332,6 +335,7 @@
     // espaço morto e encostava a busca no botão de fechar.
     document.documentElement.setAttribute("data-platform", isMac() ? "macos" : "other");
     document.documentElement.setAttribute("dir", isRtlLocale($locale) ? "rtl" : "ltr");
+    if (/android/i.test(navigator.userAgent)) void invoke("android_schedules", { action: "locale", id: $locale }).catch(() => {});
     document.documentElement.setAttribute("lang", $locale || "en");
     buildCommandPaletteItems();
   });

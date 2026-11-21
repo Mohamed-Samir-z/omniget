@@ -963,6 +963,7 @@ mod tests {
             torrent_id_slot: None,
             custom_ytdlp_args: None,
             audio_language: None,
+            audio_languages: None,
             torrent_files: None,
             torrent_auto_trackers: false,
             torrent_upnp: false,

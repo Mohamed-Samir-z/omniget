@@ -24,6 +24,29 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Serializable job choices. Old journals default to the historical settings.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct RecoveryOptions {
+    #[serde(default)]
+    pub cookie_slug: Option<String>,
+    #[serde(default)]
+    pub time_range: Option<String>,
+    #[serde(default)]
+    pub subtitle_track: Option<String>,
+    #[serde(default)]
+    pub audio_language: Option<String>,
+    #[serde(default)]
+    pub audio_languages: Option<Vec<String>>,
+    #[serde(default)]
+    pub playlist_items: Option<Vec<u32>>,
+    #[serde(default)]
+    pub torrent_files: Option<Vec<usize>>,
+    #[serde(default)]
+    pub scheduled_at: Option<u64>,
+    #[serde(default)]
+    pub stop_at: Option<u64>,
+}
+
 /// Uma transição. O log é uma sequência disto.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
@@ -48,6 +71,8 @@ pub enum WalRecord {
         /// Posição na fila, para a ordem sobreviver.
         #[serde(default)]
         position: u32,
+        #[serde(default)]
+        options: Box<RecoveryOptions>,
     },
     Started {
         id: u64,
@@ -128,6 +153,7 @@ pub struct RecoveredItem {
     pub format_id: Option<String>,
     pub referer: Option<String>,
     pub position: u32,
+    pub options: RecoveryOptions,
     pub percent: f64,
     pub was_running: bool,
 }
@@ -153,6 +179,7 @@ pub fn replay(records: &[WalRecord]) -> Vec<RecoveredItem> {
                 format_id,
                 referer,
                 position,
+                options,
             } => {
                 live.insert(
                     *id,
@@ -167,6 +194,7 @@ pub fn replay(records: &[WalRecord]) -> Vec<RecoveredItem> {
                         format_id: format_id.clone(),
                         referer: referer.clone(),
                         position: *position,
+                        options: options.as_ref().clone(),
                         percent: 0.0,
                         was_running: false,
                     },
@@ -251,6 +279,7 @@ pub fn compact(records: &[WalRecord]) -> Vec<WalRecord> {
                 format_id: i.format_id,
                 referer: i.referer,
                 position: i.position,
+                options: Box::new(i.options),
             }];
             if i.was_running {
                 out.push(WalRecord::Started { id: i.id });
@@ -283,6 +312,7 @@ mod tests {
             format_id: None,
             referer: None,
             position: pos,
+            options: Box::default(),
         }
     }
 

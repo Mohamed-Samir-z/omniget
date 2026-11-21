@@ -101,6 +101,8 @@ pub struct StreamInfo {
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
     pub duration_seconds: Option<f64>,
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,6 +247,11 @@ fn parse_stream_info(s: &serde_json::Value) -> StreamInfo {
         sample_rate,
         channels,
         duration_seconds,
+        language: s
+            .get("tags")
+            .and_then(|t| t.get("language"))
+            .and_then(|v| v.as_str())
+            .map(str::to_owned),
     }
 }
 
@@ -492,7 +499,7 @@ pub async fn embed_metadata(
             "attached_pic".to_string(),
         ]);
     } else {
-        args.extend(["-c".to_string(), "copy".to_string()]);
+        args.extend(["-map".into(), "0".into(), "-c".into(), "copy".into()]);
     }
 
     if let Some(ref v) = metadata.title {
@@ -636,4 +643,104 @@ fn parse_out_time_us(line: &str) -> Option<u64> {
         return val.trim().parse::<u64>().ok().map(|ms| ms * 1000);
     }
     None
+}
+
+fn canonical_audio_language(value: &str) -> String {
+    let lower = value.to_ascii_lowercase();
+    let base = lower.split(['-', '_']).next().unwrap_or(&lower);
+    let aliases: std::collections::HashMap<String, String> =
+        serde_json::from_str(include_str!("audio_language_codes.json")).unwrap_or_default();
+    aliases
+        .get(base)
+        .cloned()
+        .unwrap_or_else(|| base.to_owned())
+}
+
+/// Final safeguard after every metadata/clip stage. Selection is strict upstream;
+/// verify count before assigning ordered language labels and a single default.
+pub async fn finalize_audio_tracks(path: &Path, languages: &[String]) -> anyhow::Result<()> {
+    let before = probe(path).await?;
+    let count = before
+        .streams
+        .iter()
+        .filter(|s| s.codec_type == "audio")
+        .count();
+    if count != languages.len() {
+        anyhow::bail!(
+            "Selected {} audio tracks, but the final file contains {}",
+            languages.len(),
+            count
+        );
+    }
+    // Never stamp a requested name onto an unrelated track. yt-dlp's strict
+    // selectors establish source identity; this catches postprocessor reorder/drop.
+    for (track, language) in before
+        .streams
+        .iter()
+        .filter(|s| s.codec_type == "audio")
+        .zip(languages)
+    {
+        let actual = track
+            .language
+            .as_deref()
+            .ok_or_else(|| anyhow!("A selected audio track has no language label"))?;
+        if canonical_audio_language(actual) != canonical_audio_language(language) {
+            anyhow::bail!(
+                "Audio language order changed: expected {}, got {}",
+                language,
+                actual
+            );
+        }
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow!("Missing output folder"))?;
+    let temp = parent.join(format!(
+        ".omniget-audio-{}.{}",
+        uuid::Uuid::new_v4(),
+        path.extension().and_then(|e| e.to_str()).unwrap_or("mkv")
+    ));
+    let mut command = crate::core::process::command("ffmpeg");
+    command
+        .args(["-nostdin", "-y", "-i"])
+        .arg(path)
+        .args(["-map", "0", "-c", "copy"]);
+    for (i, language) in languages.iter().enumerate() {
+        command.args([
+            format!("-metadata:s:a:{i}"),
+            format!("language={language}"),
+            format!("-metadata:s:a:{i}"),
+            format!("title={language}"),
+            format!("-disposition:a:{i}"),
+            if i == 0 { "default".into() } else { "0".into() },
+        ]);
+    }
+    let result = command.arg(&temp).output().await;
+    let checked = async {
+        let output = result?;
+        if !output.status.success() {
+            anyhow::bail!("Could not write audio language labels");
+        }
+        let after = probe(&temp).await?;
+        let tracks = after
+            .streams
+            .iter()
+            .filter(|s| s.codec_type == "audio")
+            .collect::<Vec<_>>();
+        if tracks.len() != languages.len()
+            || tracks
+                .iter()
+                .zip(languages)
+                .any(|(t, l)| t.language.as_deref() != Some(l.as_str()))
+        {
+            anyhow::bail!("Audio tracks changed during final verification");
+        }
+        tokio::fs::rename(&temp, path).await?;
+        Ok(())
+    }
+    .await;
+    if checked.is_err() {
+        let _ = tokio::fs::remove_file(&temp).await;
+    }
+    checked
 }

@@ -42,20 +42,16 @@
     display: none;
   }
 
-  .mac-nav-section {
-    display: flex;
-    flex-direction: row;
-    margin: 0;
-    flex-shrink: 0;
-  }
+  .mac-nav-section { display: contents; }
 
   .mac-nav-item {
     flex-direction: column;
     justify-content: center;
     gap: 2px;
     height: 56px;
-    min-width: 64px;
-    padding: 0 var(--space-2);
+    flex: 1 0 44px;
+    min-width: 0;
+    padding: 0 2px;
     font-size: 11px;
     text-align: center;
   }
@@ -63,8 +59,10 @@
   .mac-nav-label {
     display: block;
     flex: 0 0 auto;
-    max-width: 72px;
-    line-height: 1.1;
+    max-width: 100%;
+    overflow: visible;
+    white-space: normal;
+    line-height: 1.15;
   }
 
   .mac-nav-badge {
@@ -106,4 +104,11 @@
   .librebox-paste-kbd {
     display: none;
   }
+}
+
+@media (max-width: 768px) {
+  html[dir="rtl"] .mac-nav-badge { right: auto; inset-inline-end: 8px; }
+  html[dir="rtl"] .mac-nav-item { text-align: center; }
+  html[dir="rtl"] .settings-mac-nav { direction: rtl; }
+  .mac-source-list { scrollbar-width: thin; }
 }

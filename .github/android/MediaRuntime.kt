@@ -57,7 +57,7 @@ object MediaRuntime {
                 ready = true
             } catch (e: Throwable) {
                 Log.e("libreget", "runtime init failed", e)
-                error = "Could not prepare the download engine. Open omniget and check the download log."
+                error = NativeText.t(app, "Could not prepare the download engine. Open omniget and check the download log.")
                 try { File(app.filesDir, "ytdl-init-error.txt").writeText(Log.getStackTraceString(e)) } catch (_: Throwable) {}
             } finally { synchronized(this) { starting = false } }
         }.start()

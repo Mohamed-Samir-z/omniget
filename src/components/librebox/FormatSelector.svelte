@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from "$lib/i18n";
+  import { t, locale } from "$lib/i18n";
 
   type FormatInfo = {
     format_id: string;
@@ -25,6 +25,8 @@
     formats = $bindable([]),
     selectedFormatId = $bindable<string | null>(null),
     selectedAudioLanguage = $bindable<string | null>(null),
+    selectedAudioLanguages = $bindable<string[]>([]),
+    multipleAudio = $bindable(false),
     loadingFormats = false,
     formatError = null as string | null,
     onLoadFormats,
@@ -46,10 +48,10 @@
     return `${prefix}${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
 
-  const languageNames =
+  const languageNames = $derived(
     typeof Intl !== "undefined" && "DisplayNames" in Intl
-      ? new Intl.DisplayNames(undefined, { type: "language" })
-      : null;
+      ? new Intl.DisplayNames($locale || "en", { type: "language" })
+      : null);
 
   // Distinct dub/audio languages across the loaded formats. Shown only when
   // there is a real choice (dubbed videos carry 2+ audio tracks).
@@ -63,6 +65,18 @@
     ].sort()
   );
 
+  let multitrackLanguages = $derived([...new Set(formats.filter(f => f.has_audio && !f.has_video && f.audio_language).map(f => f.audio_language as string))].sort());
+  function toggleMultiple() {
+    multipleAudio = !multipleAudio;
+    selectedAudioLanguages = [];
+    selectedAudioLanguage = null;
+    selectedFormatId = null;
+  }
+  function toggleAudio(language: string) {
+    selectedFormatId = null;
+    selectedAudioLanguage = null;
+    selectedAudioLanguages = selectedAudioLanguages.includes(language) ? selectedAudioLanguages.filter(l => l !== language) : [...selectedAudioLanguages, language];
+  }
   function formatAudioLanguage(code: string | null | undefined): string | null {
     if (!code) return null;
     try {
@@ -123,6 +137,8 @@
   $effect(() => {
     if (!formats.length) {
       activePreset = null;
+      multipleAudio = false;
+      selectedAudioLanguages = [];
     }
   });
 </script>
@@ -213,7 +229,21 @@
         </button>
       </div>
 
-      {#if audioLanguages.length > 1}
+      {#if !isPlaylist && multitrackLanguages.length > 1}
+        <div class="audio-track-row">
+          <button type="button" class="preset-pill" class:active={multipleAudio} aria-pressed={multipleAudio} onclick={toggleMultiple}>{$t('librebox.multi_audio')}</button>
+          {#if multipleAudio}
+            <p class="multi-audio-note">{$t('librebox.multi_audio_hint')}</p>
+            <div class="audio-track-pills">
+              {#each multitrackLanguages as language (language)}
+                <button type="button" class="preset-pill" class:active={selectedAudioLanguages.includes(language)} aria-pressed={selectedAudioLanguages.includes(language)} onclick={() => toggleAudio(language)}>{formatAudioLanguage(language) ?? language}</button>
+              {/each}
+            </div>
+            <p class="multi-audio-note">{$t('librebox.multi_audio_selected', { count: selectedAudioLanguages.length })}</p>
+          {/if}
+        </div>
+      {/if}
+      {#if audioLanguages.length > 1 && !multipleAudio}
         <div class="audio-track-row">
           <span class="audio-track-label">{$t('librebox.audio_track')}</span>
           <div class="audio-track-pills">
@@ -307,6 +337,7 @@
 {/if}
 
 <style>
+  .multi-audio-note { font-size: 12px; line-height: 1.6; margin: 4px 0; color: var(--secondary); overflow-wrap: anywhere; }
   .formats-toggle-btn {
     display: flex;
     align-items: center;
@@ -419,9 +450,9 @@
   }
 
   .preset-pill.active {
-    background: var(--button-elevated);
-    border-color: var(--accent, var(--secondary));
-    color: var(--primary, var(--secondary));
+    background: var(--cta);
+    border-color: var(--cta);
+    color: var(--on-cta);
   }
 
   .preset-pill:focus-visible {

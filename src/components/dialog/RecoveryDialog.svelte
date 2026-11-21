@@ -66,6 +66,7 @@
       items = [];
       isOpen = false;
     } catch (e: any) {
+      await loadItems();
       const msg = typeof e === "string" ? e : e.message ?? "";
       if (msg) showToast("error", msg);
     } finally {

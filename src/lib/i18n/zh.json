@@ -3267,7 +3267,19 @@
     "schedule_interrupted": "Interrupted before scheduling, remove and try again",
     "schedule_cancel": "Cancel",
     "schedule_remove": "Remove record",
-    "schedule_saved": "Saved in Android. View or cancel it in Downloads."
+    "schedule_saved": "Saved in Android. View or cancel it in Downloads.",
+    "report_prepare": "Prepare safe diagnostic report",
+    "report_review": "Review this summary before copying or sharing. Nothing is sent automatically. Raw logs, URLs and account details are excluded.",
+    "report_copy": "Copy safe report",
+    "audio_choice_title": "Could not download every audio track",
+    "audio_choice_hint": "The requested audio tracks could not all be downloaded after two attempts. You can try again or download the tracks currently available.",
+    "audio_unavailable": "Unavailable languages",
+    "audio_available": "Available languages",
+    "audio_unknown": "Could not confirm availability",
+    "audio_none": "None",
+    "audio_other_failure": "All requested source tracks passed the check. The failure may be during transfer or processing, so no particular language is marked unavailable.",
+    "audio_retry_all": "Try again",
+    "audio_accept_available": "Download available"
   },
   "toast": {
     "download_preparing": "正在准备下载...",
@@ -3711,7 +3723,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "lang_ar": "العربية"
     },
     "download": {
       "default_output_dir": "默认文件夹",
@@ -4422,7 +4435,11 @@
     "subtitle_load": "Check available subtitles",
     "subtitle_off": "Off",
     "subtitle_auto": "Auto-generated",
-    "subtitle_none": "No source subtitles were found."
+    "subtitle_none": "No source subtitles were found.",
+    "multi_audio": "Keep multiple audio tracks",
+    "multi_audio_hint": "Choose at least two source languages. Saves one MKV video, for full downloads and clips. Switch tracks in a compatible phone player such as VLC. The first selected language is the default. Not available for playlists, audio-only or background schedules.",
+    "multi_audio_selected": "Selected: {{count}} languages",
+    "multi_audio_minimum": "Choose at least two audio languages."
   },
   "about": {
     "tab": {

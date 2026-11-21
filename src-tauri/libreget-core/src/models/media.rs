@@ -61,6 +61,7 @@ pub struct DownloadOptions {
     /// Preferred dubbed-audio language code (e.g. "ar", "en"). Video downloads
     /// merge the matching audio track when one exists; ignored otherwise.
     pub audio_language: Option<String>,
+    pub audio_languages: Option<Vec<String>>,
     pub torrent_files: Option<Vec<usize>>,
     pub torrent_auto_trackers: bool,
     pub torrent_upnp: bool,
