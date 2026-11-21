@@ -1,0 +1,57 @@
+name: Publish feature round 8 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build8-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publish the verified signed artifact as a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44930053614
+          SHA=dec6ea2d5f8da55cd1581dc3e102537ab98e56f3
+          TAG=android-feature-round-8-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for device verification, cumulative with builds 1 through 7. Not a stable release. android-latest is unchanged.
+
+          Added:
+          1. Open and Share completed media from Downloads, history and system-scheduled results, using content URIs with temporary read grants.
+          2. Native completion notifications with Open and Share, independent of the frontend.
+          3. Share popup remembers the last accepted media type and quality, with Reset.
+          4. Manual update checking with visible retry/errors. Only approved android-latest updates are eligible, not test prereleases.
+          5. Per-download source subtitle selection, including automatic-caption labels and Off. This downloads source captions, not generated translation.
+          6. Mohamed Samir developer card on Home, Downloads and Settings, with portrait, contact link and Tajawal typography.
+          7. Requested dua'a in the developer card and completion feedback.
+          8. Monochrome penguin notification icon.
+          9. WorkManager-backed scheduled downloads, without requiring the Activity, WebView or Rust queue to remain open. Persistent schedule list, progress/status, cancel/remove and file actions; Wi-Fi-only is enforced.
+
+          Fixed:
+          - Share-start readiness now waits for the current process's native engine. Stale disk flags cannot report readiness after restart.
+          - Pinned yt-dlp bundle verification/replacement and foreground-service flag recovery after JNI failure.
+          - Android-safe clip filenames: range separators use hyphens and titles are sanitized. Reported device logs failed with EPERM after normalization; forbidden colons in the final name are the source-grounded diagnosis. Final-file errors now include context. Phone confirmation is still needed.
+          - FileProvider access for the private fallback download folder.
+
+          Verified: all eight exact-head PR checks passed, including frontend production build and cross-platform Rust checks. The signed Android Gradle build, signing and APK inspection succeeded. Local validation includes 152 frontend tests, 12 native share/startup/file-action tests, two real WorkManager enqueue/list/cancel/forget tests without an Activity, JNI/helper compilation and clip regression tests. Phone-width UI previews and notification icon renders were inspected.
+
+          Limits: system schedules accept one public HTTP(S) link, type, quality, format, referer and source captions. Clip/stop/account/audio-language/playlist/torrent overrides and in-app proxy are explicitly rejected instead of silently ignored. Android controls actual start time and may delay it for power management. Force-stop blocks work until reopening. Real closed-app overnight downloads, sharing/playback in external apps, share-start timing and the clip repair still need physical-device verification.
+
+          Exact signed APK from successful run 44930053614, commit dec6ea2d5f8da55cd1581dc3e102537ab98e56f3.
+          Install over the existing app. Download the complete APK over a reliable connection, preferably VPN if downloads are corrupted on the local network.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 8, TEST BUILD' --notes-file notes.md
