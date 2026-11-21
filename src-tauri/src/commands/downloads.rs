@@ -919,20 +919,17 @@ pub async fn download_from_url(
     }
     let audio_languages = match audio_languages {
         Some(languages) => {
-            if languages.len() < 2
+            if languages.is_empty()
                 || languages.len() > 16
                 || languages.iter().any(|l| !ytdlp::is_valid_audio_language(l))
             {
-                return Err("Choose 2 to 16 valid source audio languages".into());
+                return Err("Choose up to 16 valid source audio languages".into());
             }
             let mut unique = Vec::new();
             for language in languages {
                 if !unique.contains(&language) {
                     unique.push(language);
                 }
-            }
-            if unique.len() < 2 {
-                return Err("Choose at least two different source audio languages".into());
             }
             if matches!(download_mode.as_deref(), Some("mp3" | "audio" | "mute"))
                 || format_id.is_some()
@@ -1377,9 +1374,40 @@ pub async fn retry_download(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     download_id: u64,
+    audio_languages: Option<Vec<String>>,
 ) -> Result<String, String> {
     let state_to_emit = {
         let mut q = state.download_queue.lock().await;
+        if let Some(languages) = audio_languages {
+            let item = q
+                .items
+                .iter_mut()
+                .find(|item| item.id == download_id)
+                .ok_or("Download not found")?;
+            let queue::QueueStatus::Error { message, .. } = &item.status else {
+                return Err("No audio choice is waiting".into());
+            };
+            let json = message
+                .strip_prefix("MULTI_AUDIO_CHOICE:")
+                .ok_or("No audio choice is waiting")?;
+            let choice: serde_json::Value =
+                serde_json::from_str(json).map_err(|_| "Invalid audio choice")?;
+            let available = choice["available"]
+                .as_array()
+                .ok_or("No checked audio tracks")?;
+            if languages.is_empty()
+                || languages
+                    .iter()
+                    .any(|language| !available.iter().any(|v| v.as_str() == Some(language)))
+            {
+                return Err("Only explicitly checked available languages can be accepted".into());
+            }
+            let unique = languages.iter().collect::<std::collections::HashSet<_>>();
+            if unique.len() != languages.len() {
+                return Err("Duplicate audio language".into());
+            }
+            item.audio_languages = Some(languages);
+        }
         if q.retry(download_id) {
             Some(q.get_state())
         } else {

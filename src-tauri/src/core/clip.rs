@@ -197,6 +197,58 @@ fn reserve_name(
 /// Decode/re-encode the downloaded section rather than trusting inherited
 /// container timestamps or duration tags. Video is H.264/AAC MP4 for sharing;
 /// audio-only jobs retain their chosen audio format. No source file is replaced.
+fn subtitle_time(value: f64) -> String {
+    let ms = (value.max(0.0) * 1000.0).round() as u64;
+    format!(
+        "{:02}:{:02}:{:02},{:03}",
+        ms / 3_600_000,
+        (ms / 60_000) % 60,
+        (ms / 1000) % 60,
+        ms % 1000
+    )
+}
+
+fn trim_srt(text: &str, start: f64, duration: f64) -> anyhow::Result<String> {
+    let normalized = text.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+    let mut output = String::new();
+    let mut number = 0;
+    for block in normalized.split("\n\n").filter(|b| !b.trim().is_empty()) {
+        let mut lines = block.lines();
+        let first = lines.next().unwrap_or_default();
+        let timing = if first.contains("-->") {
+            first
+        } else {
+            lines
+                .next()
+                .ok_or_else(|| anyhow!("Invalid source subtitle timing"))?
+        };
+        let (a, b) = timing
+            .split_once("-->")
+            .ok_or_else(|| anyhow!("Invalid source subtitle timing"))?;
+        let a = seconds(&a.trim().replace(',', "."))
+            .ok_or_else(|| anyhow!("Invalid subtitle start"))?;
+        let b = seconds(
+            &b.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .replace(',', "."),
+        )
+        .ok_or_else(|| anyhow!("Invalid subtitle end"))?;
+        if b <= start || a >= start + duration {
+            continue;
+        }
+        number += 1;
+        output.push_str(&format!(
+            "{}\n{} --> {}\n{}\n\n",
+            number,
+            subtitle_time((a - start).max(0.0)),
+            subtitle_time((b - start).min(duration)),
+            lines.collect::<Vec<_>>().join("\n")
+        ));
+    }
+    Ok(output)
+}
+
 /// The extractor writes source-timeline subtitles, even for download sections.
 /// Keep selected sidecars with the final clip, trimmed and rebased to zero.
 async fn finish_subtitles(
@@ -244,6 +296,15 @@ async fn finish_subtitles(
                 .open(&target)
                 .context("A subtitle file already uses this clip name")?;
             published.push(target.clone());
+            if ext == "srt" {
+                if token.is_cancelled() {
+                    bail!("Download cancelled");
+                }
+                let text =
+                    std::fs::read_to_string(&path).context("Cannot read source subtitles")?;
+                std::fs::write(&target, trim_srt(&text, start, duration)?)?;
+                continue;
+            }
             let mut command = super::process::command("ffmpeg");
             command
                 .args(["-nostdin", "-y", "-i"])
@@ -575,5 +636,18 @@ mod tests {
         assert!(third.0.to_string_lossy().ends_with(" (2).mp4"));
         drop((first, second, third));
         std::fs::remove_dir(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod subtitle_tests {
+    use super::*;
+    #[test]
+    fn srt_is_trimmed_rebased_and_clamped_without_ffmpeg_version_dependence() {
+        let input="1\r\n00:00:00,000 --> 00:00:01,500\r\nFirst\r\n\r\n2\r\n00:00:02,000 --> 00:00:04,000\r\nSecond\r\n";
+        let output = trim_srt(input, 1.0, 2.0).unwrap();
+        assert!(output.contains("00:00:00,000 --> 00:00:00,500\nFirst"));
+        assert!(output.contains("00:00:01,000 --> 00:00:02,000\nSecond"));
+        assert!(trim_srt("bad subtitle", 1.0, 2.0).is_err());
     }
 }

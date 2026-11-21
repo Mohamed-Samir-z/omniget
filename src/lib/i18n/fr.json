@@ -3270,7 +3270,16 @@
     "schedule_saved": "Saved in Android. View or cancel it in Downloads.",
     "report_prepare": "Prepare safe diagnostic report",
     "report_review": "Review this summary before copying or sharing. Nothing is sent automatically. Raw logs, URLs and account details are excluded.",
-    "report_copy": "Copy safe report"
+    "report_copy": "Copy safe report",
+    "audio_choice_title": "Audio tracks need your choice",
+    "audio_choice_hint": "Two attempts failed, including one automatic retry. Nothing was accepted as a partial success. Source checks below do not guarantee a download.",
+    "audio_unavailable": "Unavailable source languages",
+    "audio_available": "Available in the source check",
+    "audio_unknown": "Could not verify",
+    "audio_none": "None",
+    "audio_other_failure": "All requested source tracks passed the check. The failure may be during transfer or processing, so no particular language is marked unavailable.",
+    "audio_retry_all": "Retry all requested tracks",
+    "audio_accept_available": "Download only checked available tracks"
   },
   "toast": {
     "download_preparing": "Préparation du téléchargement...",

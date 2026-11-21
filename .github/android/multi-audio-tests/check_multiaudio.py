@@ -27,6 +27,10 @@ with tempfile.TemporaryDirectory() as directory:
   run('ffmpeg','-v','error','-f','lavfi','-i',f'sine=frequency={freq}','-t','3','-c:a','aac','-metadata:s:a:0',f'language={lang}',path)
   formats.append(dict(format_id=lang,url=base+path.name,ext='m4a',vcodec='none',acodec='aac',language=lang,abr=128))
  info=root/'info.json';info.write_text(json.dumps(dict(id='fixture',title='Three source languages',extractor='generic',webpage_url='https://example.invalid/fixture',duration=3,formats=formats)))
+ choices=json.loads(run(FINAL,'--choices',info,'ar','en','de'))
+ assert choices['available']==['ar','en'] and choices['unavailable']==['de'] and not choices['unknown']
+ unknown=json.loads(run(FINAL,'--choices',root/'nonexistent.json','ar'))
+ assert unknown['unknown']==['ar'] and not unknown['unavailable']
  target=root/'full.mkv'
  selector='bv[height<=720]+ba[language=ar]+ba[language=en]+ba[language=fr]'
  run('yt-dlp','--enable-file-urls','--load-info-json',info,'--no-simulate','--no-playlist','--audio-multistreams','--postprocessor-args','Merger+ffmpeg_o:-metadata:s:a:0 language=ar -metadata:s:a:1 language=en -metadata:s:a:2 language=fr','--merge-output-format','mkv','--remux-video','mkv','-f',selector,'-o',target)

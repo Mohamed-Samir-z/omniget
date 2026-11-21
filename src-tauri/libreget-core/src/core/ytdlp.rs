@@ -3315,7 +3315,7 @@ pub fn is_valid_audio_language(lang: &str) -> bool {
 }
 
 pub fn multi_audio_selector(languages: &[String], height: Option<u32>) -> anyhow::Result<String> {
-    if languages.len() < 2
+    if languages.is_empty()
         || languages.len() > 16
         || languages.iter().any(|l| !is_valid_audio_language(l))
     {
@@ -3952,7 +3952,8 @@ pub async fn download_video_full(
         Vec::new()
     };
 
-    let max_attempts: usize = 3;
+    // The queue owns the one automatic retry for multi-audio, including final processing.
+    let max_attempts: usize = if multiple.is_some() { 1 } else { 3 };
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
     let mut use_subtitles = should_download_subs;
@@ -4037,6 +4038,25 @@ pub async fn download_video_full(
             &effective_extra_flags,
             url,
         );
+
+        if multiple.is_some() {
+            // No hidden extractor/fragment/HTTP retry loops inside a job attempt.
+            let end = args.len().saturating_sub(1);
+            args.splice(
+                end..end,
+                [
+                    "--retries",
+                    "0",
+                    "--fragment-retries",
+                    "0",
+                    "--extractor-retries",
+                    "0",
+                    "--file-access-retries",
+                    "0",
+                ]
+                .map(str::to_owned),
+            );
+        }
 
         // Verbose output and no `--no-warnings` on Android so "Show log" reveals
         // why a site fails (JS challenge, PO token, blocked IP, ...).
@@ -6815,10 +6835,14 @@ mod multi_audio_tests {
         assert!(!multi_audio_selector(&languages, None)
             .unwrap()
             .contains('/'));
+        assert_eq!(
+            multi_audio_selector(&["ar".into()], None).unwrap(),
+            "bv+ba[language=ar]"
+        );
     }
     #[test]
-    fn rejects_empty_single_duplicate_and_injected_languages() {
-        for values in [vec![], vec!["en"], vec!["en", "en"], vec!["ar", "en]/b"]] {
+    fn rejects_empty_duplicate_and_injected_languages() {
+        for values in [vec![], vec!["en", "en"], vec!["ar", "en]/b"]] {
             assert!(multi_audio_selector(
                 &values.into_iter().map(str::to_owned).collect::<Vec<_>>(),
                 None
@@ -6826,4 +6850,39 @@ mod multi_audio_tests {
             .is_err());
         }
     }
+}
+
+/// Probe each requested source track after two failed job attempts. A format
+/// check is not a download guarantee, and network/account uncertainty stays unknown.
+pub async fn audio_track_choices(
+    ytdlp: &Path,
+    url: &str,
+    languages: &[String],
+    referer: Option<&str>,
+) -> serde_json::Value {
+    let mut available = Vec::new();
+    let mut unavailable = Vec::new();
+    let mut unknown = Vec::new();
+    for language in languages {
+        let mut flags = vec![
+            "--check-formats".into(),
+            "-f".into(),
+            format!("ba[language={language}]"),
+        ];
+        if let Some(referer) = referer {
+            flags.extend(["--referer".into(), referer.into()]);
+        }
+        match get_video_info(ytdlp, url, &flags).await {
+            Ok(_) => available.push(language.clone()),
+            Err(error) => {
+                let text = error.to_string().to_ascii_lowercase();
+                if text.contains("requested format") && text.contains("not available") {
+                    unavailable.push(language.clone());
+                } else {
+                    unknown.push(language.clone());
+                }
+            }
+        }
+    }
+    serde_json::json!({"requested": languages, "available": available, "unavailable": unavailable, "unknown": unknown})
 }

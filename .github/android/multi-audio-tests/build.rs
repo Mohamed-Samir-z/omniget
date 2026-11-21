@@ -26,9 +26,11 @@ fn main() {
         ..ytdlp
             .find("#[allow(clippy::too_many_arguments)]\npub async fn download_video(")
             .unwrap()];
-    let tests = &ytdlp[ytdlp.find("#[cfg(test)]\nmod multi_audio_tests").unwrap()..];
+    let tests = &ytdlp[ytdlp.find("#[cfg(test)]\nmod multi_audio_tests").unwrap()
+        ..ytdlp.find("/// Probe each requested source track").unwrap()];
+    let choices = &ytdlp[ytdlp.find("/// Probe each requested source track").unwrap()..];
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("production.rs");
-    fs::write(out,format!("use std::path::Path; use anyhow::anyhow; use serde::{{Serialize, Deserialize}};\n{structs}\n{probe}\n{finalizer}\n{selector}\n{tests}")).unwrap();
+    fs::write(out,format!("use std::path::Path; use anyhow::anyhow; use serde::{{Serialize, Deserialize}};\n{structs}\n{probe}\n{finalizer}\n{selector}\n{tests}\n{choices}")).unwrap();
     println!("cargo:rerun-if-changed={}", source.display());
     println!(
         "cargo:rerun-if-changed={}",

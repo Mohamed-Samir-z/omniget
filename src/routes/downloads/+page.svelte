@@ -1,4 +1,6 @@
 <script lang="ts">
+  import AudioTrackChoice from "$components/downloads/AudioTrackChoice.svelte";
+  import { audioChoice } from "$lib/multi-audio-choice";
   import ScheduledDownloads, { type Scheduled } from "$components/downloads/ScheduledDownloads.svelte";
   import DeveloperCard from "$components/DeveloperCard.svelte";
   import CompletedFileActions from "$components/downloads/CompletedFileActions.svelte";
@@ -1115,7 +1117,11 @@
         {/if}
 
         {#if item.status === "error" && item.error}
-          <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+          {#if audioChoice(item.error)}
+            <AudioTrackChoice id={item.id} error={item.error} />
+          {:else}
+            <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+          {/if}
         {/if}
 
         {#if item.status !== "queued" && item.status !== "complete"}
