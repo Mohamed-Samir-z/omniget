@@ -1,0 +1,33 @@
+name: Apply reviewed Build 9 multi-audio sources
+on:
+  push:
+    branches: [android-build9]
+    paths: [.github/workflows/apply-build9.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: android-build9
+      - name: Apply exact reviewed source delta
+        env:
+          PATCH_PART_0: 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
+          PATCH_SHA256: 30df5266e34f7c75004e29fd7850f1e1759f6a1d18d85a43a3b20425ce784ecc
+        run: |
+          python3 - <<'PYCODE'
+          import os, base64, zlib, hashlib, pathlib
+          patch = zlib.decompress(base64.b64decode(''.join(os.environ['PATCH_PART_%d' % i] for i in range(1))))
+          assert hashlib.sha256(patch).hexdigest() == os.environ['PATCH_SHA256']
+          pathlib.Path('/tmp/build9.patch').write_bytes(patch)
+          PYCODE
+          git apply --check /tmp/build9.patch
+          git apply /tmp/build9.patch
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          rm -f .github/workflows/apply-build9.yml
+          git add -A src-tauri src .github/android .github/workflows
+          git commit -m 'Use concise audio alert and labeled language badges'
+          git push origin HEAD:android-build9
