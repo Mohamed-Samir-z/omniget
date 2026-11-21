@@ -1,18 +1,17 @@
 //! Android share-target bridge.
 //!
-//! `MainActivity` receives `ACTION_SEND` intents (the user picked omniget in
-//! the Android share sheet) and forwards the shared text here through JNI.
-//! The shared text usually mixes the URL with commentary, so we pull out the
-//! first http(s) link and hand it to the external-URL pipeline, which queues
-//! it until the frontend is ready and then opens the compact share sheet.
+//! The native Android popup uses the same initialized queue as the full app.
+//! It never forwards a quick download through clipboard auto-download settings.
+//! Only the explicit More options action emits a prefill-only frontend event.
 
 #![cfg(target_os = "android")]
 
 use std::sync::OnceLock;
 
 use jni::objects::{JObject, JString};
+use jni::sys::{jboolean, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
@@ -33,36 +32,94 @@ fn extract_shared_url(text: &str) -> Option<String> {
     None
 }
 
-/// JNI entry point called by `MainActivity.onCreate` / `onNewIntent`.
-///
-/// The symbol name encodes the application id, so `.github/android/
-/// patch_project.py` asserts at CI time that the generated Kotlin package
-/// matches `com.openselena.libreget`; a mismatch fails the build instead of
-/// silently breaking the share target.
+/// Readiness probe used only while the native popup is waiting on cold start.
 #[no_mangle]
-pub extern "C" fn Java_com_openselena_libreget_MainActivity_nativeOnSharedText(
+pub extern "C" fn Java_com_openselena_libreget_MainActivity_nativeShareReady(
+    _env: JNIEnv,
+    _activity: JObject,
+) -> jboolean {
+    if APP_HANDLE.get().is_some() {
+        JNI_TRUE
+    } else {
+        JNI_FALSE
+    }
+}
+
+/// Called from a Kotlin worker, never the Android UI thread. An empty string
+/// means the action finished; other strings are safe user-facing errors.
+#[no_mangle]
+pub extern "C" fn Java_com_openselena_libreget_MainActivity_nativeShareAction(
     mut env: JNIEnv,
     _activity: JObject,
     text: JString,
-) {
-    let shared: String = match env.get_string(&text) {
-        Ok(s) => s.into(),
-        Err(e) => {
-            tracing::warn!("[android] share intent: unreadable text: {}", e);
-            return;
+    mode: JString,
+    quality: JString,
+    action: JString,
+) -> jstring {
+    let result = (|| -> Result<(), String> {
+        let shared: String = env
+            .get_string(&text)
+            .map_err(|_| "Cannot read shared text")?
+            .into();
+        let mode: String = env
+            .get_string(&mode)
+            .map_err(|_| "Cannot read download type")?
+            .into();
+        let quality: String = env
+            .get_string(&quality)
+            .map_err(|_| "Cannot read quality")?
+            .into();
+        let action: String = env
+            .get_string(&action)
+            .map_err(|_| "Cannot read share action")?
+            .into();
+        let url = extract_shared_url(&shared).ok_or("No HTTP or HTTPS video link was shared")?;
+        let app = APP_HANDLE
+            .get()
+            .cloned()
+            .ok_or("The app is still starting")?;
+        if action == "prefill" {
+            tauri::async_runtime::block_on(crate::external_url::prefill_shared_url(&app, url));
+            return Ok(());
         }
-    };
-    let Some(url) = extract_shared_url(&shared) else {
-        tracing::warn!("[android] share intent had no http(s) URL");
-        return;
-    };
-    let Some(app) = APP_HANDLE.get().cloned() else {
-        tracing::warn!("[android] share intent before app handle was set");
-        return;
-    };
-    tauri::async_runtime::spawn(async move {
-        crate::external_url::share_received(&app, url).await;
-    });
+        if action != "download" || !matches!(mode.as_str(), "video" | "mp3") {
+            return Err("Unsupported share action".to_string());
+        }
+        if !matches!(
+            quality.as_str(),
+            "best" | "1080p" | "720p" | "480p" | "360p"
+        ) {
+            return Err("Unsupported video quality".to_string());
+        }
+        let settings = crate::storage::config::load_settings(&app);
+        let output = settings.download.default_output_dir;
+        if output.trim().is_empty() {
+            return Err("Open omniget and choose a download folder first".to_string());
+        }
+        let state = app.state::<crate::AppState>();
+        tauri::async_runtime::block_on(crate::commands::downloads::download_from_url(
+            app.clone(),
+            state,
+            url,
+            output,
+            if mode == "mp3" { Some(mode) } else { None },
+            Some(quality),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ))
+        .map(|_| ())
+    })();
+    let message = result.err().unwrap_or_default();
+    env.new_string(message)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
 }
 
 #[cfg(test)]

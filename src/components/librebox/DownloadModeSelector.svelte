@@ -26,7 +26,7 @@
       <circle cx="6" cy="18" r="3" />
       <circle cx="18" cy="16" r="3" />
     </svg>
-    {$t('librebox.mode_audio')}
+    {$t('share.audio')} ({$t('librebox.audio_track_default')})
   </button>
   <button class="mode-btn" class:active={downloadMode === "mp3"} onclick={() => { downloadMode = "mp3"; onChange?.(); }}>MP3</button>
   <button
