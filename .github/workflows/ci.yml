@@ -140,6 +140,7 @@ jobs:
           cargo build --manifest-path .github/android/clip-tests/Cargo.toml
           python3 .github/android/multi-audio-tests/check_multiaudio.py
           python3 .github/android/clip-tests/check_normalization.py
+          python3 .github/android/clip-tests/check_recovery.py
 
       # `--strict` reprova quando algum locale esta fora de sincronia com en.json.
       - name: Locales in sync with en.json
