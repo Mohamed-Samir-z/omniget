@@ -79,7 +79,8 @@ class RuntimeBundleTests(unittest.TestCase):
         self.assertIn("nativeShareAction", kotlin)
         self.assertIn("onWebViewCreate", kotlin)
         self.assertIn("setExcludeFromRecents(!visible)", kotlin)
-        self.assertIn("it.taskInfo.taskId == taskId", kotlin)
+        self.assertIn("it.taskInfo?.taskId == taskId", kotlin)
+        self.assertNotIn("it.taskInfo.taskId", kotlin)
         self.assertIn("setShareContentVisible(false)", kotlin)
         self.assertIn("@style/OmnigetShareHost", manifest)
         self.assertIn("handleShareIntent(intent)", kotlin)
@@ -103,3 +104,4 @@ class RuntimeBundleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    
