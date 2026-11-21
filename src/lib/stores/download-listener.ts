@@ -22,6 +22,8 @@ import { rpcSyncIdleStats } from "$lib/rpc";
 // Best-effort OS notification so completions reach the user when the window is
 // in the background (parity with the in-app toast and the channel feature).
 async function notifyComplete(title: string) {
+  // Android completion notifications are emitted by the native queue, including share-only downloads.
+  if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) return;
   try {
     const n = await import("@tauri-apps/plugin-notification");
     let granted = await n.isPermissionGranted();
@@ -309,7 +311,7 @@ export async function initDownloadListener(): Promise<() => void> {
           queueToastEligibleIds.delete(item.id);
           addLog("info", "download", `Download complete: ${item.title}`, item.file_path ?? undefined);
           const tr = get(t);
-          showToast("success", tr("toast.generic_download_complete", { name: item.title }));
+          showToast("success", `${tr("toast.generic_download_complete", { name: item.title })}\nيا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق`);
           void notifyComplete(item.title);
           recordDownloadComplete(item.file_size_bytes ?? 0);
           void rpcSyncIdleStats();

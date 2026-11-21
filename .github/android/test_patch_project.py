@@ -49,7 +49,7 @@ class RuntimeBundleTests(unittest.TestCase):
                     runpy.run_path(str(PATCHER))
                 manifest = (app / "src/main/AndroidManifest.xml").read_text()
                 installer = (app / "src/main/java/com/openselena/libreget/ApkInstaller.kt").read_text()
-                return kotlin.read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes(), manifest, installer
+                return kotlin.read_text() + "\n" + (kotlin.parent / "MediaRuntime.kt").read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes(), manifest, installer
             finally:
                 os.chdir(original)
 
@@ -89,12 +89,13 @@ class RuntimeBundleTests(unittest.TestCase):
         self.assertIn("@style/OmnigetShareHost", manifest)
         self.assertIn("handleShareIntent(intent)", kotlin)
         self.assertIn("onNewIntent", kotlin)
+        self.assertLess(kotlin.index("MediaRuntime.prepare(applicationContext)"), kotlin.index("super.onCreate"))
         self.assertIn(expected, kotlin)
         self.assertIn("noBackupFilesDir", kotlin)
         self.assertLess(kotlin.index("deleteRecursively()"), kotlin.index("pending.renameTo(script)"))
         self.assertLess(kotlin.index("pending.renameTo(script)"), kotlin.index('".bundle-sha256"'))
-        self.assertLess(kotlin.index('".bundle-sha256"'), kotlin.index('"runtime-ready"'))
-        self.assertIn("check(digest(pending) == expectedHash)", kotlin)
+        self.assertLess(kotlin.index('".bundle-sha256"'), kotlin.index('"runtime-ready").writeText'))
+        self.assertIn("check(digest(pending) == HASH)", kotlin)
 
     def test_bad_checksum_fails_closed(self):
         with self.assertRaisesRegex(SystemExit, "checksum mismatch"):

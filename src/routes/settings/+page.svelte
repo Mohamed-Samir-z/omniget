@@ -1,11 +1,12 @@
 <script lang="ts">
+  import DeveloperCard from "$components/DeveloperCard.svelte";
   import { tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t, locale, loadTranslations } from "$lib/i18n";
   import { syncTrayLabels } from "$lib/tray-labels";
   import { getSettings, updateSettings, resetSettings } from "$lib/stores/settings-store.svelte";
-  import { getUpdateInfo, getIsUpdating, performUpdate } from "$lib/stores/update-store.svelte";
+  import { getUpdateInfo, getIsUpdating, performUpdate, refreshUpdateInfo, getIsChecking, getHasChecked } from "$lib/stores/update-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { isDebugEnabled, setDebugEnabled, setDebugPanelOpen } from "$lib/stores/debug-store.svelte";
@@ -36,6 +37,9 @@
   let settings = $derived(getSettings());
   let updateInfo = $derived(getUpdateInfo());
   let isWindows = typeof navigator !== "undefined" && navigator.userAgent.includes("Windows");
+  let checking = $derived(getIsChecking());
+  let checked = $derived(getHasChecked());
+  const android = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
   let resetting = $state(false);
   let updating = $derived(getIsUpdating());
   let deps = $state<DependencyStatus[]>([]);
@@ -86,7 +90,7 @@
   });
 
   async function handleUpdate() {
-    await performUpdate();
+    try { await performUpdate(); } catch { /* store shows the error */ }
   }
 
   async function changeTheme(value: string) {
@@ -548,6 +552,17 @@
 
 {#if settings}
   <div class="settings settings-mac">
+    <section class="manual-update-check" aria-label={$t('settings.update_check')}>
+      <div class="update-text">
+        <strong>{$t('settings.update_check')}</strong>
+        {#if android}<p>{$t('settings.update_approved_channel')}</p>{/if}
+        {#if updateInfo.error}<p role="alert">{updateInfo.error}</p>
+        {:else if checked && !checking && !updateInfo.available}<p>{$t(updateInfo.reason === 'dev-build' ? 'settings.update_unstamped' : 'settings.update_current')}</p>{/if}
+      </div>
+      <button class="update-btn" onclick={() => refreshUpdateInfo()} disabled={checking || updating}>
+        {$t(checking ? 'settings.update_checking' : updateInfo.error ? 'settings.update_retry' : 'settings.update_check')}
+      </button>
+    </section>
     {#if updateInfo.available}
       <div class="update-banner">
         <span class="update-text">
@@ -696,3 +711,9 @@
   </div>
 {/if}
 
+
+<DeveloperCard />
+
+<style>
+.manual-update-check{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border:1px solid var(--border-subtle,#444);border-radius:14px;margin:12px 0;background:var(--surface-raised,#222)}.manual-update-check .update-text{font-size:13px;color:var(--text-primary,#eee)}.manual-update-check p{line-height:1.5;margin:6px 0 0;color:var(--text-secondary,#aaa)}.manual-update-check [role=alert]{color:var(--danger,#ef7777);overflow-wrap:anywhere}.manual-update-check button{flex-shrink:0;background:var(--accent,#ffa600);color:#201600;border:0;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}.manual-update-check button:disabled{opacity:.6;cursor:wait}@media(max-width:480px){.manual-update-check{align-items:flex-start;flex-direction:column}.manual-update-check button{align-self:flex-end}}
+</style>

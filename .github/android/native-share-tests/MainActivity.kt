@@ -13,3 +13,5 @@ class MainActivity : android.app.Activity() {
  }
  override fun moveTaskToBack(nonRoot: Boolean): Boolean { left=true; return true }
 }
+
+object MediaRuntime { @Volatile var ready = true; @Volatile var error: String? = null }

@@ -14,6 +14,8 @@ export interface UpdateInfo {
   available: boolean;
   version?: string;
   body?: string;
+  error?: string;
+  reason?: string;
 }
 
 function proxyUrl(): string | undefined {
@@ -51,10 +53,11 @@ async function checkAndroidUpdate(): Promise<UpdateInfo> {
       available: info.available,
       version: info.title?.replace(/^Android build\s*/, "") || undefined,
       body: info.publishedAt ?? undefined,
+      reason: info.reason ?? undefined,
     };
-  } catch {
+  } catch (e) {
     androidUpdate = null;
-    return { available: false };
+    return { available: false, error: String(e) };
   }
 }
 
@@ -71,15 +74,15 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
       };
     }
     return { available: false };
-  } catch {
-    return { available: false };
+  } catch (e) {
+    return { available: false, error: String(e) };
   }
 }
 
 export async function installUpdate(): Promise<void> {
   if (isAndroid) {
     const info = androidUpdate;
-    if (!info?.downloadUrl) return;
+    if (!info?.downloadUrl) throw new Error("Check for updates again before installing");
     const path = await invoke<string>("download_android_update", {
       url: info.downloadUrl,
       sha256: info.sha256 ?? null,

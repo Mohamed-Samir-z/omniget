@@ -46,7 +46,7 @@ pub fn dismiss_launch_splash(app: &AppHandle) {
 /// thread, whether or not the activity is currently in the foreground. The
 /// webview-thread route used by `run_on_activity` only runs while the app is on
 /// screen, which would delay gallery indexing until the user came back.
-fn with_context<F>(what: &'static str, f: F)
+fn with_context<F>(what: &'static str, f: F) -> bool
 where
     F: FnOnce(&mut JNIEnv, &JObject) -> JniResult<()>,
 {
@@ -55,20 +55,23 @@ where
         Ok(vm) => vm,
         Err(e) => {
             tracing::warn!("[android] {}: no JavaVM: {}", what, e);
-            return;
+            return false;
         }
     };
     let mut env = match vm.attach_current_thread() {
         Ok(env) => env,
         Err(e) => {
             tracing::warn!("[android] {}: attach failed: {}", what, e);
-            return;
+            return false;
         }
     };
     let context = unsafe { JObject::from_raw(ctx.context().cast()) };
     if let Err(e) = f(&mut env, &context) {
         tracing::warn!("[android] {} failed: {}", what, e);
         let _ = env.exception_clear();
+        false
+    } else {
+        true
     }
 }
 
@@ -110,7 +113,7 @@ pub fn set_download_service(active: bool) {
     if RUNNING.swap(active, Ordering::SeqCst) == active {
         return;
     }
-    with_context("download service", move |env, context| {
+    let started = with_context("download service", move |env, context| {
         let loader = env
             .call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?
             .l()?;
@@ -145,6 +148,9 @@ pub fn set_download_service(active: bool) {
         }
         Ok(())
     });
+    if !started {
+        let _ = RUNNING.compare_exchange(active, !active, Ordering::SeqCst, Ordering::SeqCst);
+    }
 }
 
 /// Opens the folder that contains `path` in the system Files app.
@@ -203,4 +209,100 @@ pub fn open_folder(app: &AppHandle, path: &str) -> Result<(), String> {
         )?;
         Ok(())
     })
+}
+
+/// File actions use the application context and return Java launch errors.
+pub fn media_action(path: &str, share: bool) -> Result<(), String> {
+    let path = path.to_string();
+    if with_context("file action", move |env, context| {
+        let class = load_class(env, context, "com.openselena.libreget.MediaActions")?;
+        let path = env.new_string(path)?;
+        env.call_static_method(
+            jni::objects::JClass::from(class),
+            "act",
+            "(Landroid/content/Context;Ljava/lang/String;Z)V",
+            &[
+                JValue::Object(context),
+                JValue::Object(&path),
+                JValue::Bool(share as u8),
+            ],
+        )?;
+        Ok(())
+    }) {
+        Ok(())
+    } else {
+        Err("Could not open this file. Check that it still exists and that a compatible app is installed".into())
+    }
+}
+
+fn load_class<'a>(env: &mut JNIEnv<'a>, context: &JObject, name: &str) -> JniResult<JObject<'a>> {
+    let loader = env
+        .call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?
+        .l()?;
+    let name = env.new_string(name)?;
+    env.call_method(
+        &loader,
+        "loadClass",
+        "(Ljava/lang/String;)Ljava/lang/Class;",
+        &[JValue::Object(&name)],
+    )?
+    .l()
+}
+
+pub fn notify_complete(path: &std::path::Path, title: &str) {
+    let path = path.to_string_lossy().into_owned();
+    let title = title.to_string();
+    with_context("completion notification", move |env, context| {
+        let class = load_class(env, context, "com.openselena.libreget.MediaActions")?;
+        let path = env.new_string(path)?;
+        let title = env.new_string(title)?;
+        env.call_static_method(
+            jni::objects::JClass::from(class),
+            "complete",
+            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V",
+            &[
+                JValue::Object(context),
+                JValue::Object(&path),
+                JValue::Object(&title),
+            ],
+        )?;
+        Ok(())
+    });
+}
+
+/// Calls the persistent scheduler without an Activity dependency.
+pub fn schedule_call(action: &str, payload: &str) -> Result<String, String> {
+    let mut response = None;
+    if !with_context("scheduled download", |env, context| {
+        let class = load_class(env, context, "com.openselena.libreget.ScheduledDownloads")?;
+        let action = env.new_string(action)?;
+        let payload = env.new_string(payload)?;
+        let value = env
+            .call_static_method(
+                jni::objects::JClass::from(class),
+                "dispatch",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                &[
+                    JValue::Object(context),
+                    JValue::Object(&action),
+                    JValue::Object(&payload),
+                ],
+            )?
+            .l()?;
+        let value = jni::objects::JString::from(value);
+        response = Some(env.get_string(&value)?.to_string_lossy().into_owned());
+        Ok(())
+    }) {
+        return Err("The Android scheduler could not be reached".into());
+    }
+    let result: serde_json::Value =
+        serde_json::from_str(&response.unwrap_or_default()).map_err(|e| e.to_string())?;
+    if result["ok"].as_bool() == Some(true) {
+        Ok(result["value"].as_str().unwrap_or("").into())
+    } else {
+        Err(result["error"]
+            .as_str()
+            .unwrap_or("Schedule operation failed")
+            .into())
+    }
 }

@@ -116,33 +116,7 @@ if "YoutubeDL" not in k:
         "      }\n"
         "    } catch (e: Throwable) { android.util.Log.e(\"libreget\", \"service start failed\", e) }\n"
     )
-    init = svc + (
-        "\n    Thread {\n"
-        "      try {\n"
-        "        YoutubeDL.getInstance().init(applicationContext)\n"
-        "        val runtimeDir = java.io.File(applicationContext.noBackupFilesDir, \"youtubedl-android/yt-dlp\")\n"
-        "        val script = java.io.File(runtimeDir, \"yt-dlp\")\n"
-        f"        val expectedHash = \"{YTDLP_SHA256}\"\n"
-        "        fun digest(file: java.io.File): String {\n"
-        "          val hash = java.security.MessageDigest.getInstance(\"SHA-256\")\n"
-        "          file.inputStream().use { input -> val buffer = ByteArray(65536); while (true) { val n = input.read(buffer); if (n < 0) break; hash.update(buffer, 0, n) } }\n"
-        "          return hash.digest().joinToString(\"\") { \"%02x\".format(it.toInt() and 255) }\n"
-        "        }\n"
-        "        if (!script.exists() || digest(script) != expectedHash) {\n"
-        "          val pending = java.io.File(runtimeDir, \"yt-dlp.pending\")\n"
-        "          applicationContext.resources.openRawResource(R.raw.omniget_ytdlp).use { input -> pending.outputStream().use { output -> input.copyTo(output) } }\n"
-        "          check(digest(pending) == expectedHash) { \"Bundled yt-dlp checksum mismatch\" }\n"
-        "          check(java.io.File(runtimeDir, \"app\").let { !it.exists() || it.deleteRecursively() }) { \"Could not clear stale yt-dlp cache\" }\n"
-        "          check(pending.renameTo(script)) { \"Could not replace bundled yt-dlp\" }\n"
-        "        }\n"
-        "        java.io.File(runtimeDir, \".bundle-sha256\").writeText(expectedHash)\n"
-        "        FFmpeg.getInstance().init(applicationContext)\n        java.io.File(applicationContext.filesDir, \"runtime-ready\").writeText(\"1\")\n"
-        "      } catch (e: Throwable) {\n"
-        "        android.util.Log.e(\"libreget\", \"runtime init failed\", e)\n"
-        "        try { java.io.File(applicationContext.filesDir, \"ytdl-init-error.txt\").writeText(android.util.Log.getStackTraceString(e)) } catch (_: Throwable) {}\n"
-        "      }\n"
-        "    }.start()\n"
-    )
+    init = svc + "\n    MediaRuntime.start(applicationContext)\n"
     if "onCreate" in k:
         k = re.sub(r"(super\.onCreate\([^)]*\)[^\n]*\n)", lambda mm: mm.group(1) + init, k, count=1)
     else:
@@ -155,6 +129,10 @@ if "YoutubeDL" not in k:
             k = re.sub(r"(TauriActivity\(\))", r"\1 " + body.replace("\\", "\\\\"), k, count=1)
     act.write_text(k)
     pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
+    schedule_template = pathlib.Path(__file__).resolve().with_name("ScheduledDownloads.kt").read_text()
+    (act.parent / "ScheduledDownloads.kt").write_text(schedule_template.replace("@PACKAGE@", pkg))
+    actions_template = pathlib.Path(__file__).resolve().with_name("MediaActions.kt").read_text()
+    (act.parent / "MediaActions.kt").write_text(actions_template.replace("@PACKAGE@", pkg))
     media_template = pathlib.Path(__file__).resolve().with_name("MediaLibrary.kt").read_text()
     (act.parent / "MediaLibrary.kt").write_text(media_template.replace("@PACKAGE@", pkg))
     service_template = pathlib.Path(__file__).resolve().with_name("DownloadService.kt").read_text()
@@ -189,6 +167,13 @@ if "YoutubeDL" not in k:
         text = locale.read_text()
         text = re.sub(r'("hero_title"\s*:\s*)"LibreGet"', r'\1"omniget"', text)
         locale.write_text(text)
+# A prior process's disk flags are not runtime readiness. Clear them before
+# Tauri's super.onCreate can launch the Rust-side extractor preparation thread.
+k = act.read_text()
+if "MediaRuntime.prepare(applicationContext)" not in k:
+    k = re.sub(r"(override fun onCreate\([^)]*\)\s*\{)", r"\1\n    MediaRuntime.prepare(applicationContext)", k, count=1)
+    act.write_text(k)
+
 # ---- Native popup: keep the opaque app UI hidden above the source app -----
 # Use the existing single Tauri runtime. A second TauriActivity would create
 # competing runtimes on warm shares, while a separate cold native activity
@@ -259,6 +244,7 @@ launch_drawable = root / "src/main/res/drawable-nodpi"
 launch_drawable.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(pathlib.Path(__file__).with_name("omniget_launch.webp"), launch_drawable / "omniget_launch.webp")
 (act.parent / "LaunchSplash.kt").write_text(pathlib.Path(__file__).with_name("LaunchSplash.kt").read_text().replace("@PACKAGE@", pkg))
+(act.parent / "MediaRuntime.kt").write_text(pathlib.Path(__file__).with_name("MediaRuntime.kt").read_text().replace("@PACKAGE@", pkg))
 (act.parent / "SharePopup.kt").write_text(pathlib.Path(__file__).with_name("SharePopup.kt").read_text().replace("@PACKAGE@", pkg))
 
 # A translucent native window exposes the source task while the web content
@@ -311,6 +297,9 @@ xml_dir.mkdir(parents=True, exist_ok=True)
     '<?xml version="1.0" encoding="utf-8"?>\n'
     "<paths>\n"
     '    <cache-path name="updates" path="." />\n'
+    '    <external-path name="downloads" path="." />\n'
+    '    <external-files-path name="app_downloads" path="." />\n'
+    '    <files-path name="private_downloads" path="Download/" />\n'
     "</paths>\n"
 )
 
@@ -337,6 +326,18 @@ if "androidx.core:core" not in g:
         count=1,
     )
     gradle.write_text(g)
+
+g = gradle.read_text()
+if "androidx.work:work-runtime" not in g:
+    g = re.sub(r"(dependencies\s*\{)", r'\1\n    implementation("androidx.work:work-runtime:2.10.1")', g, count=1)
+    gradle.write_text(g)
+# Long-running WorkManager downloads use a dataSync foreground service.
+m = manifest.read_text()
+if "androidx.work.impl.foreground.SystemForegroundService" not in m:
+    m = m.replace("</application>", '<service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />\n</application>')
+    if "xmlns:tools=" not in m:
+        m = m.replace("<manifest", '<manifest xmlns:tools="http://schemas.android.com/tools"', 1)
+    manifest.write_text(m)
 
 print(act.read_text())
 print(gradle.read_text())

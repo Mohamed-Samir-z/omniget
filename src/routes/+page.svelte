@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SubtitleChoice from "$components/home/SubtitleChoice.svelte";
+  import DeveloperCard from "$components/DeveloperCard.svelte";
   import ClipTimeFields from "$components/librebox/ClipTimeFields.svelte";
   import { validTimeRange } from "$lib/clip-time";
   import { invoke } from "@tauri-apps/api/core";
@@ -75,6 +77,7 @@
   let selectedQuality = $state("best");
   let clipStart = $state("");
   let clipEnd = $state("");
+  let subtitleTrack = $state("");
   let scheduleAt = $state("");
   let scheduleStop = $state("");
   let playlistEntries = $state<{ index: number; title: string; url: string }[]>([]);
@@ -806,7 +809,9 @@
         torrentFiles: isTorrent ? [...selectedTorrentFiles] : null,
         scheduledAt: toEpochMs(scheduleAt),
         stopAt: toEpochMs(scheduleStop),
+        subtitleTrack,
       });
+      if (scheduleAt) showToast("success", $t("downloads.schedule_saved") as string);
       persistLastDownloadOptions();
       clearMediaPreview();
       libreState = { kind: "idle" };
@@ -1213,6 +1218,7 @@
                   <details class="options-panel">
                     <summary class="options-toggle">{$t('librebox.options')}</summary>
                     <div class="options-content">
+                      <SubtitleChoice url={url} bind:selection={subtitleTrack} />
                       <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
                       {#if downloadMode !== "audio" && downloadMode !== "mp3"}
                         <QualityPicker bind:selectedQuality {selectedFormatId} {availableHeights} {hasAudioOnly} />
@@ -1241,6 +1247,7 @@
                           {/if}
                           <div class="timerange-wrapper">
                             <span class="timerange-label">{$t('librebox.schedule_label')}</span>
+                            <span class="timerange-hint">{$t('downloads.schedule_system_note')}</span>
                             <div class="schedule-presets">
                               <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('1h')}>{$t('librebox.schedule_1h')}</button>
                               <button type="button" class="schedule-preset" onclick={() => setSchedulePreset('tonight')}>{$t('librebox.schedule_tonight')}</button>
@@ -1301,6 +1308,8 @@
       </div>
     </div>
   {/if}
+
+  <DeveloperCard />
 
   {#if showP2pSendDialog}
     <P2pSendDialog onClose={() => { showP2pSendDialog = false; }} />

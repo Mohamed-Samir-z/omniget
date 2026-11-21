@@ -103,6 +103,14 @@ pub async fn check_android_update() -> Result<AndroidUpdateInfo, String> {
             }
         }
     }
+    if sha256.is_none()
+        || download_url
+            .as_deref()
+            .is_none_or(|url| !valid_apk_url(url))
+        || size_bytes.is_none_or(|size| size == 0)
+    {
+        return Err("The approved release is missing a valid APK or checksum. Retry later".into());
+    }
     // Publication can happen after the installed build was compiled. Never
     // offer the same commit again when an exact tested artifact is promoted.
     let installed_sha = option_env!("LIBREGET_BUILD_SHA").unwrap_or("");

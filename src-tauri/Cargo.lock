@@ -3929,6 +3929,7 @@ dependencies = [
  "md-5 0.10.6",
  "murmur3",
  "native-tls",
+ "ndk-context",
  "objc2",
  "objc2-foundation",
  "objc2-web-kit",

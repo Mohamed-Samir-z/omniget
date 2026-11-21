@@ -137,6 +137,14 @@ impl Drop for ReservedName {
     }
 }
 
+fn safe_time_suffix(suffix: &str, restricted_storage: bool) -> String {
+    if restricted_storage {
+        suffix.replace(':', "-")
+    } else {
+        suffix.to_owned()
+    }
+}
+
 fn reserve_name(
     parent: &Path,
     title: &str,
@@ -145,9 +153,15 @@ fn reserve_name(
 ) -> anyhow::Result<ReservedName> {
     // Keep the user's title, but never let title text become a path or a
     // yt-dlp template. Reserve room for range, duplicate counter and extension.
-    let mut title = sanitize_filename::sanitize(title)
-        .trim_matches([' ', '.'])
-        .to_string();
+    let mut title = sanitize_filename::sanitize_with_options(
+        title,
+        sanitize_filename::Options {
+            windows: cfg!(any(windows, target_os = "android")),
+            ..Default::default()
+        },
+    )
+    .trim_matches([' ', '.'])
+    .to_string();
     if title.is_empty() {
         title = "video".into();
     }
@@ -155,11 +169,7 @@ fn reserve_name(
         title.pop();
     }
     let range_suffix = range.suffix();
-    let range_suffix = if cfg!(windows) {
-        range_suffix.replace(':', "-")
-    } else {
-        range_suffix
-    };
+    let range_suffix = safe_time_suffix(&range_suffix, cfg!(any(windows, target_os = "android")));
     std::fs::create_dir_all(parent)?;
     for number in 0..100_000 {
         let duplicate = if number == 0 {
@@ -175,7 +185,10 @@ fn reserve_name(
         {
             Ok(_) => return Ok(ReservedName(path)),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(e.into()),
+            Err(e) => {
+                return Err(e)
+                    .with_context(|| format!("Cannot reserve clip filename: {}", path.display()))
+            }
         }
     }
     bail!("Too many clips with the same title and range")
@@ -349,7 +362,13 @@ pub async fn finish(
     // The placeholder belongs to this job alone. Copy before advertising the
     // final path; no other job can reserve or overwrite it while we finish.
     // Rename on the same filesystem publishes a complete file atomically.
-    std::fs::rename(&output, &reserved.0)?;
+    std::fs::rename(&output, &reserved.0).with_context(|| {
+        format!(
+            "Cannot publish normalized clip from {} to {}",
+            output.display(),
+            reserved.0.display()
+        )
+    })?;
     let path = reserved.commit();
     Ok((path, duration))
 }
@@ -400,13 +419,28 @@ mod tests {
         assert!(!duration_matches(12.0, 1800.0, false, 0.3));
     }
     #[test]
+    fn android_shared_storage_rejects_no_colons_in_clip_suffix() {
+        assert_eq!(
+            safe_time_suffix(" (from 0:30 to 1:45)", true),
+            " (from 0-30 to 1-45)"
+        );
+        assert_eq!(
+            safe_time_suffix(" (from 0:30 to 1:45)", false),
+            " (from 0:30 to 1:45)"
+        );
+    }
+    #[test]
     fn numbering_is_atomic_and_never_replaces_an_existing_clip() {
         let root = std::env::temp_dir().join(format!("clip-test-{}", uuid::Uuid::new_v4()));
         let range = ClipRange::parse("0:30-1:45").unwrap();
         let first = reserve_name(&root, "title", &range, "mp4").unwrap();
         let second = reserve_name(&root, "title", &range, "mp4").unwrap();
         let third = reserve_name(&root, "title", &range, "mp4").unwrap();
-        let colon = if cfg!(windows) { "-" } else { ":" };
+        let colon = if cfg!(any(windows, target_os = "android")) {
+            "-"
+        } else {
+            ":"
+        };
         assert_eq!(
             first.0.file_name().unwrap().to_str().unwrap(),
             format!("title (from 0{colon}30 to 1{colon}45).mp4")

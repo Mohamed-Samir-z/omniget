@@ -1,3 +1,4 @@
+import org.junit.Before
 import org.junit.Test
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -19,6 +20,27 @@ import com.openselena.libreget.SharePopup
 @Config(manifest=Config.NONE, sdk=[34], qualifiers="w412dp-h915dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class PopupRenderTest {
+ @Before fun resetState() {
+  com.openselena.libreget.MediaRuntime.ready=true
+  com.openselena.libreget.MediaRuntime.error=null
+  org.robolectric.RuntimeEnvironment.getApplication().getSharedPreferences("omniget.share.choices",0).edit().clear().commit()
+ }
+ @Test fun runtimeMustBeReadyEvenWhenAppHandleIsReady() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get()
+  com.openselena.libreget.MediaRuntime.ready=false
+  SharePopup(a).show("https://example.com/cold-engine"); click("Download"); Thread.sleep(250)
+  assertEquals(0,a.calls)
+  com.openselena.libreget.MediaRuntime.ready=true; settle(a); assertEquals(1,a.calls)
+ }
+ @Test fun acceptedChoicesSurviveNewPopupAndReset() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get()
+  SharePopup(a).show("https://example.com/one"); click("MP3"); click("Download"); settle(a)
+  SharePopup(a).show("https://example.com/two")
+  assertTrue(all(ShadowDialog.getLatestDialog().window!!.decorView).filterIsInstance<RadioButton>().first{it.text=="MP3"}.isChecked)
+  click("Reset choices")
+  assertTrue(all(ShadowDialog.getLatestDialog().window!!.decorView).filterIsInstance<RadioButton>().first{it.text=="Video"}.isChecked)
+ }
+
  private fun all(v: View): List<View> = listOf(v) + if(v is ViewGroup) (0 until v.childCount).flatMap {all(v.getChildAt(it))} else emptyList()
  private fun click(text: String) { all(ShadowDialog.getLatestDialog().window!!.decorView).filterIsInstance<TextView>().first {it.text.toString()==text}.performClick() }
  private fun settle(a: MainActivity) {

@@ -842,6 +842,7 @@ pub async fn download_from_url(
     torrent_files: Option<Vec<usize>>,
     scheduled_at: Option<u64>,
     stop_at: Option<u64>,
+    subtitle_track: Option<String>,
 ) -> Result<DownloadStarted, String> {
     let _timer_start = std::time::Instant::now();
     if let Some(start) = scheduled_at {
@@ -864,12 +865,44 @@ pub async fn download_from_url(
         Some("") | None => None,
         Some(range) => Some(crate::core::clip::ClipRange::parse(range)?),
     };
-    let custom_ytdlp_args = clip_range.as_ref().map(|_| {
+    let mut custom_ytdlp_args = clip_range.as_ref().map(|_| {
         vec![
             "--download-sections".to_string(),
             format!("*{}", time_range.as_deref().unwrap_or_default().trim()),
         ]
     });
+
+    // An explicit empty selection disables subtitles for this item only.
+    // The picker lists source tracks; these flags never request translation.
+    if let Some(track) = subtitle_track.as_deref() {
+        let flags = custom_ytdlp_args.get_or_insert_with(Vec::new);
+        if track.is_empty() {
+            flags.extend(["--no-write-subs".into(), "--no-write-auto-subs".into()]);
+        } else {
+            let (kind, lang) = track.split_once(':').ok_or("Invalid subtitle track")?;
+            if !matches!(kind, "auto" | "manual")
+                || lang.is_empty()
+                || lang.len() > 40
+                || !lang
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            {
+                return Err("Invalid subtitle track".into());
+            }
+            flags.extend([
+                "--write-subs".into(),
+                if kind == "auto" {
+                    "--write-auto-subs".into()
+                } else {
+                    "--no-write-auto-subs".into()
+                },
+                "--sub-langs".into(),
+                lang.into(),
+                "--convert-subs".into(),
+                "srt".into(),
+            ]);
+        }
+    }
 
     let audio_language = match audio_language.as_deref().map(str::trim) {
         Some(l) if !l.is_empty() && ytdlp::is_valid_audio_language(l) => Some(l.to_string()),
@@ -882,6 +915,44 @@ pub async fn download_from_url(
             "PathTooLong|{}|{}|{}",
             err.limit, err.current, err.reserve
         ));
+    }
+
+    #[cfg(target_os = "android")]
+    if let Some(at) = scheduled_at {
+        if clip_range.is_some()
+            || stop_at.is_some()
+            || playlist_items.as_ref().is_some_and(|v| !v.is_empty())
+            || torrent_files.is_some()
+            || audio_language.is_some()
+            || cookie_slug
+                .as_deref()
+                .is_some_and(|s| !s.is_empty() && s != "_anonymous")
+        {
+            return Err("Android background schedules support a single public link, type, quality and subtitles. Clear clip/stop time, playlist, account and audio-language overrides first".into());
+        }
+        let settings = config::load_settings(&app);
+        if settings.proxy.enabled {
+            return Err("Background schedules do not support the in-app proxy yet. Use a device VPN or turn off the in-app proxy".into());
+        }
+        let payload = serde_json::json!({
+            "url": url, "output": output_dir, "at": at,
+            "mode": download_mode.unwrap_or_default(),
+            "quality": quality.unwrap_or(settings.download.video_quality),
+            "formatId": format_id.unwrap_or_default(),
+            "referer": referer.unwrap_or_default(),
+            "subtitleTrack": subtitle_track.unwrap_or_default(),
+            "wifiOnly": settings.download.wifi_only,
+        })
+        .to_string();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::android_media::schedule_call("schedule", &payload)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        return Ok(DownloadStarted {
+            id: queue::now_ms(),
+            title: "Scheduled by Android".into(),
+        });
     }
 
     let mut download_id = std::time::SystemTime::now()
@@ -917,8 +988,9 @@ pub async fn download_from_url(
         }
     };
     let force_mp3 = download_mode.as_deref() == Some("mp3");
+    let force_ytdlp = force_mp3 || subtitle_track.as_deref().is_some_and(|s| !s.is_empty());
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
-        if force_mp3 || clip_range.is_some() {
+        if force_ytdlp || clip_range.is_some() {
             Arc::new(crate::platforms::GenericYtdlpDownloader::new())
         } else {
             resolved.downloader
@@ -928,7 +1000,7 @@ pub async fn download_from_url(
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
     let cached_info = {
-        let info = if force_mp3 || clip_range.is_some() {
+        let info = if force_ytdlp || clip_range.is_some() {
             None
         } else {
             queue::try_get_cached_info(&url).await
@@ -1450,6 +1522,7 @@ pub async fn restore_recovery(
             None,
             None,
             None,
+            None,
         )
         .await
         {
@@ -1723,8 +1796,19 @@ pub async fn reveal_file(app: tauri::AppHandle, path: String) -> Result<(), Stri
 
 #[cfg(target_os = "android")]
 #[tauri::command]
-pub async fn open_path_default(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    crate::android_media::open_folder(&app, &path)
+pub async fn open_path_default(path: String) -> Result<(), String> {
+    crate::android_media::media_action(&path, false)
+}
+
+#[tauri::command]
+pub async fn share_downloaded_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    return crate::android_media::media_action(&path, true);
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = path;
+        Err("Native file sharing is available on Android".into())
+    }
 }
 
 pub fn sanitize_explorer_path(path: &str) -> String {
@@ -1775,5 +1859,23 @@ mod tests {
             sanitize_explorer_path(r#"C:\downloads\normal_video.mp4"#),
             r#"C:\downloads\normal_video.mp4"#
         );
+    }
+}
+
+#[tauri::command]
+pub async fn android_schedules(action: String, id: Option<String>) -> Result<String, String> {
+    if !matches!(action.as_str(), "list" | "cancel" | "forget") {
+        return Err("Unsupported schedule action".into());
+    }
+    #[cfg(target_os = "android")]
+    return tauri::async_runtime::spawn_blocking(move || {
+        crate::android_media::schedule_call(&action, &id.unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (action, id);
+        Err("OS-backed schedules are Android-only".into())
     }
 }
