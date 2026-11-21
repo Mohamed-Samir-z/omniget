@@ -9,8 +9,8 @@ use crate::storage::config;
 use crate::AppState;
 
 use crate::core::ytdlp;
-use crate::models::media::MediaType;
 use crate::models::media::FormatInfo;
+use crate::models::media::MediaType;
 
 #[derive(Clone, Serialize)]
 pub struct PlatformInfo {
