@@ -125,6 +125,22 @@ jobs:
       - name: Unit tests (vitest)
         run: pnpm test
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Multiple audio tracks and clip media regressions
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python3 -m venv /tmp/media-fixtures
+          /tmp/media-fixtures/bin/pip install yt-dlp==2026.10.26
+          export PATH="/tmp/media-fixtures/bin:$PATH"
+          cargo test --manifest-path .github/android/multi-audio-tests/Cargo.toml
+          cargo build --manifest-path .github/android/multi-audio-tests/Cargo.toml
+          cargo test --manifest-path .github/android/clip-tests/Cargo.toml
+          cargo build --manifest-path .github/android/clip-tests/Cargo.toml
+          python3 .github/android/multi-audio-tests/check_multiaudio.py
+          python3 .github/android/clip-tests/check_normalization.py
+
       # `--strict` reprova quando algum locale esta fora de sincronia com en.json.
       - name: Locales in sync with en.json
         run: pnpm check:i18n
