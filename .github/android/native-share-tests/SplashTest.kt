@@ -35,7 +35,7 @@ class SplashTest {
  @Test fun shareArrivalRemovesCover() {
   val a=activity();val s=LaunchSplash(a);s.show();s.hideForShare();assertFalse(all(a.window.decorView).filterIsInstance<TextView>().any{it.text=="omniget"})
  }
- @Test fun failedFrontendCannotLeavePermanentCover() {
-  val a=activity();val s=LaunchSplash(a);s.show();ShadowLooper.idleMainLooper(12,java.util.concurrent.TimeUnit.SECONDS);assertFalse(all(a.window.decorView).filterIsInstance<TextView>().any{it.text=="omniget"})
+ @Test fun slowFrontendShowsRetryInsteadOfWhiteWebView() {
+  val a=activity();val s=LaunchSplash(a);s.show();ShadowLooper.idleMainLooper(12,java.util.concurrent.TimeUnit.SECONDS);assertTrue(all(a.window.decorView).filterIsInstance<Button>().any{it.text=="Retry"});assertTrue(all(a.window.decorView).filterIsInstance<TextView>().any{it.text=="omniget"})
  }
 }

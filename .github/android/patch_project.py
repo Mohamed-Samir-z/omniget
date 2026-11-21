@@ -129,6 +129,7 @@ if "YoutubeDL" not in k:
             k = re.sub(r"(TauriActivity\(\))", r"\1 " + body.replace("\\", "\\\\"), k, count=1)
     act.write_text(k)
     pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
+    (act.parent / "NativeText.kt").write_text(pathlib.Path(__file__).with_name("NativeText.kt").read_text().replace("@PACKAGE@", pkg))
     schedule_template = pathlib.Path(__file__).resolve().with_name("ScheduledDownloads.kt").read_text()
     (act.parent / "ScheduledDownloads.kt").write_text(schedule_template.replace("@PACKAGE@", pkg))
     actions_template = pathlib.Path(__file__).resolve().with_name("MediaActions.kt").read_text()
@@ -185,7 +186,12 @@ if pkg != "com.openselena.libreget":
 if "nativeShareAction" not in k:
     share_code = r'''
   private val launchSplash by lazy { LaunchSplash(this) }
-  fun dismissLaunchSplash() { runOnUiThread { launchSplash.dismiss() } }
+  fun dismissLaunchSplash() { runOnUiThread {
+    val view = shareWebView ?: return@runOnUiThread
+    view.postVisualStateCallback(1L, object : android.webkit.WebView.VisualStateCallback() {
+      override fun onComplete(requestId: Long) { launchSplash.dismiss() }
+    })
+  } }
   private var sharePopup: SharePopup? = null
   private var shareWebView: android.webkit.WebView? = null
   private var shareContentHidden = false

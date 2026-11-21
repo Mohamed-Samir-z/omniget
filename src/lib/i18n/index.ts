@@ -11,6 +11,7 @@ const config = {
   fallbackLocale: "en",
   translations: { en },
   loaders: [
+    { locale: "ar", key: "", loader: async () => (await import("./ar.json")).default },
     
     {
       locale: "en",
@@ -78,6 +79,7 @@ const config = {
 export const defaultLocale = "en";
 
 export const SUPPORTED_LOCALES = [
+  "ar",
   "en",
   "ru",
   "el",

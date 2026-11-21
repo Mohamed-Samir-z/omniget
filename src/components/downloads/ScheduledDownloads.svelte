@@ -3,7 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import CompletedFileActions from "./CompletedFileActions.svelte";
-  type Scheduled = { id: string; url: string; at: number; state: string; percent: number; path: string; error: string };
+  export type Scheduled = { id: string; url: string; at: number; finishedAt?: number; state: string; percent: number; path: string; error: string };
+  let { mode = "active", onitems = (_items: Scheduled[]) => {} }: { mode?: string; onitems?: (items: Scheduled[]) => void } = $props();
   const android = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
   let items = $state<Scheduled[]>([]);
   let error = $state("");
@@ -13,7 +14,7 @@
   async function refresh() {
     if (loading) return;
     loading = true;
-    try { items = JSON.parse(await invoke<string>('android_schedules', { action: 'list', id: null })).sort((a: Scheduled,b: Scheduled) => b.at-a.at); error = ''; }
+    try { items = JSON.parse(await invoke<string>('android_schedules', { action: 'list', id: null })).sort((a: Scheduled,b: Scheduled) => b.at-a.at); error = ''; onitems(items); }
     catch (e) { error = String(e); }
     finally { loading = false; }
   }
@@ -35,13 +36,13 @@
     return () => clearInterval(timer);
   });
 </script>
-{#if android}
+{#if android && mode === "active"}
 <section class="os-schedules" aria-label={$t('downloads.os_schedules')}>
   <div class="schedule-heading"><h2>{$t('downloads.os_schedules')}</h2><button class="button" onclick={refresh} disabled={loading}>{$t(loading ? 'settings.update_checking' : 'downloads.schedule_refresh')}</button></div>
   <p class="schedule-note">{$t('downloads.schedule_system_note')}</p>
   {#if error}<p role="alert">{error}</p>{/if}
-  {#if !items.length && !loading}<p>{$t('downloads.schedule_empty')}</p>{/if}
-  {#each items as item (item.id)}
+  {#if !items.some(item => active(item.state)) && !loading}<p>{$t('downloads.schedule_empty')}</p>{/if}
+  {#each items.filter(item => active(item.state)) as item (item.id)}
     <article class="schedule-item">
       <div class="schedule-info"><span class="schedule-url">{item.url}</span><time datetime={new Date(item.at).toISOString()}>{new Date(item.at).toLocaleString()}</time>
         <span>{stateLabel(item)}{item.state === 'RUNNING' && item.percent >= 0 ? ` · ${item.percent}%` : ''}</span>

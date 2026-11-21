@@ -26,13 +26,13 @@ class SharePopup(private val activity: MainActivity) {
         cornerRadius = dp(22).toFloat()
     }
     private fun label(text: String, size: Float = 15f) = TextView(activity).apply {
-        this.text = text
+        this.text = NativeText.t(activity, text)
         textSize = size
         setTextColor(Color.WHITE)
         setPadding(0, dp(7), 0, dp(7))
     }
     private fun button(text: String, primary: Boolean = false) = Button(activity).apply {
-        this.text = text
+        this.text = NativeText.t(activity, text)
         isAllCaps = false
         setTextColor(if (primary) Color.BLACK else Color.WHITE)
         background = rounded(if (primary) accent else Color.rgb(52, 52, 56))
@@ -71,24 +71,25 @@ class SharePopup(private val activity: MainActivity) {
         hideApp()
         val box = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
+            layoutDirection = NativeText.direction(activity)
             setPadding(dp(24), dp(18), dp(24), dp(24))
             background = rounded(Color.rgb(34, 34, 38))
         }
-        val title = label("Download shared link", 20f).apply { setTypeface(typeface, Typeface.BOLD) }
+        val title = label(NativeText.t(activity, "Download shared link"), 20f).apply { setTypeface(typeface, Typeface.BOLD) }
         box.addView(title)
         val url = shared.split(Regex("\\s+")).firstOrNull { it.startsWith("https://") || it.startsWith("http://") } ?: shared
         box.addView(label(url.take(180), 12f).apply { maxLines = 3; setTextColor(Color.LTGRAY) })
-        box.addView(label("Type"))
+        box.addView(label(NativeText.t(activity, "Type")))
         val types = RadioGroup(activity).apply { orientation = LinearLayout.HORIZONTAL }
-        val video = RadioButton(activity).apply { id = View.generateViewId(); text = "Video"; setTextColor(Color.WHITE); buttonTintList = ColorStateList.valueOf(accent) }
+        val video = RadioButton(activity).apply { id = View.generateViewId(); text = NativeText.t(activity, "Video"); setTextColor(Color.WHITE); buttonTintList = ColorStateList.valueOf(accent) }
         val mp3 = RadioButton(activity).apply { id = View.generateViewId(); text = "MP3"; setTextColor(Color.WHITE); buttonTintList = ColorStateList.valueOf(accent) }
         types.addView(video)
         types.addView(mp3)
         if (preferences.getString("mode", "video") == "mp3") mp3.isChecked = true else video.isChecked = true
         box.addView(types)
-        val qualityLabel = label("Video quality")
+        val qualityLabel = label(NativeText.t(activity, "Video quality"))
         box.addView(qualityLabel)
-        val qualities = arrayOf("Best available", "1080p", "720p", "480p", "360p")
+        val qualities = arrayOf(NativeText.t(activity, "Best available"), "1080p", "720p", "480p", "360p")
         val quality = Spinner(activity).apply {
             adapter = object : ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, qualities) {
                 override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
@@ -102,7 +103,7 @@ class SharePopup(private val activity: MainActivity) {
         }
         quality.setSelection(preferences.getInt("quality", 0).coerceIn(0, qualities.lastIndex))
         box.addView(quality, LinearLayout.LayoutParams(-1, dp(44)))
-        val reset = button("Reset choices")
+        val reset = button(NativeText.t(activity, "Reset choices"))
         reset.setOnClickListener {
             preferences.edit().clear().apply()
             video.isChecked = true
@@ -117,9 +118,9 @@ class SharePopup(private val activity: MainActivity) {
         val error = label("", 13f).apply { setTextColor(Color.rgb(255, 150, 140)); visibility = View.GONE }
         box.addView(error)
         if (mp3.isChecked) { quality.visibility = View.GONE; qualityLabel.visibility = View.GONE }
-        val download = button("Download", true)
-        val more = button("More options in the app")
-        val cancel = button("Not now")
+        val download = button(NativeText.t(activity, "Download"), true)
+        val more = button(NativeText.t(activity, "More options in the app"))
+        val cancel = button(NativeText.t(activity, "Not now"))
         box.addView(download)
         box.addView(more)
         box.addView(cancel)
@@ -149,12 +150,12 @@ class SharePopup(private val activity: MainActivity) {
             cancel.isEnabled = false
             modal.setCancelable(false)
             error.visibility = View.GONE
-            download.text = "Preparing..."
+            download.text = NativeText.t(activity, "Preparing...")
             // Capture UI state on the main thread, never from the worker.
             val mode = if (mp3.isChecked) "mp3" else "video"
             val selectedQuality = if (quality.selectedItemPosition == 0) "best" else qualities[quality.selectedItemPosition]
             Thread {
-                var result = "The app is still starting. Try again or open omniget first."
+                var result = NativeText.t(activity, "The app is still starting. Try again or open omniget first.")
                 try {
                     var ready = false
                     for (attempt in 0 until 600) {
@@ -165,13 +166,13 @@ class SharePopup(private val activity: MainActivity) {
                         Thread.sleep(200)
                     }
                     if (ready) result = activity.nativeShareAction(shared, mode, selectedQuality, action)
-                } catch (_: Throwable) { result = "Could not prepare this download. Open omniget for more options." }
+                } catch (_: Throwable) { result = NativeText.t(activity, "Could not prepare this download. Open omniget for more options.") }
                 Handler(Looper.getMainLooper()).post {
                     if (token != generation || activity.isFinishing || activity.isDestroyed) return@post
                     if (result.isNotEmpty()) {
-                        error.text = result
+                        error.text = NativeText.t(activity, result)
                         error.visibility = View.VISIBLE
-                        download.text = "Download"
+                        download.text = NativeText.t(activity, "Download")
                         reset.isEnabled = true
                         download.isEnabled = true
                         more.isEnabled = true
@@ -183,10 +184,10 @@ class SharePopup(private val activity: MainActivity) {
                         preferences.edit().putString("mode", mode).putInt("quality", quality.selectedItemPosition).apply()
                         // Enqueued is accurate even when Wi-Fi policy delays transfer.
                         box.removeAllViews()
-                        box.addView(label("Download added", 21f))
-                        box.addView(label("You can keep using the app underneath. Progress appears in the download notification.", 14f))
-                        box.addView(button("Open omniget").apply { setOnClickListener { openFullApp() } })
-                        box.addView(button("Not now", true).apply { setOnClickListener { leave() } })
+                        box.addView(label(NativeText.t(activity, "Download added"), 21f))
+                        box.addView(label(NativeText.t(activity, "You can keep using the app underneath. Progress appears in the download notification."), 14f))
+                        box.addView(button(NativeText.t(activity, "Open omniget")).apply { setOnClickListener { openFullApp() } })
+                        box.addView(button(NativeText.t(activity, "Not now"), true).apply { setOnClickListener { leave() } })
                         modal.setCancelable(true)
                     }
                 }

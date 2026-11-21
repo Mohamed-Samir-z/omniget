@@ -400,6 +400,23 @@ impl DownloadQueue {
             started_at_ms: None,
             ytdlp_argv_override: None,
         };
+        let args = item.custom_ytdlp_args.as_deref().unwrap_or(&[]);
+        let option = |name: &str| args.windows(2).find(|p| p[0] == name).map(|p| p[1].clone());
+        let subtitle_track = if args.iter().any(|v| v == "--no-write-subs") {
+            Some(String::new())
+        } else {
+            option("--sub-langs").map(|lang| {
+                format!(
+                    "{}:{}",
+                    if args.iter().any(|v| v == "--write-auto-subs") {
+                        "auto"
+                    } else {
+                        "manual"
+                    },
+                    lang
+                )
+            })
+        };
         crate::core::recovery::persist(crate::core::recovery::RecoveryItem {
             id: item.id,
             url: item.url.clone(),
@@ -410,6 +427,18 @@ impl DownloadQueue {
             quality: item.quality.clone(),
             format_id: item.format_id.clone(),
             referer: item.referer.clone(),
+            options: crate::core::queue_wal::RecoveryOptions {
+                cookie_slug: item.cookie_slug.clone(),
+                time_range: option("--download-sections")
+                    .map(|s| s.trim_start_matches('*').to_string()),
+                subtitle_track,
+                audio_language: item.audio_language.clone(),
+                playlist_items: option("--playlist-items")
+                    .map(|s| s.split(',').filter_map(|v| v.parse().ok()).collect()),
+                torrent_files: item.torrent_files.clone(),
+                scheduled_at: item.scheduled_at_ms,
+                stop_at: item.stop_at_ms,
+            },
         });
         self.items.push(item);
     }
@@ -1589,6 +1618,45 @@ async fn spawn_download_inner(
         info_start.elapsed()
     );
 
+    // Retain explicit playlist choices after cold-start metadata lookup too.
+    if let Some(args) = custom_ytdlp_args.as_ref() {
+        if let Some(indices) = args
+            .windows(2)
+            .find(|p| p[0] == "--playlist-items")
+            .map(|p| &p[1])
+        {
+            let selected: std::collections::HashSet<usize> =
+                indices.split(',').filter_map(|v| v.parse().ok()).collect();
+            if info.media_type == crate::models::media::MediaType::Playlist {
+                info.available_qualities = info
+                    .available_qualities
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(i, _)| selected.contains(&(i + 1)))
+                    .map(|(_, q)| q)
+                    .collect();
+            } else {
+                // Never silently turn a selected playlist into an unrelated single video.
+                info.available_qualities.clear();
+            }
+            if info.available_qualities.is_empty() {
+                let state = {
+                    let mut q = queue.lock().await;
+                    q.mark_complete(
+                        item_id,
+                        false,
+                        Some("Selected playlist entries are no longer available".into()),
+                        None,
+                        None,
+                    );
+                    q.get_state()
+                };
+                emit_queue_state_from_state(&app, state);
+                try_start_next(app, queue).await;
+                return;
+            }
+        }
+    }
     if is_generic_title(&info.title) {
         let pokemon = libreget_core::core::pokemon_names::random_pokemon_name();
         info.title = format!("video_{}", pokemon);
@@ -1703,7 +1771,21 @@ async fn spawn_download_inner(
         ytdlp_path,
         torrent_listen_port: Some(settings.advanced.torrent_listen_port),
         torrent_id_slot: Some(torrent_id_slot.clone()),
-        custom_ytdlp_args: custom_ytdlp_args.clone(),
+        // Selection has already filtered playlist metadata. Do not apply
+        // original playlist indices to each individual entry URL again.
+        custom_ytdlp_args: custom_ytdlp_args.as_ref().map(|args| {
+            let mut filtered = Vec::new();
+            let mut i = 0;
+            while i < args.len() {
+                if args[i] == "--playlist-items" {
+                    i += 2;
+                } else {
+                    filtered.push(args[i].clone());
+                    i += 1;
+                }
+            }
+            filtered
+        }),
         audio_language,
         torrent_files: torrent_files.clone(),
         torrent_auto_trackers: settings.advanced.torrent_auto_trackers,

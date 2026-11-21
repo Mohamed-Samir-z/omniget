@@ -21,6 +21,7 @@ import com.openselena.libreget.SharePopup
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class PopupRenderTest {
  @Before fun resetState() {
+  org.robolectric.RuntimeEnvironment.getApplication().getSharedPreferences("omniget.ui",0).edit().clear().commit()
   com.openselena.libreget.MediaRuntime.ready=true
   com.openselena.libreget.MediaRuntime.error=null
   org.robolectric.RuntimeEnvironment.getApplication().getSharedPreferences("omniget.share.choices",0).edit().clear().commit()
@@ -55,6 +56,16 @@ class PopupRenderTest {
   v.layout(0,0,412,v.measuredHeight); all(v).forEach { it.jumpDrawablesToCurrentState(); if(it is RadioButton) it.buttonDrawable?.jumpToCurrentState() }
   val b=Bitmap.createBitmap(412,v.measuredHeight,Bitmap.Config.ARGB_8888); v.draw(Canvas(b))
   FileOutputStream(path).use { b.compress(Bitmap.CompressFormat.PNG,100,it) }
+ }
+ @Test fun renderArabicPopupAndPersistLanguage() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get()
+  com.openselena.libreget.NativeText.language(a,"ar")
+  SharePopup(a).show("https://example.com/video")
+  assertTrue(com.openselena.libreget.NativeText.arabic(a))
+  assertTrue(all(ShadowDialog.getLatestDialog().window!!.decorView).filterIsInstance<Button>().any {it.text.toString()=="تنزيل"})
+  shot("native-renders/native-arabic.png")
+  com.openselena.libreget.NativeText.language(a,"en")
+  assertFalse(com.openselena.libreget.NativeText.arabic(a))
  }
  @Test fun renderAndDownloadMp3() {
   val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); val p=SharePopup(a)

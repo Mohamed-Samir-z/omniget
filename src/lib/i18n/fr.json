@@ -3267,7 +3267,10 @@
     "schedule_interrupted": "Interrupted before scheduling, remove and try again",
     "schedule_cancel": "Cancel",
     "schedule_remove": "Remove record",
-    "schedule_saved": "Saved in Android. View or cancel it in Downloads."
+    "schedule_saved": "Saved in Android. View or cancel it in Downloads.",
+    "report_prepare": "Prepare safe diagnostic report",
+    "report_review": "Review this summary before copying or sharing. Nothing is sent automatically. Raw logs, URLs and account details are excluded.",
+    "report_copy": "Copy safe report"
   },
   "toast": {
     "download_preparing": "Préparation du téléchargement...",
@@ -3711,7 +3714,8 @@
       "lang_es": "Español",
       "lang_el": "Ελληνικά",
       "lang_fa": "فارسی",
-      "lang_lo": "ລາວ"
+      "lang_lo": "ລາວ",
+      "lang_ar": "العربية"
     },
     "download": {
       "default_output_dir": "Dossier par défaut",

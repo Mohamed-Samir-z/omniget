@@ -848,3 +848,8 @@ video {
 [data-window-blurred] *::after {
   animation-play-state: paused !important;
 }
+
+@font-face { font-family: 'OmniArabic'; src: url('/developer/tajawal-regular.ttf') format('truetype'); font-display: swap; }
+html[lang^="ar"] { --font-body: 'OmniArabic', sans-serif; --font-display: 'OmniArabic', sans-serif; }
+html[dir="rtl"] input[type="url"], html[dir="rtl"] input[type="datetime-local"], html[dir="rtl"] pre, html[dir="rtl"] code { direction: ltr; unicode-bidi: plaintext; }
+html[dir="rtl"] .setting-col, html[dir="rtl"] .history-title { text-align: start; }
