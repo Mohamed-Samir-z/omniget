@@ -12,6 +12,12 @@ pub struct P2pSendHandle {
 }
 pub type ActiveP2pSends = Arc<tokio::sync::Mutex<HashMap<String, P2pSendHandle>>>;
 
+#[cfg(target_os = "android")]
+pub mod android_env;
+#[cfg(target_os = "android")]
+pub mod android_media;
+#[cfg(target_os = "android")]
+pub mod android_share;
 pub mod commands;
 pub mod cookies;
 pub mod core;
@@ -34,12 +40,6 @@ pub mod tray;
 #[cfg(not(desktop))]
 #[path = "tray_stub.rs"]
 pub mod tray;
-#[cfg(target_os = "android")]
-pub mod android_env;
-#[cfg(target_os = "android")]
-pub mod android_media;
-#[cfg(target_os = "android")]
-pub mod android_share;
 
 struct DesktopCookieProvider;
 
@@ -294,23 +294,23 @@ pub fn run() {
     // Single-instance is desktop-only; it must stay the first plugin registered.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            if let Some(url) =
-                external_url::find_external_url_arg(argv.iter().skip(1).map(|arg| arg.as_str()))
-            {
-                let app_handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(error) =
-                        external_url::handle_external_url(&app_handle, url, "command-line").await
-                    {
-                        tracing::warn!(
-                            "Failed to handle external URL from second instance: {}",
-                            error
-                        );
-                    }
-                });
-            } else {
-                tray::show_window(app);
-            }
+        if let Some(url) =
+            external_url::find_external_url_arg(argv.iter().skip(1).map(|arg| arg.as_str()))
+        {
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) =
+                    external_url::handle_external_url(&app_handle, url, "command-line").await
+                {
+                    tracing::warn!(
+                        "Failed to handle external URL from second instance: {}",
+                        error
+                    );
+                }
+            });
+        } else {
+            tray::show_window(app);
+        }
     }));
 
     let builder = builder
