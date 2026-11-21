@@ -1,0 +1,49 @@
+name: Publish feature round 4 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build4-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44888023743
+          SHA=7cab7d5cd1f9d48ab3b50c9db1fce829f201eef3
+          TAG=android-feature-round-4-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 4, cumulative with feature rounds 1 to 3:
+          - Current transfer speed added to the existing Android background progress notification.
+          - Explicit MP3 choice per download without changing the global audio format. MP3 uses yt-dlp conversion instead of native downloader shortcuts.
+          - Scheduling exposed in the share screen, with future-time and stop/start-order validation. IMPORTANT: keep omniget running until the scheduled time. This is not an Android system alarm and will not wake a closed app.
+          - Share-screen layout fixed so Download and More options remain visible on phone screens.
+
+          This build does NOT include the new popup over the source app. That Android change is a follow-up.
+
+          Verification: all eight PR CI checks passed; 148 frontend tests, zero Svelte errors, Android patch-chain/gallery tests and Build 4 regression checks passed. A controlled MP4-to-MP3 conversion produced an audio-only MP3. On-device notification speed, MP3 extraction and scheduling still need testing. These are not claims of device verification.
+
+          This is the exact signed APK from successful Android APK run 44888023743, commit 7cab7d5cd1f9d48ab3b50c9db1fce829f201eef3.
+
+          IMPORTANT: download and install this APK over a VPN connection. Home Wi-Fi has been silently corrupting large downloads, which previously caused "invalid package" install failures.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 4, TEST BUILD' --notes-file notes.md
