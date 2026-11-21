@@ -3643,6 +3643,19 @@
       "manage_chat": "管理 {{title}}"
     }
   },
+  "share": {
+    "title": "下載分享的連結",
+    "type": "類型",
+    "video": "影片",
+    "audio": "音訊",
+    "more_options": "在應用程式中查看更多選項",
+    "added": "已加入下載",
+    "open_downloads": "檢視下載",
+    "back_home": "返回首頁",
+    "starting": "正在啟動…",
+    "failed": "無法開始下載",
+    "no_output_dir": "請先在應用程式中設定下載資料夾"
+  },
   "settings": {
     "title": "設定",
     "manage_preferences": "管理應用偏好設定和系統設定",
@@ -4296,6 +4309,8 @@
     "no_formats": "此影片沒有可用格式",
     "formats_error": "載入格式失敗",
     "preset_best": "最佳",
+    "audio_track": "音軌",
+    "audio_track_default": "預設",
     "preset_music": "音樂",
     "preset_custom": "自訂",
     "formats_presets_label": "格式預設",
