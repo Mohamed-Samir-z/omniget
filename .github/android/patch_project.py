@@ -199,6 +199,8 @@ if pkg != "com.openselena.libreget":
     sys.exit("Native share JNI package mismatch")
 if "nativeShareAction" not in k:
     share_code = r'''
+  private val launchSplash by lazy { LaunchSplash(this) }
+  fun dismissLaunchSplash() { runOnUiThread { launchSplash.dismiss() } }
   private var sharePopup: SharePopup? = null
   private var shareWebView: android.webkit.WebView? = null
   private var shareContentHidden = false
@@ -227,6 +229,7 @@ if "nativeShareAction" not in k:
 
   override fun onDestroy() {
     sharePopup?.dispose()
+    launchSplash.dispose()
     super.onDestroy()
   }
 
@@ -239,18 +242,23 @@ if "nativeShareAction" not in k:
       setShareContentVisible(true)
       return
     }
+    launchSplash.hideForShare()
     val shared = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: return
     if (sharePopup == null) sharePopup = SharePopup(this)
     sharePopup!!.show(shared)
   }
 '''
-    k = re.sub(r"(super\.onCreate\([^)]*\)[^\n]*\n)", r"\1    handleShareIntent(intent)\n", k, count=1)
+    k = re.sub(r"(super\.onCreate\([^)]*\)[^\n]*\n)", r"\1    launchSplash.show()\n    handleShareIntent(intent)\n", k, count=1)
     idx = k.rstrip().rfind("}")
     k = k.rstrip()[:idx] + share_code + "}\n"
     # Don't pull the user into Android battery settings while sharing.
     k = k.replace('if (!prefs.getBoolean("battery_asked", false)',
                   'if (intent?.action != android.content.Intent.ACTION_SEND && !prefs.getBoolean("battery_asked", false)')
     act.write_text(k)
+launch_drawable = root / "src/main/res/drawable-nodpi"
+launch_drawable.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(pathlib.Path(__file__).with_name("omniget_launch.webp"), launch_drawable / "omniget_launch.webp")
+(act.parent / "LaunchSplash.kt").write_text(pathlib.Path(__file__).with_name("LaunchSplash.kt").read_text().replace("@PACKAGE@", pkg))
 (act.parent / "SharePopup.kt").write_text(pathlib.Path(__file__).with_name("SharePopup.kt").read_text().replace("@PACKAGE@", pkg))
 
 # A translucent native window exposes the source task while the web content

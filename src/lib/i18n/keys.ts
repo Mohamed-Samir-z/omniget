@@ -80,6 +80,10 @@ export type TranslationKeys =
   | 'clip.minutes'
   | 'clip.seconds'
 
+  | 'clip_end_clamped'
+
+  | 'clip_end_optional'
+
   | 'command_palette.action_paste'
   | 'command_palette.close'
   | 'command_palette.empty'

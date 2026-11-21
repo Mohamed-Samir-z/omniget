@@ -2,8 +2,8 @@
   import { t } from "$lib/i18n";
   import { splitTime, joinTime, timeSeconds } from "$lib/clip-time";
 
-  let { value = $bindable(""), label, disabled = false, onchange = undefined }:
-    { value?: string; label: string; disabled?: boolean; onchange?: (value: string) => void } = $props();
+  let { value = $bindable(""), label, disabled = false, optionalEnd = false, onchange = undefined }:
+    { value?: string; label: string; disabled?: boolean; optionalEnd?: boolean; onchange?: (value: string) => void } = $props();
   let parts = $state<string[]>(["", "", ""]);
   let lastEmitted: string | undefined;
   $effect(() => {
@@ -38,11 +38,13 @@
       </label>
     {/each}
   </div>
+  {#if optionalEnd}<p class="end-hint">{$t('clip_end_optional')}</p>{/if}
 </fieldset>
 
 <style>
   .clip-time { border: 0; padding: 0; margin: 0; min-width: 0; flex: 1 1 150px; }
   legend { padding: 0; margin-bottom: 6px; color: var(--text-muted, #aaa); font-size: 12px; }
+  .end-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.45; color: var(--text-muted, #aaa); }
   .clock { display: flex; gap: 4px; align-items: flex-end; }
   label { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
   label span { font-size: 10px; color: var(--text-muted, #aaa); white-space: nowrap; }

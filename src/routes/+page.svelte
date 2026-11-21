@@ -1234,7 +1234,7 @@
                               <span class="timerange-label">{$t('librebox.timerange_label')}</span>
                               <div class="timerange-inputs">
                                 <ClipTimeFields label={$t('librebox.timerange_start') as string} bind:value={clipStart} />
-                                <ClipTimeFields label={$t('librebox.timerange_end') as string} bind:value={clipEnd} />
+                                <ClipTimeFields label={$t('librebox.timerange_end') as string} optionalEnd bind:value={clipEnd} />
                               </div>
                               <span class="timerange-hint">{$t('clip.hint')}</span>
                             </div>

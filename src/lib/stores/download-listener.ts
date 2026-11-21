@@ -262,6 +262,14 @@ export async function initDownloadListener(): Promise<() => void> {
     }
   });
 
+  const unlistenClipEnd = await listen<{ id: number; title: string; end: string }>(
+    "clip-end-clamped",
+    (event) => {
+      const { title, end } = event.payload;
+      showToast("info", get(t)("clip_end_clamped", { name: title, end }), 10000);
+    },
+  );
+
   const unlistenQueueState = await listen<QueueItemInfo[]>(
     "queue-state-update",
     (event) => {
@@ -413,6 +421,7 @@ export async function initDownloadListener(): Promise<() => void> {
     unlistenUdemyProgress();
     unlistenUdemyComplete();
     unlistenQueueState();
+    unlistenClipEnd();
     unlistenQueueItemProgress();
     unlistenBatchFileStatus();
     unlistenConvertProgress();

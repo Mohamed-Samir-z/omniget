@@ -1946,6 +1946,16 @@ async fn spawn_download_inner(
             let mut isolated = opts.clone();
             isolated.output_dir = job.directory.clone();
             isolated.filename_template = Some("source.%(ext)s".into());
+            // Clamp the downloader request too, not only final validation.
+            if let Some(end) = range.clamped_end(info.duration_seconds) {
+                if let Some(args) = isolated.custom_ytdlp_args.as_mut() {
+                    if let Some(index) = args.iter().position(|arg| arg == "--download-sections") {
+                        if let Some(value) = args.get_mut(index + 1) {
+                            *value = format!("*{}-{end:.3}", range.start);
+                        }
+                    }
+                }
+            }
             let mut result = tokio::select! {
                 r = downloader.download(&info, &isolated, tx) => r?,
                 _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
@@ -2025,6 +2035,9 @@ async fn spawn_download_inner(
 
     match result {
         Ok(dl) => {
+            let clamped_end = clip_range
+                .as_ref()
+                .and_then(|range| range.clamped_end(info.duration_seconds));
             if dl.duration_seconds > 0.0 && clip_range.is_some() {
                 info.duration_seconds = Some(dl.duration_seconds);
                 let mut q = queue.lock().await;
@@ -2129,6 +2142,20 @@ async fn spawn_download_inner(
                 }
             }
 
+            if let Some(end) = clamped_end {
+                append_download_log(
+                    &app,
+                    item_id,
+                    format!("[clip] Requested end exceeded the video length; clipped at {end:.3}s"),
+                );
+                let _ = app.emit(
+                    "clip-end-clamped",
+                    serde_json::json!({
+                        "id": item_id, "title": info.title,
+                        "end": crate::core::clip::display_time(end)
+                    }),
+                );
+            }
             let state = {
                 let mut q = queue.lock().await;
                 if platform_name == "magnet" && dl.torrent_id.is_some() {
