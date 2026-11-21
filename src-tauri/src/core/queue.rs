@@ -1589,7 +1589,6 @@ async fn spawn_download_inner(
         info_start.elapsed()
     );
 
-    let mut info = info;
     if is_generic_title(&info.title) {
         let pokemon = libreget_core::core::pokemon_names::random_pokemon_name();
         info.title = format!("video_{}", pokemon);
