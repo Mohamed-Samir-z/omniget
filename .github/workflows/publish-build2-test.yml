@@ -1,0 +1,44 @@
+name: Publish feature round 2 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build2-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44877088667
+          SHA=6bead99464a49119c9ef48f79305643c1c6fff07
+          TAG=android-feature-round-2-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 2:
+          - In-app updates: omniget checks for a newer approved Android build on startup and shows the update banner when one exists. "update now" downloads the APK inside the app (checksum-verified) and opens the system installer over the existing app.
+          - Playlist download from one link (pre-existing, needs on-device verification): paste a playlist URL, pick entries in the list, download the selected ones.
+          - Subtitles with video (pre-existing, needs on-device verification): Settings > Downloads > Subtitles, then subtitles are saved alongside the video.
+
+          This is the exact signed APK from successful Android APK run 44877088667, commit 6bead99464a49119c9ef48f79305643c1c6fff07.
+
+          IMPORTANT: download and install this APK over a VPN connection. Home Wi-Fi has been silently corrupting large downloads, which previously caused "invalid package" install failures.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 2, TEST BUILD' --notes-file notes.md
