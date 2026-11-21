@@ -361,4 +361,4 @@ mod migracao_tests {
         assert_eq!(itens.len(), 1);
         assert_eq!(itens[0].id, 2);
     }
-    }
+}
