@@ -107,7 +107,7 @@ if "YoutubeDL" not in k:
     k = k.replace("import ", "import com.yausername.youtubedl_android.YoutubeDL\nimport com.yausername.ffmpeg.FFmpeg\nimport ", 1)
     svc = (
         "\n    try {\n"
-        "      if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(\"android.permission.POST_NOTIFICATIONS\"), 1)\n"
+        "      if (intent?.action != android.content.Intent.ACTION_SEND && android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(\"android.permission.POST_NOTIFICATIONS\"), 1)\n"
         "      val prefs = getSharedPreferences(\"libreget\", 0)\n"
         "      val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager\n"
         "      if (!prefs.getBoolean(\"battery_asked\", false) && !pm.isIgnoringBatteryOptimizations(packageName)) {\n"
@@ -189,58 +189,93 @@ if "YoutubeDL" not in k:
         text = locale.read_text()
         text = re.sub(r'("hero_title"\s*:\s*)"LibreGet"', r'\1"omniget"', text)
         locale.write_text(text)
-# ---- Share bridge: MainActivity forwards shared text to Rust over JNI ----
-# The Rust side exports Java_com_openselena_libreget_MainActivity_nativeOnSharedText
-# (src-tauri/src/android_share.rs); fail the build if the generated package
-# ever drifts from the application id, instead of shipping a dead share target.
+# ---- Native popup: keep the opaque app UI hidden above the source app -----
+# Use the existing single Tauri runtime. A second TauriActivity would create
+# competing runtimes on warm shares, while a separate cold native activity
+# would have no initialized download queue.
 k = act.read_text()
-if "nativeOnSharedText" not in k:
-    pkg_match = re.search(r"^package\s+([\w.]+)", k, re.M)
-    if not pkg_match or pkg_match.group(1) != "com.openselena.libreget":
-        sys.exit(
-            "MainActivity package is not com.openselena.libreget; "
-            "the JNI share bridge symbol in android_share.rs would break"
-        )
-    share_code = (
-        "\n"
-        "  override fun onNewIntent(intent: android.content.Intent) {\n"
-        "    super.onNewIntent(intent)\n"
-        "    handleShareIntent(intent)\n"
-        "  }\n"
-        "\n"
-        "  private external fun nativeOnSharedText(text: String)\n"
-        "\n"
-        "  private fun handleShareIntent(intent: android.content.Intent?) {\n"
-        "    if (intent?.action != android.content.Intent.ACTION_SEND) return\n"
-        "    val shared = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: return\n"
-        "    var attempts = 0\n"
-        "    fun tryDeliver() {\n"
-        "      try {\n"
-        "        nativeOnSharedText(shared)\n"
-        "      } catch (e: UnsatisfiedLinkError) {\n"
-        "        // Native library may not be loaded yet on a cold share launch.\n"
-        "        if (++attempts <= 10) {\n"
-        "          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tryDeliver() }, 1000)\n"
-        "        } else {\n"
-        '          android.util.Log.e("libreget", "share bridge: native library never loaded", e)\n'
-        "        }\n"
-        "      } catch (e: Throwable) {\n"
-        '        android.util.Log.e("libreget", "share bridge failed", e)\n'
-        "      }\n"
-        "    }\n"
-        "    tryDeliver()\n"
-        "  }\n"
-    )
-    k = re.sub(
-        r"(super\.onCreate\([^)]*\)[^\n]*\n)",
-        r"\1    handleShareIntent(intent)\n",
-        k,
-        count=1,
-    )
-    stripped = k.rstrip()
-    idx = stripped.rfind("}")
-    k = stripped[:idx] + share_code + "}\n"
+pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
+if pkg != "com.openselena.libreget":
+    sys.exit("Native share JNI package mismatch")
+if "nativeShareAction" not in k:
+    share_code = r'''
+  private var sharePopup: SharePopup? = null
+  private var shareWebView: android.webkit.WebView? = null
+  private var shareContentHidden = false
+
+  fun setShareContentVisible(visible: Boolean) {
+    shareContentHidden = !visible
+    findViewById<android.view.View>(android.R.id.content)?.alpha = if (visible) 1f else 0f
+    shareWebView?.alpha = if (visible) 1f else 0f
+  }
+
+  override fun onWebViewCreate(webView: android.webkit.WebView) {
+    super.onWebViewCreate(webView)
+    shareWebView = webView
+    if (shareContentHidden) setShareContentVisible(false)
+  }
+
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleShareIntent(intent)
+  }
+
+  override fun onDestroy() {
+    sharePopup?.dispose()
+    super.onDestroy()
+  }
+
+  external fun nativeShareReady(): Boolean
+  external fun nativeShareAction(text: String, mode: String, quality: String, action: String): String
+
+  private fun handleShareIntent(intent: android.content.Intent?) {
+    if (intent?.action != android.content.Intent.ACTION_SEND) {
+      sharePopup?.openFullApp()
+      setShareContentVisible(true)
+      return
+    }
+    val shared = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: return
+    if (sharePopup == null) sharePopup = SharePopup(this)
+    sharePopup!!.show(shared)
+  }
+'''
+    k = re.sub(r"(super\.onCreate\([^)]*\)[^\n]*\n)", r"\1    handleShareIntent(intent)\n", k, count=1)
+    idx = k.rstrip().rfind("}")
+    k = k.rstrip()[:idx] + share_code + "}\n"
+    # Don't pull the user into Android battery settings while sharing.
+    k = k.replace('if (!prefs.getBoolean("battery_asked", false)',
+                  'if (intent?.action != android.content.Intent.ACTION_SEND && !prefs.getBoolean("battery_asked", false)')
     act.write_text(k)
+(act.parent / "SharePopup.kt").write_text(pathlib.Path(__file__).with_name("SharePopup.kt").read_text().replace("@PACKAGE@", pkg))
+
+# A translucent native window exposes the source task while the web content
+# is hidden. Full-app entry remains opaque because its web content is visible.
+m = manifest.read_text()
+act_tag = re.search(r'<activity[^>]*android:name="\.MainActivity"[^>]*>', m)
+if not act_tag:
+    sys.exit("MainActivity missing for share host theme")
+old_tag = act_tag.group(0)
+parent = re.search(r'android:theme="([^"]+)"', old_tag)
+if parent:
+    parent = parent.group(1)
+else:
+    app_tag = re.search(r'<application[^>]*>', m).group(0)
+    match = re.search(r'android:theme="([^"]+)"', app_tag)
+    parent = match.group(1) if match else "@style/Theme.AppCompat.DayNight.NoActionBar"
+new_tag = re.sub(r'\s+android:theme="[^"]+"', '', old_tag)
+new_tag = new_tag[:-1] + ' android:theme="@style/OmnigetShareHost">'
+m = m.replace(old_tag, new_tag, 1)
+manifest.write_text(m)
+values = root / "src/main/res/values"
+values.mkdir(parents=True, exist_ok=True)
+(values / "omniget_share_host.xml").write_text(
+    '<resources><style name="OmnigetShareHost" parent="' + parent + '">'
+    '<item name="android:windowIsTranslucent">true</item>'
+    '<item name="android:windowBackground">@android:color/transparent</item>'
+    '<item name="android:windowDisablePreview">true</item>'
+    '<item name="android:windowNoTitle">true</item>'
+    '</style></resources>')
 
 # ---- In-app updates: FileProvider so the installer can read the APK ------
 # install_android_update (src-tauri/src/android_update.rs) downloads the new

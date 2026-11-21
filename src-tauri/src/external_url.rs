@@ -375,6 +375,24 @@ pub async fn share_received(app: &AppHandle, url: String) {
     .await;
 }
 
+/// Native Android popup's explicit full-app action. Never auto-downloads,
+/// regardless of clipboard or external-link preferences.
+#[cfg(target_os = "android")]
+pub async fn prefill_shared_url(app: &AppHandle, url: String) {
+    if !is_external_url(&url) {
+        return;
+    }
+    push_or_emit_event(
+        app,
+        ExternalUrlEvent {
+            url,
+            source: "android-share".to_string(),
+            action: "prefill".to_string(),
+        },
+    )
+    .await;
+}
+
 pub async fn register_frontend(app: &AppHandle) -> Vec<ExternalUrlEvent> {
     let state = app.state::<AppState>();
 
