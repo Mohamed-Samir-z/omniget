@@ -157,7 +157,7 @@
   {#if report}
     <div class="log-panel">
       <p class="report-review">{$t('downloads.report_review')}</p>
-      <pre dir="ltr">{report}</pre>
+      <pre class="report-content" dir="ltr">{report}</pre>
       <button type="button" class="log-copy" onclick={copyReport}>{$t('downloads.report_copy')}</button>
       <button type="button" class="log-copy" onclick={() => report = ''}>{$t('common.close')}</button>
     </div>
@@ -248,6 +248,23 @@
   }
 
   .report-review { padding: 12px; margin: 0; font-size: 12px; line-height: 1.7; }
+
+  pre.report-content {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: none;
+    padding: 12px;
+    overflow: visible;
+    white-space: pre-wrap;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    unicode-bidi: isolate;
+    font-size: 12px;
+    line-height: 1.6;
+  }
 
   .log-header {
     display: flex;
