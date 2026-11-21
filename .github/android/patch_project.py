@@ -207,7 +207,7 @@ if "nativeShareAction" not in k:
     // Keep queued downloads alive, but do not leave a blank share-only task
     // in Recents. Opening the full app restores its normal task entry.
     val manager = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-    manager.appTasks.firstOrNull { it.taskInfo.taskId == taskId }?.setExcludeFromRecents(!visible)
+    manager.appTasks.firstOrNull { it.taskInfo?.taskId == taskId }?.setExcludeFromRecents(!visible)
     shareContentHidden = !visible
     findViewById<android.view.View>(android.R.id.content)?.alpha = if (visible) 1f else 0f
     shareWebView?.alpha = if (visible) 1f else 0f
