@@ -1,0 +1,47 @@
+name: Publish feature round 3 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build3-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44881884026
+          SHA=aaaf50199fe6c648ea19116e3d38aa21afb2df2f
+          TAG=android-feature-round-3-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 3:
+          - Preserve yt-dlp partial files on retry/cancel so compatible sites can resume interrupted transfers. Not all sites or native downloaders support byte resume.
+          - Wi-Fi-only mode under Settings > Downloads > Quality & format, off by default. Queued jobs wait, running jobs stop/requeue and retry when Wi-Fi returns. Network changes may take up to two seconds to detect. VPN routes that cannot prove Wi-Fi wait rather than use mobile data.
+          - Mobile Settings layout fixed so options and switches fit a phone screen.
+          - In-app updater safety fixes: mandatory checksum, installed-build identity check, approved download URL and verified cached APK before installation.
+
+          On-device tests still needed: Wi-Fi/mobile switching, manual pause/resume, interrupted-download recovery after restart, and update installation. Local checks and a controlled HTTP interruption/resume test passed. These are not claims of on-device verification.
+
+          This is the exact signed APK from successful Android APK run 44881884026, commit aaaf50199fe6c648ea19116e3d38aa21afb2df2f.
+
+          IMPORTANT: download and install this APK over a VPN connection. Home Wi-Fi has been silently corrupting large downloads, which previously caused "invalid package" install failures.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 3, TEST BUILD' --notes-file notes.md
