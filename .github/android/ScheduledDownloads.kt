@@ -25,6 +25,8 @@ object ScheduledDownloads {
             val value = when (action) {
                 "schedule" -> schedule(context, payload)
                 "list" -> list(context)
+                "run-now" -> replace(context, payload, true)
+                "reschedule" -> replace(context, payload, false)
                 "locale" -> { NativeText.language(context, payload); "" }
                 "cancel" -> { cancel(context, payload); "" }
                 "forget" -> { forget(context, payload); "" }
@@ -36,16 +38,17 @@ object ScheduledDownloads {
     const val TAG = "omniget.scheduled.download"
     private fun prefs(context: Context) = context.getSharedPreferences(TAG, Context.MODE_PRIVATE)
 
-    @JvmStatic @Synchronized fun schedule(context: Context, json: String): String {
+    @JvmStatic @Synchronized fun schedule(context: Context, json: String): String = enqueue(context, json, false)
+    private fun enqueue(context: Context, json: String, immediate: Boolean): String {
         val spec = JSONObject(json)
         val uri = android.net.Uri.parse(spec.getString("url"))
         require(uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()) { NativeText.t(context, "A valid HTTP or HTTPS link is required") }
         val delay = spec.getLong("at") - System.currentTimeMillis()
-        require(delay > 0) { NativeText.t(context, "Choose a future download time") }
+        require(immediate || delay > 0) { NativeText.t(context, "Choose a future download time") }
         require(json.toByteArray().size < 8000) { NativeText.t(context, "Scheduled download options are too large") }
         val request = OneTimeWorkRequest.Builder(ScheduledDownloadWorker::class.java)
             .setInputData(Data.Builder().putString("spec", json).build())
-            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+            .setInitialDelay(delay.coerceAtLeast(0), TimeUnit.MILLISECONDS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
             .addTag(TAG).build()
@@ -56,6 +59,31 @@ object ScheduledDownloads {
         try { WorkManager.getInstance(context).enqueue(request).result.get(30, TimeUnit.SECONDS) }
         catch (e: Exception) { prefs(context).edit().remove(id).commit(); throw e }
         return id
+    }
+    @JvmStatic @Synchronized fun replace(context: Context, payload: String, immediate: Boolean): String {
+        val change = JSONObject(payload)
+        val id = change.getString("id")
+        val uuid = UUID.fromString(id)
+        val original = prefs(context).getString(id, null) ?: error(NativeText.t(context, "Schedule not found"))
+        val state = WorkManager.getInstance(context).getWorkInfoById(uuid).get(20, TimeUnit.SECONDS)?.state
+        require(state != WorkInfo.State.RUNNING && state != WorkInfo.State.SUCCEEDED) { NativeText.t(context, "This download has already started or finished. Refresh the list.") }
+        val spec = JSONObject(original)
+        val at = if (immediate) System.currentTimeMillis() else change.getLong("at")
+        require(immediate || at > System.currentTimeMillis()) { NativeText.t(context, "Choose a future download time") }
+        spec.put("at", at).remove("finishedAt")
+        spec.remove("lastState"); spec.remove("lastPath"); spec.remove("lastError")
+        // Cancel and confirm the old work first, so two workers can never be queued by this edit.
+        WorkManager.getInstance(context).cancelWorkById(uuid).result.get(20, TimeUnit.SECONDS)
+        record(context, id, "CANCELLED")
+        return try {
+            val next = enqueue(context, spec.toString(), immediate)
+            prefs(context).edit().remove(id).commit()
+            next
+        } catch (e: Exception) {
+            // Preserve a recoverable visible record if replacing could not enqueue.
+            record(context, id, "INTERRUPTED", error = e.message ?: "Could not update schedule")
+            throw e
+        }
     }
     @Synchronized fun record(context: Context, id: String, state: String, path: String = "", error: String = "") {
         val original = prefs(context).getString(id, null) ?: return
@@ -72,7 +100,7 @@ object ScheduledDownloads {
                 val work = states[id]
                 records.put(JSONObject().put("id", id).put("url", spec.getString("url")).put("at", spec.getLong("at"))
                     .put("finishedAt", spec.optLong("finishedAt", spec.getLong("at")))
-                    .put("state", work?.state?.name ?: spec.optString("lastState", "INTERRUPTED"))
+                    .put("state", if (spec.optString("lastState") == "INTERRUPTED") "INTERRUPTED" else work?.state?.name ?: spec.optString("lastState", "INTERRUPTED"))
                     .put("percent", work?.progress?.getInt("percent", -1) ?: -1)
                     .put("path", work?.outputData?.getString("path") ?: spec.optString("lastPath"))
                     .put("error", work?.outputData?.getString("error") ?: spec.optString("lastError")))

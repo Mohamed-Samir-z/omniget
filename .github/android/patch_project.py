@@ -87,6 +87,10 @@ if "android.intent.action.SEND" not in m:
     act_tag = re.search(r'<activity[^>]*android:name="\.MainActivity"[^>]*>', m)
     if not act_tag:
         sys.exit("MainActivity activity tag not found in AndroidManifest.xml")
+    fixed_tag = re.sub(r'\s+android:launchMode="[^"]+"', '', act_tag.group(0))
+    fixed_tag = fixed_tag[:-1] + ' android:launchMode="singleTask">'
+    m = m.replace(act_tag.group(0), fixed_tag, 1)
+    act_tag = re.search(r'<activity[^>]*android:name="\.MainActivity"[^>]*>', m)
     share_filter = (
         "\n            <intent-filter>\n"
         '                <action android:name="android.intent.action.SEND" />\n'
@@ -195,12 +199,15 @@ if "nativeShareAction" not in k:
   private var sharePopup: SharePopup? = null
   private var shareWebView: android.webkit.WebView? = null
   private var shareContentHidden = false
+  private var fullAppSession = false
+  fun hasFullAppSession(): Boolean = fullAppSession
 
   fun setShareContentVisible(visible: Boolean) {
     // Keep queued downloads alive, but do not leave a blank share-only task
     // in Recents. Opening the full app restores its normal task entry.
     val manager = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
     manager.appTasks.firstOrNull { it.taskInfo?.taskId == taskId }?.setExcludeFromRecents(!visible)
+    if (visible) fullAppSession = true
     shareContentHidden = !visible
     findViewById<android.view.View>(android.R.id.content)?.alpha = if (visible) 1f else 0f
     shareWebView?.alpha = if (visible) 1f else 0f

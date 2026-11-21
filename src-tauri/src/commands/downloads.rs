@@ -843,7 +843,12 @@ pub async fn download_from_url(
     scheduled_at: Option<u64>,
     stop_at: Option<u64>,
     subtitle_track: Option<String>,
+    recovery_clip_id: Option<String>,
 ) -> Result<DownloadStarted, String> {
+    let recovery_clip_id = recovery_clip_id
+        .map(|id| uuid::Uuid::parse_str(&id).map(|v| v.to_string()))
+        .transpose()
+        .map_err(|_| "Invalid clip recovery identity".to_string())?;
     let _timer_start = std::time::Instant::now();
     if let Some(start) = scheduled_at {
         if start <= queue::now_ms() {
@@ -1079,6 +1084,12 @@ pub async fn download_from_url(
             stop_at,
         );
 
+        if let Some(key) = recovery_clip_id {
+            if let Some(item) = q.items.iter_mut().find(|item| item.id == download_id) {
+                item.clip_checkpoint_id = key;
+                queue::persist_job_choices(item);
+            }
+        }
         let next_ids = q.next_queued_ids();
         for nid in &next_ids {
             q.mark_active(*nid);
@@ -1550,6 +1561,16 @@ pub fn clear_download_history() {
 
 #[tauri::command]
 pub fn discard_recovery() {
+    for item in crate::core::recovery::list() {
+        if let Some(key) = item.options.clip_checkpoint_id {
+            if let Err(error) = crate::core::clip::ClipJob::discard_if_idle(
+                std::path::Path::new(&item.output_dir),
+                &key,
+            ) {
+                tracing::warn!("clip discard: {}", error);
+            }
+        }
+    }
     crate::core::recovery::clear_all();
 }
 
@@ -1606,6 +1627,7 @@ pub async fn restore_recovery(
             options.scheduled_at.filter(|t| *t > queue::now_ms()),
             options.stop_at,
             options.subtitle_track,
+            options.clip_checkpoint_id,
         )
         .await
         {
@@ -1897,6 +1919,22 @@ pub async fn open_path_default(path: String) -> Result<(), String> {
     crate::android_media::media_action(&path, false)
 }
 
+/// Open only the developer's fixed contact page. No caller-supplied URL,
+/// filesystem path or program is accepted by this command.
+#[tauri::command]
+#[allow(deprecated)]
+pub async fn open_developer_contact(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+    // ShellExt routes through the Android plugin's ACTION_VIEW implementation
+    // on mobile. The deprecated JavaScript shell command uses a desktop path.
+    app.shell()
+        .open(
+            "https://mohamed-samir-profile.mo2868417.workers.dev/?v=m",
+            None,
+        )
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn share_downloaded_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
@@ -1961,7 +1999,10 @@ mod tests {
 
 #[tauri::command]
 pub async fn android_schedules(action: String, id: Option<String>) -> Result<String, String> {
-    if !matches!(action.as_str(), "list" | "cancel" | "forget" | "locale") {
+    if !matches!(
+        action.as_str(),
+        "list" | "cancel" | "forget" | "locale" | "run-now" | "reschedule"
+    ) {
         return Err("Unsupported schedule action".into());
     }
     #[cfg(target_os = "android")]

@@ -306,4 +306,11 @@
     outline: var(--focus-ring);
     outline-offset: var(--focus-ring-offset);
   }
+  @media(max-width:640px){
+    .global-download-dock{height:auto;min-height:48px;flex-wrap:wrap;padding:6px 10px;gap:4px 10px;box-sizing:border-box;max-width:100%}
+    .dock-left{flex:1;min-width:0}.dock-status-label{overflow:hidden;text-overflow:ellipsis}
+    .dock-right{flex:1 1 auto;justify-content:flex-end;flex-wrap:wrap;gap:4px 8px;max-width:100%}
+    .dock-metrics{font-size:11px;flex-wrap:wrap;white-space:normal;justify-content:flex-end}
+    .dock-sparkline-box,.dock-eta{display:none}.dock-view-btn{min-height:40px;font-size:11px;padding:0 8px}
+  }
 </style>

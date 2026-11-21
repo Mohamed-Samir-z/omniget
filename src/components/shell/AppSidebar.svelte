@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
+  import { androidReadyNav } from "$lib/android-nav";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import NavIcon from "$components/shell/NavIcon.svelte";
@@ -21,6 +23,10 @@
     badgeCount = 0,
   }: Props = $props();
 
+  let android = isAndroid();
+  let visiblePrimary = $derived(android ? androidReadyNav(primaryNav) : primaryNav);
+  let visibleApp = $derived(android ? androidReadyNav(appNav) : appNav);
+  let visiblePlugins = $derived(android ? [] : pluginNav);
   let updateInfo = $derived(getUpdateInfo());
 
   const PLUGINS_KEY = "libreget.sidebar.plugins_expanded";
@@ -67,23 +73,23 @@
   </a>
 {/snippet}
 
-<aside class="mac-source-list" aria-label={$t("nav.section_primary")}>
+<aside class="mac-source-list" class:android-ready={android} aria-label={$t("nav.section_primary")}>
   <div class="mac-source-list-drag" data-tauri-drag-region></div>
 
   <nav class="mac-nav-section" aria-label={$t("nav.section_primary")}>
-    {#each primaryNav as item (item.href)}
+    {#each visiblePrimary as item (item.href)}
       {@render navLink(item)}
     {/each}
   </nav>
 
   <nav class="mac-nav-section" aria-label={$t("nav.section_app")}>
     <div class="mac-nav-section-header">{$t("nav.section_app")}</div>
-    {#each appNav as item (item.href)}
+    {#each visibleApp as item (item.href)}
       {@render navLink(item)}
     {/each}
   </nav>
 
-  {#if pluginNav.length > 0}
+  {#if visiblePlugins.length > 0}
     <nav class="mac-nav-section" aria-label={$t("nav.section_plugins")}>
       <div class="mac-nav-section-header">
         <span>{$t("nav.section_plugins")}</span>
@@ -104,7 +110,7 @@
         </button>
       </div>
       {#if pluginsExpanded}
-        {#each pluginNav as item (item.href)}
+        {#each visiblePlugins as item (item.href)}
           {@render navLink(item)}
         {/each}
       {/if}

@@ -28,6 +28,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RecoveryOptions {
     #[serde(default)]
+    pub clip_checkpoint_id: Option<String>,
+    #[serde(default)]
     pub cookie_slug: Option<String>,
     #[serde(default)]
     pub time_range: Option<String>,

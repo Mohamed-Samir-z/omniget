@@ -3279,7 +3279,13 @@
     "audio_none": "None",
     "audio_other_failure": "All requested source tracks passed the check. The failure may be during transfer or processing, so no particular language is marked unavailable.",
     "audio_retry_all": "Try again",
-    "audio_accept_available": "Download available"
+    "audio_accept_available": "Download available",
+    "schedule_help": "How scheduling works",
+    "schedule_now": "Download now",
+    "schedule_edit": "Change time",
+    "schedule_save": "Save time",
+    "schedule_completed_heading": "Completed scheduled downloads",
+    "schedule_error_details": "Failure details"
   },
   "toast": {
     "download_preparing": "Preparando descarga...",
@@ -4299,7 +4305,11 @@
     "update_unstamped": "This development build has no update stamp. Install an approved signed build to enable updates.",
     "update_current": "No newer approved update is available.",
     "update_checking": "Checking…",
-    "update_retry": "Retry"
+    "update_retry": "Retry",
+    "update_channel_details": "About updates",
+    "language_hint": "Interface language and direction",
+    "updates_heading": "Updates",
+    "update_check_action": "Check now"
   },
   "librebox": {
     "placeholder": "Pega una URL, enlace magnet, .torrent o busca",
@@ -5488,5 +5498,10 @@
     "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
   },
   "clip_end_clamped": "{{name}}: your chosen end was past the video length. The clip ends at {{end}} (the end of the video).",
-  "clip_end_optional": "Optional. Leave all three fields empty to clip to the end of the video."
+  "clip_end_optional": "Optional. Leave all three fields empty to clip to the end of the video.",
+  "timing": {
+    "date": "Date",
+    "time": "Time",
+    "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  }
 }

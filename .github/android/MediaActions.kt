@@ -42,12 +42,26 @@ object MediaActions {
         }
         val open = pending(false)
         val share = pending(true)
+        postCompletion(context, id, title, open, share)
+    }
+    internal fun postCompletion(context: Context, id: Int, title: String, open: PendingIntent, share: PendingIntent) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "completed") else Notification.Builder(context)
         manager.notify(id, builder.setSmallIcon(R.drawable.ic_omniget_download)
             .setContentTitle(NativeText.t(context, "Download complete")).setContentText(title.take(160))
-            .setStyle(Notification.BigTextStyle().bigText(title.take(160) + "\nيا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق"))
+            .setStyle(Notification.BigTextStyle().bigText(title.take(160)))
             .setContentIntent(open).setAutoCancel(true)
             .addAction(Notification.Action.Builder(null, NativeText.t(context, "Open"), open).build())
             .addAction(Notification.Action.Builder(null, NativeText.t(context, "Share"), share).build()).build())
+        // Post only after the normal completion notification, never instead of it.
+        // A distinct tag keeps the prayer from replacing Open/Share actions.
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("developer-prayer", NativeText.t(context, "Developer appreciation"), NotificationManager.IMPORTANCE_LOW))
+        val prayer = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "developer-prayer") else Notification.Builder(context)
+        manager.notify("developer-prayer", id, prayer
+            .setSmallIcon(R.drawable.ic_omniget_download)
+            .setContentTitle("دعوة حلوة منك")
+            .setContentText("يا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق")
+            .setStyle(Notification.BigTextStyle().bigText("يا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق"))
+            .setContentIntent(open).setAutoCancel(true).setOnlyAlertOnce(true).build())
     }
 }

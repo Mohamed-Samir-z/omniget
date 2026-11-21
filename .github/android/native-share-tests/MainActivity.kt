@@ -1,5 +1,7 @@
 package com.openselena.libreget
 class MainActivity : android.app.Activity() {
+ var fullAppSession = false
+ fun hasFullAppSession(): Boolean = fullAppSession
  var contentVisible = true
  var left = false
  @Volatile var ready = true

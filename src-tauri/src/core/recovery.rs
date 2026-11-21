@@ -262,6 +262,7 @@ mod migracao_tests {
     fn full_job_choices_survive_journal_compaction_and_restart() {
         use crate::core::queue_wal::{compact, decode_log, encode, RecoveryOptions};
         let options = RecoveryOptions {
+            clip_checkpoint_id: Some("d7230a85-d040-43ea-93cb-981ae51972f3".into()),
             cookie_slug: Some("selected-account".into()),
             time_range: Some("00:01:02-00:01:17".into()),
             subtitle_track: Some("auto:ar".into()),

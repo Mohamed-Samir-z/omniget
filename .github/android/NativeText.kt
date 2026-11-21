@@ -31,6 +31,7 @@ object NativeText {
         "Share downloaded file" to "مشاركة الملف المنزّل",
         "Completed downloads" to "التنزيلات المكتملة",
         "Download complete" to "اكتمل التنزيل",
+        "Developer appreciation" to "دعوة للمطور",
         "Open" to "فتح",
         "Share" to "مشاركة",
         "Scheduled downloads" to "التنزيلات المجدولة",
@@ -57,6 +58,8 @@ object NativeText {
         "Could not move the completed download" to "تعذر نقل التنزيل المكتمل",
         "Could not save subtitle sidecar" to "تعذر حفظ ملف الترجمة",
         "Scheduled download failed" to "فشل التنزيل المجدول",
+        "Schedule not found" to "الموعد غير موجود",
+        "This download has already started or finished. Refresh the list." to "بدأ هذا التنزيل أو اكتمل بالفعل. حدّث القائمة.",
         "Downloads" to "التنزيلات"
     )
 }

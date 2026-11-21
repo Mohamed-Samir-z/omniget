@@ -17,6 +17,7 @@ import android.widget.*
  * web content stays hidden until the user explicitly chooses the full app. */
 class SharePopup(private val activity: MainActivity) {
     private var dialog: Dialog? = null
+    private var fullAppWasOpen = false
     @Volatile private var generation = 0
     private val preferences = activity.getSharedPreferences("omniget.share.choices", 0)
     private val accent = Color.rgb(255, 165, 0)
@@ -61,6 +62,7 @@ class SharePopup(private val activity: MainActivity) {
         dialog?.setOnDismissListener(null)
         dialog?.dismiss()
         dialog = null
+        if (fullAppWasOpen) activity.setShareContentVisible(true)
         activity.moveTaskToBack(true)
     }
     fun show(shared: String) {
@@ -68,7 +70,10 @@ class SharePopup(private val activity: MainActivity) {
         val token = generation
         dialog?.setOnDismissListener(null)
         dialog?.dismiss()
-        hideApp()
+        fullAppWasOpen = activity.hasFullAppSession()
+        // A warm share overlays the existing host. Never hide or remove its
+        // Recents task just to show another link.
+        if (!fullAppWasOpen) hideApp()
         val box = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = NativeText.direction(activity)

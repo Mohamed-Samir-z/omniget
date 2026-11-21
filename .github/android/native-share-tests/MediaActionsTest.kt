@@ -24,4 +24,24 @@ class MediaActionsTest {
   try { MediaActions.intent(context,file.path,true);fail("Empty file must be rejected") }
   catch (expected: IllegalArgumentException) { assertTrue(expected.message!!.contains("empty")) }
  }
+ @Test fun prayerIsSeparateAndKeepsCompletionActions() {
+  val context=RuntimeEnvironment.getApplication()
+  val manager=context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+  manager.cancelAll()
+  manager.createNotificationChannel(android.app.NotificationChannel("completed","Completed",android.app.NotificationManager.IMPORTANCE_DEFAULT))
+  val pending=android.app.PendingIntent.getActivity(context,7,Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://example.com")),android.app.PendingIntent.FLAG_IMMUTABLE)
+  MediaActions.postCompletion(context,314,"Test clip",pending,pending)
+  val shadow=org.robolectric.Shadows.shadowOf(manager)
+  val complete=shadow.getNotification(314)
+  val prayer=shadow.getNotification("developer-prayer",314)
+  assertNotNull(complete);assertNotNull(prayer)
+  assertEquals(2,shadow.allNotifications.size)
+  assertEquals("Download complete",complete.extras.getString(android.app.Notification.EXTRA_TITLE))
+  assertEquals("Test clip",complete.extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString())
+  assertEquals(2,complete.actions.size)
+  assertEquals("Open",complete.actions[0].title.toString())
+  assertEquals("Share",complete.actions[1].title.toString())
+  assertTrue(prayer.extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains("محمد سمير"))
+  assertEquals("developer-prayer",prayer.channelId)
+ }
 }

@@ -2,7 +2,6 @@
   import AudioTrackChoice from "$components/downloads/AudioTrackChoice.svelte";
   import { audioChoice } from "$lib/multi-audio-choice";
   import ScheduledDownloads, { type Scheduled } from "$components/downloads/ScheduledDownloads.svelte";
-  import DeveloperCard from "$components/DeveloperCard.svelte";
   import CompletedFileActions from "$components/downloads/CompletedFileActions.svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
@@ -184,12 +183,13 @@
   type StatusFilter = "all" | "active" | "queued" | "completed" | "failed";
   let statusFilter = $state<StatusFilter>("all");
 
+  let systemSchedules = $state<Scheduled[]>([]);
   let filterCounts = $derived({
-    all: genericList.length,
+    all: genericList.length + systemSchedules.filter(item=>item.state!=="CANCELLED").length,
     active: grouped.active.length + grouped.paused.length,
     queued: grouped.queued.length,
-    completed: grouped.completed.length,
-    failed: grouped.errored.length,
+    completed: grouped.completed.length + systemSchedules.filter(item=>item.state==="SUCCEEDED").length,
+    failed: grouped.errored.length + systemSchedules.filter(item=>["FAILED","INTERRUPTED"].includes(item.state)).length,
   });
 
   let showSection = $derived({
@@ -214,7 +214,7 @@
       : finishedFiltered.slice(0, finishedVisibleCount)
   );
 
-  let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0);
+  let hasDownloads = $derived(courseList.length > 0 || genericList.length > 0 || systemSchedules.some(item=>item.state!=="CANCELLED"));
   let finishedCount = $derived(getFinishedCount());
   let dlStats = $derived(getDownloadStats());
 
@@ -390,7 +390,6 @@
     });
   });
   let historyEntries = $state<HistoryEntry[]>([]);
-  let systemSchedules = $state<Scheduled[]>([]);
   let historyTimeline = $derived([
     ...historyEntries.map(entry => ({ kind: "download" as const, entry, time: entry.completed_at * 1000 })),
     ...systemSchedules.filter(entry => !["ENQUEUED", "RUNNING", "BLOCKED"].includes(entry.state)).map(entry => ({ kind: "schedule" as const, entry, time: entry.finishedAt || entry.at })),
@@ -569,6 +568,7 @@
 
 </script>
 
+<div class="downloads-layout">
 {#if hasDownloads || viewMode !== "active"}
   <div class="downloads-page downloads-mac">
     {#if viewMode === "active"}
@@ -1078,11 +1078,11 @@
           {#if isTransferPhase(item.phase)}
             <div class="item-stats">
               {#if item.downloadedBytes > 0}
-                <span>{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
+                <span dir="ltr">{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
                 <span class="stats-sep">&middot;</span>
               {/if}
               {#if item.speed > 0}
-                <span class="stat-speed">{formatSpeed(item.speed)}</span>
+                <span class="stat-speed" dir="ltr">{formatSpeed(item.speed)}</span>
                 {#if formatEta(item.etaSeconds)}
                   <span class="stats-sep">&middot;</span>
                   <span class="eta-pill">ETA {formatEta(item.etaSeconds)}</span>
@@ -1111,7 +1111,7 @@
         {:else if item.status === "paused"}
           {#if item.downloadedBytes > 0}
             <div class="item-stats">
-              <span>{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
+              <span dir="ltr">{formatBytes(item.downloadedBytes)}{#if item.totalBytes}{" / "}{formatBytes(item.totalBytes)}{/if}</span>
             </div>
           {/if}
         {/if}
@@ -1220,8 +1220,8 @@
   </div>
 {/snippet}
 
-<ScheduledDownloads mode={viewMode} onitems={(items) => systemSchedules = items} />
-<DeveloperCard />
+<div class="schedule-container"><ScheduledDownloads mode={viewMode} filter={statusFilter} onitems={(items) => systemSchedules = items} /></div>
+</div>
 
 <style>
   /* ---------- Empty state ---------- */
@@ -1302,6 +1302,7 @@
 
   /* ---------- Page ---------- */
 
+  .downloads-layout{flex:1;min-height:0;min-width:0;overflow-y:auto;width:100%}.schedule-container{max-width:880px;width:100%;box-sizing:border-box;padding:0 20px 12px;margin:0 auto}
   .downloads-page {
     display: flex;
     flex-direction: column;
@@ -1310,8 +1311,9 @@
     max-width: 880px;
     margin: 0 auto;
     width: 100%;
-    overflow-y: auto;
-    flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
+    flex: 0 0 auto;
     min-height: 0;
   }
 
@@ -1997,8 +1999,19 @@
   }
 
   @media (max-width: 640px) {
+    .downloads-page{padding:12px;gap:12px}.schedule-container{padding:0 12px 12px}
+    .downloads-header,.download-list,.download-item,.item-header,.item-header-actions{min-width:0;max-width:100%;box-sizing:border-box}
+    .filter-pills{display:flex;flex-wrap:wrap;width:100%;box-sizing:border-box;gap:4px}
+    .filter-pill{flex:1 1 auto;justify-content:center;padding:6px 8px;font-size:12px;min-height:40px}
+    .bulk-actions{flex-wrap:wrap;max-width:100%;margin-inline-start:0}
+    .item-body .item-header{flex-wrap:wrap;gap:6px}
+    .item-header-left{flex-basis:100%}
+    .item-header-actions{flex-wrap:wrap;margin-inline-start:auto;gap:4px}
+    .item-header-actions .action-icon-btn{width:40px;min-height:40px}
+    .item-meta{overflow-wrap:anywhere}
+
     .item-row { gap: var(--space-2); }
-    .item-row :global(.poster) { width: 84px; }
+    .item-row :global(.poster) { width: 64px; flex-shrink:0; }
     .item-body :global(.phase-rail) { display: none; }
     .meta-author { max-width: 120px; }
   }

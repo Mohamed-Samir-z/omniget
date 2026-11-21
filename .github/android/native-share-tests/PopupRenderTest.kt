@@ -78,6 +78,17 @@ class PopupRenderTest {
   assertFalse(a.contentVisible)
   shot("native-renders/native-confirm.png"); click("Not now"); assertTrue(a.left)
  }
+ @Test fun warmShareAndDismissKeepExistingHostVisible() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); a.fullAppSession=true
+  val popup=SharePopup(a); popup.show("https://example.com/new-job")
+  assertTrue(a.contentVisible); click("Download"); settle(a); assertTrue(a.contentVisible)
+  click("Not now"); assertTrue(a.contentVisible); assertTrue(a.left); assertEquals(1,a.calls)
+ }
+ @Test fun warmShareCancelKeepsExistingHostVisible() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); a.fullAppSession=true
+  SharePopup(a).show("https://example.com/new-job"); ShadowDialog.getLatestDialog().cancel(); ShadowLooper.idleMainLooper()
+  assertTrue(a.contentVisible);assertTrue(a.left);assertEquals(0,a.calls)
+ }
  @Test fun moreOptionsPrefillsAndRestoresApp() {
   val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); val p=SharePopup(a)
   p.show("https://example.com/first"); p.show("https://example.com/second"); click("More options in the app"); settle(a)

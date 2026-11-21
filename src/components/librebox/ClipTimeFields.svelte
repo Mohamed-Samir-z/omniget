@@ -25,7 +25,7 @@
 
 <fieldset class="clip-time" {disabled} aria-invalid={invalid}>
   <legend>{label}</legend>
-  <div class="clock">
+  <div class="clock" dir="ltr">
     {#each ['hours', 'minutes', 'seconds'] as unit, index}
       {#if index > 0}<span class="colon" aria-hidden="true">:</span>{/if}
       <label>
@@ -47,7 +47,7 @@
   .end-hint { margin: 6px 0 0; font-size: 11px; line-height: 1.45; color: var(--text-muted, #aaa); }
   .clock { display: flex; gap: 4px; align-items: flex-end; }
   label { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
-  label span { font-size: 10px; color: var(--text-muted, #aaa); white-space: nowrap; }
+  label span { text-align: center; font-size: 10px; color: var(--text-muted, #aaa); white-space: nowrap; }
   input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 8px 3px; text-align: center; border: 1px solid var(--border, #555); border-radius: 8px; background: var(--fill-2, #191919); color: var(--text, #eee); font: 15px ui-monospace, monospace; }
   input[aria-invalid='true'] { border-color: var(--danger, #e86969); }
   input:focus-visible { outline: 2px solid var(--accent-hi, #c1f26f); outline-offset: 1px; }
