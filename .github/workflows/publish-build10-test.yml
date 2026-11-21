@@ -1,0 +1,50 @@
+name: Publish feature round 10 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build10-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publish the verified signed artifact as a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44960033970
+          SHA=a0b3b90a4cdc113b664093cc58236fc33d2ce2dc
+          TAG=android-feature-round-10-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test repair build, cumulative with Build 9. Not a stable release. android-latest is unchanged.
+
+          Changes:
+          1. Cohesive mobile layout with readable spacing, wrapping, surfaces and controls. Exactly four Android navigation tabs: Home, Downloads, Settings and About. Other routes remain in source.
+          2. Theme-aware collapsible developer card, absent from Downloads; fixed native developer-contact action.
+          3. Downloads layout and logs cleaned up. Empty system-schedule groups hide; completed schedules appear in Completed. Pending/failed schedules have Change time and Download now controls.
+          4. Stacked and labeled clip start/end and schedule controls. Unsupported Android timed-stop controls are hidden; incompatible clip scheduling is rejected rather than ignored.
+          5. Separate prayer notification after normal download completion, without replacing the file Open and Share actions. Android controls notification ordering.
+          6. Approved monochrome notification mascot with the same hat, wink and scarf identity. System/OEM controls its color, framing and header placement; launcher icon remains full color.
+          7. Warm-share popup preserves an already-open full app host. Active queue work, including final processing, guards against a transient UI exit.
+          8. Durable per-clip source and metadata checkpoints preserve job identity across restart. Source hash and original choices are checked before reuse, and a workspace lock rejects duplicate processing. Interrupted final processing restarts from its beginning without downloading a completed verified source again. Failed clip recovery remains available; explicit discard cleans idle workspaces.
+
+          Verified: all eight CI checks passed on final source head433c0e129eca8083df3f2b45d3deab63f9487c51. The merge source is identical. Signed Android build44960033970 succeeded. Tests include168 frontend tests, typecheck with zero errors,4709-key strict locale parity,30 production clip/journal/recovery tests, real eight-track FFmpeg SIGKILL/restart with the original fixture input removed, normalization/EOF/MP3/subtitle/naming regressions,16 native popup/notification tests and five scheduling tests. Mobile previews inspected at320/412px in light/dark modes.
+
+          Limits: no physical-phone validation is claimed. Warm-share/background survival and the contact browser handoff still need device confirmation. Popup stub tests do not prove Android process survival. Unfinished network sections can restart; this is not byte-range or frame-level resume. Source access, Android force-stop/power limits and old Build9 staging loss cannot be repaired retroactively. A crash after final publish but before the queue completion journal may repeat final processing. Existing desktop layout-audit findings remain reported, not suppressed. Specialist translations and third-party error text may still need wording polish.
+
+          Exact signed APK from successful run44960033970, commit a0b3b90a4cdc113b664093cc58236fc33d2ce2dc.
+          Install over the existing app. Download the complete APK over a reliable connection, preferably VPN if local downloads are corrupted.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 10, TEST BUILD' --notes-file notes.md
