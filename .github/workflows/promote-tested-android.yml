@@ -1,0 +1,45 @@
+name: Promote tested Android release
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/promote-tested-android.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44793783634
+          SHA=c0ac13dede1f6e505e1a4ec78acf912187448f4d
+          TAG=android-20261121-yt-fix
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          echo '3695993ad908169b94a6643cb62d550ca41ca06f7c904029b6b1ec77ee4f42c4  dist/libreget-android.apk' | sha256sum --check
+          cat > notes.md <<'NOTES'
+          تم اختبار هذه النسخة على الموبايل، والتنزيل شغال من يوتيوب وتيك توك وإنستجرام وفيسبوك. هذا التأكيد يخص المنصات الأربع التي تم تجربتها، وليس ضمانا لكل المواقع.
+
+          Android update with the YouTube startup fix. The same signed APK was tested on-device: YouTube, TikTok, Instagram and Facebook downloads were confirmed working. This is an Android build, not a claim that every supported website has been device-tested.
+
+          Fixes slow YouTube responses appearing frozen at 0% by using a small adaptive initial buffer. YouTube media attempts with no first bytes after 60 seconds are stopped and retried with a bounded retry count.
+
+          Retains readable filenames, gallery registration, download progress notifications and the omniget name/icon. Share-sheet receiving, clip selection improvements and dubbed-audio selection are planned separately and are not included in this update.
+
+          Exact tested APK from successful build run 44793783634, source commit c0ac13dede1f6e505e1a4ec78acf912187448f4d. Install over the existing version. If the installer reports an invalid package, verify the downloaded file rather than uninstalling a working app. A VPN download worked around the user's observed download problem.
+
+          APK SHA-256: 3695993ad908169b94a6643cb62d550ca41ca06f7c904029b6b1ec77ee4f42c4
+          NOTES
+          # Preserve a permanent release, then promote the familiar alias.
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --latest=false --title 'omniget Android, YouTube startup fix' --notes-file notes.md
+          gh release edit android-yt-fix-test --notes-file notes.md
+          gh release upload android-latest dist/libreget-android.apk --clobber
+          gh api --method PATCH "repos/$GH_REPO/git/refs/tags/android-latest" -f sha="$SHA" -F force=true
+          gh release edit android-latest --title 'omniget Android, tested YouTube startup fix' --notes-file notes.md --prerelease=false --latest
