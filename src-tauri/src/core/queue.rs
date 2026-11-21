@@ -1489,9 +1489,7 @@ async fn spawn_download_inner(
 
     let clip_range = crate::core::clip::ClipRange::from_args(custom_ytdlp_args.as_deref());
     let media_info = media_info.or_else(|| {
-        if clip_range.is_none() {
-            return None;
-        }
+        clip_range.as_ref()?;
         match crate::core::clip::ClipJob::saved_metadata(
             std::path::Path::new(&output_dir),
             &clip_checkpoint_id,
