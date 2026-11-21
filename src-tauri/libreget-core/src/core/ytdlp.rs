@@ -3246,6 +3246,17 @@ pub async fn write_netscape_cookie_file(
     Ok(())
 }
 
+/// Language codes arrive from yt-dlp format metadata or the UI. Keep them
+/// strictly alphanumeric/dash/underscore so they can never break out of the
+/// `-f` selector string they are interpolated into.
+pub fn is_valid_audio_language(lang: &str) -> bool {
+    !lang.is_empty()
+        && lang.len() <= 16
+        && lang
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn download_video(
     ytdlp: &Path,
@@ -3263,6 +3274,46 @@ pub async fn download_video(
     download_subtitles: bool,
     extra_flags: &[String],
     audio_format: Option<&str>,
+) -> anyhow::Result<DownloadResult> {
+    download_video_full(
+        ytdlp,
+        url,
+        output_dir,
+        quality_height,
+        progress,
+        download_mode,
+        format_id,
+        filename_template,
+        referer,
+        cancel_token,
+        cookie_file,
+        concurrent_fragments,
+        download_subtitles,
+        extra_flags,
+        audio_format,
+        None,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn download_video_full(
+    ytdlp: &Path,
+    url: &str,
+    output_dir: &Path,
+    quality_height: Option<u32>,
+    progress: mpsc::Sender<ProgressUpdate>,
+    download_mode: Option<&str>,
+    format_id: Option<&str>,
+    filename_template: Option<&str>,
+    referer: Option<&str>,
+    cancel_token: CancellationToken,
+    cookie_file: Option<&Path>,
+    concurrent_fragments: u32,
+    download_subtitles: bool,
+    extra_flags: &[String],
+    audio_format: Option<&str>,
+    audio_language: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
     let _timer_start = std::time::Instant::now();
 
@@ -3346,6 +3397,29 @@ pub async fn download_video(
                 }
             }
         }
+    };
+
+    // Dubbed-audio preference: merge the best video with an audio track in the
+    // requested language. An explicit format_id and audio/mute modes keep
+    // their existing selectors, and when no track matches the language the
+    // chain falls through to the default selector untouched.
+    let format_selector = match audio_language {
+        Some(lang)
+            if format_id.is_none()
+                && mode != "audio"
+                && mode != "mute"
+                && ffmpeg_available
+                && is_valid_audio_language(lang) =>
+        {
+            match quality_height.filter(|h| *h > 0) {
+                Some(h) => format!(
+                    "bv*[height<={}]+ba[language={}]/{}",
+                    h, lang, format_selector
+                ),
+                None => format!("bv*+ba[language={}]/{}", lang, format_selector),
+            }
+        }
+        _ => format_selector,
     };
 
     let dir_len = output_dir.to_string_lossy().len();
@@ -5360,6 +5434,11 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             .get("format_note")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        let audio_language = f
+            .get("language")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty() && *s != "und")
+            .map(|s| s.to_string());
 
         let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
         let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
@@ -5390,6 +5469,7 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             has_video,
             has_audio,
             format_note,
+            audio_language,
         });
     }
 
