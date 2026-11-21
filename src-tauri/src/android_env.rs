@@ -119,14 +119,13 @@ pub fn init() {
 /// (youtubedl-android) unpacks under `<package>/no_backup/youtubedl-android`.
 /// Child processes inherit these variables, so every spawn site works as-is.
 fn setup_media_runtime(internal: &Path, data: &Path) {
-    let base = internal.join("no_backup").join("youtubedl-android").join("packages");
+    let base = internal
+        .join("no_backup")
+        .join("youtubedl-android")
+        .join("packages");
     let python = base.join("python");
     let ffmpeg = base.join("ffmpeg");
-    let ld = format!(
-        "{}/usr/lib:{}/usr/lib",
-        python.display(),
-        ffmpeg.display()
-    );
+    let ld = format!("{}/usr/lib:{}/usr/lib", python.display(), ffmpeg.display());
     std::env::set_var("LD_LIBRARY_PATH", ld);
     std::env::set_var("SSL_CERT_FILE", python.join("usr/etc/tls/cert.pem"));
     std::env::set_var("PYTHONHOME", python.join("usr"));
