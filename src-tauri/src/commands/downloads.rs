@@ -1516,6 +1516,9 @@ pub async fn resume_all_downloads(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<u32, String> {
+    if !crate::network_policy::downloads_allowed(&app) {
+        return Err("Waiting for Wi-Fi before resuming downloads".to_string());
+    }
     let (state_to_emit, count, resumed_torrents) = {
         let mut q = state.download_queue.lock().await;
         let resumed = q.resume_all();
