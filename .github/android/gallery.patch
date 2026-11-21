@@ -164,7 +164,7 @@ index 6c72ba1..ab03029 100644
 +}
 +
 +/// Update the existing queue notification from already available progress.
-+pub fn update_download_notification(title: &str, percent: i32, count: u32) {
++pub fn update_download_notification(title: &str, percent: i32, count: u32, speed: f64) {
 +    if count == 0 { return; }
 +    let title = title.to_string();
 +    with_context("download notification", move |env, context| {
@@ -173,8 +173,8 @@ index 6c72ba1..ab03029 100644
 +        let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
 +        let class = jni::objects::JClass::from(class);
 +        let title = env.new_string(&title)?;
-+        env.call_static_method(&class, "update", "(Ljava/lang/String;II)V", &[
-+            JValue::Object(&title), JValue::Int(percent), JValue::Int(count as i32),
++        env.call_static_method(&class, "update", "(Ljava/lang/String;IIJ)V", &[
++            JValue::Object(&title), JValue::Int(percent), JValue::Int(count as i32), JValue::Long(speed.max(0.0) as i64),
 +        ])?;
          Ok(())
      });
@@ -200,7 +200,7 @@ index dcaf5e3..2c4e1f7 100644
      crate::tray::update_taskbar_badge(app, total, avg_percent);
 +    #[cfg(target_os = "android")]
 +    if let Some(item) = active_items.first() {
-+        crate::android_media::update_download_notification(&item.title, (avg_percent * 100.0) as i32, total);
++        crate::android_media::update_download_notification(&item.title, (avg_percent * 100.0) as i32, total, total_speed);
 +    }
  
      if let Some(window) = app.get_webview_window("main") {
@@ -222,7 +222,7 @@ index dcaf5e3..2c4e1f7 100644
 +                    let active: Vec<_> = q.items.iter().filter(|item| item.status == QueueStatus::Active).collect();
 +                    let count = active.len() as u32;
 +                    let percent = if count > 0 { active.iter().map(|item| item.percent).sum::<f64>() / count as f64 } else { 0.0 };
-+                    crate::android_media::update_download_notification(&item_title, if phase_value < 0.0 { -1 } else { percent as i32 }, count);
++                    crate::android_media::update_download_notification(&item_title, if phase_value < 0.0 { -1 } else { percent as i32 }, count, active.iter().map(|item| item.speed_bytes_per_sec).sum());
 +                }
 +
              }

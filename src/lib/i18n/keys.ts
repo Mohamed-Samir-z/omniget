@@ -936,6 +936,10 @@ export type TranslationKeys =
   | 'reencode.toast_done'
   | 'reencode.toast_replaced'
 
+  | 'schedule_app_required'
+
+  | 'schedule_future_required'
+
   | 'services.and_more'
   | 'services.disclaimer'
   | 'services.title'

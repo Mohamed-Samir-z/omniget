@@ -1,4 +1,6 @@
 {
+  "schedule_future_required": "Choose a future download time",
+  "schedule_app_required": "Keep omniget running until the scheduled time. Android may delay background apps. This is not a system alarm and will not wake a closed app.",
   "wifi_only": "Wi-Fi only",
   "wifi_only_desc": "Wait for Wi-Fi before downloading. Interrupted downloads keep partial files and retry when Wi-Fi returns. Network changes may take up to 2 seconds to detect.",
   "error": {

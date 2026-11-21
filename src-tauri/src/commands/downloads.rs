@@ -138,7 +138,12 @@ pub async fn prefetch_media_info(
         Some(r) => r,
         None => return Err("No downloader available".to_string()),
     };
-    let downloader = resolved.downloader;
+    let force_mp3 = download_mode.as_deref() == Some("mp3");
+    let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> = if force_mp3 {
+        Arc::new(crate::platforms::GenericYtdlpDownloader::new())
+    } else {
+        resolved.downloader
+    };
     let platform_name = resolved.platform_name;
 
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
@@ -856,6 +861,16 @@ pub async fn download_from_url(
     stop_at: Option<u64>,
 ) -> Result<DownloadStarted, String> {
     let _timer_start = std::time::Instant::now();
+    if let Some(start) = scheduled_at {
+        if start <= queue::now_ms() {
+            return Err("Choose a future download time".to_string());
+        }
+    }
+    if let Some(stop) = stop_at {
+        if stop <= scheduled_at.unwrap_or_else(queue::now_ms) {
+            return Err("Stop time must be after the download start time".to_string());
+        }
+    }
     let platform = Platform::from_url(&url);
 
     if matches!(platform, Some(Platform::Hotmart) | Some(Platform::Udemy)) {
@@ -920,7 +935,11 @@ pub async fn download_from_url(
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
     let cached_info = {
-        let info = queue::try_get_cached_info(&url).await;
+        let info = if force_mp3 {
+            None
+        } else {
+            queue::try_get_cached_info(&url).await
+        };
         match (info, &playlist_items) {
             (Some(mut info), Some(sel))
                 if !sel.is_empty() && info.media_type == MediaType::Playlist =>
@@ -1085,7 +1104,7 @@ pub async fn download_with_custom_args(
     }
 
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
-        Arc::new(crate::platforms::generic_ytdlp::GenericYtdlpDownloader::new());
+        Arc::new(crate::platforms::GenericYtdlpDownloader::new());
 
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;

@@ -1650,7 +1650,15 @@ async fn spawn_download_inner(
     } else {
         (raw_quality, download_mode)
     };
-    let audio_format = if download_mode.as_deref() == Some("audio") {
+    let force_mp3 = download_mode.as_deref() == Some("mp3");
+    let download_mode = if force_mp3 {
+        Some("audio".to_string())
+    } else {
+        download_mode
+    };
+    let audio_format = if force_mp3 {
+        Some("mp3".to_string())
+    } else if download_mode.as_deref() == Some("audio") {
         Some(settings.download.music_audio_format.clone())
     } else {
         None

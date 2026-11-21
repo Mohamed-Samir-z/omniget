@@ -14,7 +14,7 @@ describe("Home v1-hero UI and 4K/2K Quality & Mode wiring", () => {
       "<QualityPicker bind:selectedQuality {selectedFormatId} {availableHeights} {hasAudioOnly} />",
     );
     expect(homePage).not.toContain("selectedFormatId {availableHeights}");
-    expect(homePage).toContain('{#if downloadMode !== "audio"}');
+    expect(homePage).toContain('{#if downloadMode !== "audio" && downloadMode !== "mp3"}');
   });
 
   it("exposes 4K (2160p) and 2K (1440p) in both QualityPicker and Settings QualitySection", () => {

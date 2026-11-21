@@ -69,7 +69,7 @@
   let homeInputMode = $state<HomeInputMode>("url");
   let libreState = $state<LibreState>({ kind: "idle" });
   let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
-  let downloadMode = $state<"auto" | "audio" | "mute">("auto");
+  let downloadMode = $state<"auto" | "audio" | "mute" | "mp3">("auto");
   let selectedQuality = $state("best");
   let clipStart = $state("");
   let clipEnd = $state("");
@@ -404,7 +404,7 @@
       selectedQuality = settingsQuality && typeof settingsQuality === "string"
         ? settingsQuality
         : "best";
-      downloadMode = savedMode === "audio" || savedMode === "mute" ? savedMode : "auto";
+      downloadMode = savedMode === "audio" || savedMode === "mute" || savedMode === "mp3" ? savedMode : "auto";
     }
     selectedFormatId = null;
     selectedAudioLanguage = null;
@@ -1216,7 +1216,7 @@
                     <summary class="options-toggle">{$t('librebox.options')}</summary>
                     <div class="options-content">
                       <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
-                      {#if downloadMode !== "audio"}
+                      {#if downloadMode !== "audio" && downloadMode !== "mp3"}
                         <QualityPicker bind:selectedQuality {selectedFormatId} {availableHeights} {hasAudioOnly} />
                       {/if}
                       {#if cookieAccounts.length > 1}
@@ -1259,7 +1259,7 @@
                               <input class="timerange-input schedule-date" type="date" value={schedulePart(scheduleStop, "date")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "date", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
                               <input class="timerange-input schedule-time" type="time" step="60" value={schedulePart(scheduleStop, "time")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "time", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
                             </div>
-                            <span class="timerange-hint">{$t('librebox.schedule_hint')}</span>
+                            <span class="timerange-hint">{$t('librebox.schedule_hint')} {$t('schedule_app_required')}</span>
                           </div>
                           <FormatSelector
                             platform={libreState.info.platform}
