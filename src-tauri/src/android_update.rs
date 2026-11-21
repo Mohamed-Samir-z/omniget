@@ -12,6 +12,9 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+static VERIFIED_APK: std::sync::Mutex<Option<(String, String)>> = std::sync::Mutex::new(None);
+static UPDATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 const RELEASE_API: &str =
     "https://api.github.com/repos/Mohamed-Samir-z/omniget/releases/tags/android-latest";
 
@@ -36,6 +39,13 @@ fn extract_sha256(text: &str) -> Option<String> {
         .map(|token| token.trim_matches(|c: char| !c.is_ascii_alphanumeric()))
         .find(|token| token.len() == 64 && token.chars().all(|c| c.is_ascii_hexdigit()))
         .map(str::to_ascii_lowercase)
+}
+
+fn valid_apk_url(url: &str) -> bool {
+    url.starts_with("https://github.com/Mohamed-Samir-z/omniget/releases/download/")
+        && url.ends_with("/libreget-android.apk")
+        && !url.contains('?')
+        && !url.contains('#')
 }
 
 /// UTC ISO-8601 stamp written into the build by CI (`LIBREGET_BUILD_TIME`).
@@ -69,13 +79,22 @@ pub async fn check_android_update() -> Result<AndroidUpdateInfo, String> {
         .and_then(|v| v.as_str())
         .map(str::to_string);
     let notes = body.get("body").and_then(|v| v.as_str()).unwrap_or("");
-    let sha256 = extract_sha256(notes);
+    let mut sha256 = extract_sha256(notes);
+    let mut asset_time = None;
     let mut download_url = None;
     let mut size_bytes = None;
     if let Some(assets) = body.get("assets").and_then(|v| v.as_array()) {
         for asset in assets {
             let name = asset.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            if name.ends_with(".apk") {
+            if name == "libreget-android.apk" {
+                asset_time = asset.get("created_at").and_then(|v| v.as_str());
+                if let Some(digest) = asset
+                    .get("digest")
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| v.strip_prefix("sha256:"))
+                {
+                    sha256 = extract_sha256(digest);
+                }
                 download_url = asset
                     .get("browser_download_url")
                     .and_then(|v| v.as_str())
@@ -85,12 +104,24 @@ pub async fn check_android_update() -> Result<AndroidUpdateInfo, String> {
             }
         }
     }
-    // ISO-8601 UTC timestamps sort lexicographically, so a string compare is
-    // a date compare. A release only counts when it has an APK asset.
-    let available = match (&build_time, &published_at, &download_url) {
-        (Some(stamp), Some(published), Some(_)) => published.as_str() > stamp.as_str(),
-        _ => false,
-    };
+    // Publication can happen after the installed build was compiled. Never
+    // offer the same commit again when an exact tested artifact is promoted.
+    let installed_sha = option_env!("LIBREGET_BUILD_SHA").unwrap_or("");
+    let same_build = !installed_sha.is_empty()
+        && (notes.contains(installed_sha)
+            || body.get("target_commitish").and_then(|v| v.as_str()) == Some(installed_sha));
+    let available = !same_build
+        && sha256.is_some()
+        && match (
+            &build_time,
+            asset_time.or(published_at.as_deref()),
+            &download_url,
+        ) {
+            (Some(stamp), Some(created), Some(url)) => {
+                created > stamp.as_str() && valid_apk_url(url)
+            }
+            _ => false,
+        };
     let reason = if build_time.is_none() {
         Some("dev-build".to_string())
     } else if !available {
@@ -131,6 +162,19 @@ pub async fn download_android_update(
     use sha2::Digest;
     use tokio::io::AsyncWriteExt;
 
+    let _guard = UPDATE_LOCK.lock().await;
+    *VERIFIED_APK.lock().map_err(|e| e.to_string())? = None;
+    let release = check_android_update().await?;
+    let expected = release
+        .sha256
+        .ok_or("The approved release has no checksum")?;
+    if !release.available
+        || release.download_url.as_deref() != Some(url.as_str())
+        || sha256.as_deref() != Some(expected.as_str())
+        || !valid_apk_url(&url)
+    {
+        return Err("The approved update changed. Check for updates again".to_string());
+    }
     let client = reqwest::Client::builder()
         .user_agent("omniget-android-updater")
         .build()
@@ -175,20 +219,52 @@ pub async fn download_android_update(
             "incomplete download: {downloaded} of {total} bytes"
         ));
     }
-    if let Some(expected) = sha256 {
+    {
         let actual = format!("{:x}", hasher.finalize());
         if actual != expected.to_ascii_lowercase() {
             let _ = tokio::fs::remove_file(&path).await;
             return Err("checksum mismatch; the download was corrupted".to_string());
         }
     }
-    Ok(path.to_string_lossy().to_string())
+    let path = path.to_string_lossy().to_string();
+    *VERIFIED_APK.lock().map_err(|e| e.to_string())? = Some((path.clone(), expected));
+    Ok(path)
 }
 
 /// Opens the downloaded APK in the system package installer, which shows
 /// the usual Android install confirmation over the existing app.
 #[tauri::command]
 pub async fn install_android_update(path: String) -> Result<(), String> {
+    use sha2::Digest;
+    let _guard = UPDATE_LOCK.lock().await;
+    let (verified_path, expected) = VERIFIED_APK
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("Download and verify the update first")?;
+    if path != verified_path {
+        return Err("Unverified APK path".to_string());
+    }
+    let verify_path = path.clone();
+    let actual = tokio::task::spawn_blocking(move || -> Result<String, String> {
+        use std::io::Read;
+        let mut file = std::fs::File::open(verify_path).map_err(|e| e.to_string())?;
+        let mut hash = sha2::Sha256::new();
+        let mut buffer = [0_u8; 65536];
+        loop {
+            let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            hash.update(&buffer[..n]);
+        }
+        Ok(format!("{:x}", hash.finalize()))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    if actual != expected {
+        return Err("The downloaded APK changed; download it again".to_string());
+    }
     install_apk(path).await
 }
 
@@ -267,4 +343,4 @@ mod tests {
     fn ignores_short_hex_like_commit_hashes() {
         assert_eq!(extract_sha256("build of commit a64c145"), None);
     }
-}
+                   }
