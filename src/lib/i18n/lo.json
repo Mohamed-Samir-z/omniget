@@ -3643,6 +3643,19 @@
       "manage_chat": "ຈັດການ {{title}}"
     }
   },
+  "share": {
+    "title": "ດາວໂຫລດລິ້ງທີ່ແບ່ງປັນ",
+    "type": "ປະເພດ",
+    "video": "ວີດີໂອ",
+    "audio": "ສຽງ",
+    "more_options": "ຕົວເລືອກເພີ່ມເຕີມໃນແອັບ",
+    "added": "ເພີ່ມໃສ່ດາວໂຫລດແລ້ວ",
+    "open_downloads": "ເບິ່ງດາວໂຫລດ",
+    "back_home": "ກັບໄປໜ້າຫຼັກ",
+    "starting": "ກຳລັງເລີ່ມ…",
+    "failed": "ບໍ່ສາມາດເລີ່ມດາວໂຫລດໄດ້",
+    "no_output_dir": "ກະລຸນາຕັ້ງໂຟນເດີດາວໂຫລດໃນແອັບກ່ອນ"
+  },
   "settings": {
     "title": "ການຕັ້ງຄ່າ",
     "manage_preferences": "ຈັດການການຕັ້ງຄ່າແອັບ ແລະ ການກຳນົດຄ່າລະບົບ",
@@ -4296,6 +4309,8 @@
     "no_formats": "ບໍ່ມີຮູບແບບສຳລັບວິດີໂອນີ້",
     "formats_error": "ໂຫຼດຮູບແບບບໍ່ສຳເລັດ",
     "preset_best": "ດີທີ່ສຸດ",
+    "audio_track": "ແທຣັກສຽງ",
+    "audio_track_default": "ຄ່າເລີ່ມຕົ້ນ",
     "preset_music": "ເພງ",
     "preset_custom": "ກຳນົດເອງ",
     "formats_presets_label": "ຮູບແບບສຳເລັດຮູບ",
