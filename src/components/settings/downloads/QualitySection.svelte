@@ -10,6 +10,7 @@
 
   let { embedded = false }: { embedded?: boolean } = $props();
 
+  const isAndroid = typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
   let settings = $derived(getSettings());
   let activePreset = $derived<YtdlpPresetId | null>(matchActivePreset(settings));
 
@@ -44,6 +45,18 @@
     <div class="settings-section-head section-title">
       <h5 class="section-title">{$t('settings.download.section_quality')}</h5>
       <p class="settings-section-hint">{$t('settings.download.section_quality_desc')}</p>
+    </div>
+  {/if}
+
+  {#if isAndroid}
+    <div class="card">
+      <div class="setting-row">
+        <div class="setting-col">
+          <span class="setting-label">{$t('wifi_only')}</span>
+          <span class="setting-path">{$t('wifi_only_desc')}</span>
+        </div>
+        <button class="toggle" class:on={settings.download.wifi_only} onclick={() => toggleBool("download", "wifi_only", !!settings.download.wifi_only)} role="switch" aria-checked={!!settings.download.wifi_only} aria-label={$t('wifi_only') as string}><span class="toggle-knob"></span></button>
+      </div>
     </div>
   {/if}
 

@@ -4696,6 +4696,10 @@ export type TranslationKeys =
   | 'udemy.waiting_code'
   | 'udemy.waiting_code_title'
 
+  | 'wifi_only'
+
+  | 'wifi_only_desc'
+
   | 'ytdlp_missing_banner.dismiss'
   | 'ytdlp_missing_banner.open_settings'
   | 'ytdlp_missing_banner.text'

@@ -1237,7 +1237,24 @@ pub fn spawn_download(
     Box::pin(async move {
         let _timer_start = std::time::Instant::now();
         let slot = ActiveJobSlot::new(app.clone(), queue.clone(), item_id);
-        spawn_download_inner(app, queue, item_id).await;
+        if !crate::network_policy::downloads_allowed(&app) {
+            requeue_for_network(&app, &queue, item_id).await;
+            slot.disarm();
+            return;
+        }
+        let network_lost = tokio::select! {
+            _ = spawn_download_inner(app.clone(), queue.clone(), item_id) => false,
+            _ = wait_for_network_loss(&app, &queue, item_id) => {
+                // Dropping the download future closes network requests and
+                // kill_on_drop yt-dlp children. Retain .part/.ytdl files.
+                true
+            }
+        };
+        // The losing future has now been dropped. Do not make the item
+        // runnable until the old download can no longer write its output.
+        if network_lost {
+            requeue_for_network(&app, &queue, item_id).await;
+        }
         slot.disarm();
         tracing::debug!(
             "[perf] spawn_download {} took {:?}",
@@ -1245,6 +1262,69 @@ pub fn spawn_download(
             _timer_start.elapsed()
         );
     })
+}
+
+async fn wait_for_network_loss(
+    app: &tauri::AppHandle,
+    queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
+    item_id: u64,
+) {
+    if !cfg!(target_os = "android") {
+        std::future::pending::<()>().await;
+    }
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        if !crate::network_policy::downloads_allowed(app) {
+            let q = queue.lock().await;
+            if q.items
+                .iter()
+                .any(|i| i.id == item_id && i.status == QueueStatus::Active)
+            {
+                return;
+            }
+        }
+    }
+}
+
+async fn requeue_for_network(
+    app: &tauri::AppHandle,
+    queue: &Arc<tokio::sync::Mutex<DownloadQueue>>,
+    item_id: u64,
+) {
+    let torrent_id = {
+        let q = queue.lock().await;
+        q.items
+            .iter()
+            .find(|i| i.id == item_id)
+            .and_then(|i| i.torrent_id)
+    };
+    if let Some(tid) = torrent_id {
+        let app_state = app.state::<crate::AppState>();
+        if let Some(session) = app_state.torrent_session.lock().await.as_ref() {
+            if let Some(handle) = session.get(librqbit::api::TorrentIdOrHash::Id(tid)) {
+                let _ = session.pause(&handle).await;
+            }
+        };
+    }
+    let state = {
+        let mut q = queue.lock().await;
+        if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
+            if item.status == QueueStatus::Active {
+                item.cancel_token.cancel();
+                item.cancel_token = CancellationToken::new();
+                item.status = QueueStatus::Queued;
+                item.speed_bytes_per_sec = 0.0;
+                item.eta_seconds = None;
+            }
+        }
+        q.get_state()
+    };
+    emit_queue_state_from_state(app, state);
+    append_download_log(
+        app,
+        item_id,
+        "[libreget] Waiting for Wi-Fi; partial files retained",
+    );
 }
 
 async fn spawn_download_inner(
@@ -2288,6 +2368,9 @@ pub async fn prefetch_info_with_emit(
 
 pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex<DownloadQueue>>) {
     let _timer_start = std::time::Instant::now();
+    if !crate::network_policy::downloads_allowed(&app) {
+        return;
+    }
     let (next_ids, stagger, state_to_emit) = {
         let mut q = queue.lock().await;
         let ids = q.next_queued_ids();
@@ -2357,10 +2440,41 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
 // stop time is cancelled when that time passes.
 pub fn start_scheduler(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+        let mut policy_paused_torrents = std::collections::HashSet::new();
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         loop {
             let state = app.state::<crate::AppState>();
             let queue = state.download_queue.clone();
+            if cfg!(target_os = "android") {
+                let allowed = crate::network_policy::downloads_allowed(&app);
+                if let Some(session) = state.torrent_session.lock().await.as_ref() {
+                    let handles = session.with_torrents(|torrents| {
+                        torrents
+                            .map(|(id, handle)| (id, handle.clone()))
+                            .collect::<Vec<_>>()
+                    });
+                    for (tid, handle) in handles {
+                        if !allowed && !handle.is_paused() {
+                            if session.pause(&handle).await.is_ok() {
+                                policy_paused_torrents.insert(tid);
+                            }
+                        } else if allowed && policy_paused_torrents.remove(&tid) {
+                            let q = queue.lock().await;
+                            let auto_resume = q.items.iter().any(|i| {
+                                i.torrent_id == Some(tid)
+                                    && matches!(
+                                        i.status,
+                                        QueueStatus::Seeding | QueueStatus::Active
+                                    )
+                            });
+                            drop(q);
+                            if auto_resume {
+                                let _ = session.unpause(&handle).await;
+                            }
+                        }
+                    }
+                };
+            }
             let (has_due, stopped_any) = {
                 let q = queue.lock().await;
                 let now = now_ms();
@@ -2381,10 +2495,11 @@ pub fn start_scheduler(app: tauri::AppHandle) {
                 });
                 (due, stopped)
             };
-            if has_due || stopped_any {
+            let wifi_waiting = cfg!(target_os = "android");
+            if has_due || stopped_any || wifi_waiting {
                 try_start_next(app.clone(), queue.clone()).await;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
     });
 }

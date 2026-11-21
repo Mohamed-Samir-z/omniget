@@ -1079,3 +1079,27 @@
   margin-bottom: var(--space-1);
 }
 
+
+/* Keep Android settings usable at phone widths, with categories above content. */
+@media (max-width: 600px) {
+  .settings-mac-body { flex-direction: column; }
+  .settings-mac-sidebar {
+    width: auto;
+    max-height: 160px;
+    border-right: none;
+    border-bottom: var(--hairline) solid var(--separator);
+    padding: 8px;
+  }
+  .settings-mac-nav-group {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .settings-mac-nav-group .mac-nav-section-header { display: none; }
+  .settings-mac-cat { min-width: 0; height: 38px; gap: 4px; padding: 4px; }
+  .settings-mac-cat-label { overflow: hidden; text-overflow: ellipsis; }
+  .settings-mac-content { padding: 16px 12px 24px; }
+  .settings-mac-content .setting-col { min-width: 0; }
+  .settings-mac-content .setting-path { white-space: normal; overflow-wrap: anywhere; }
+  .settings-mac-content .toggle { flex-shrink: 0; }
+}

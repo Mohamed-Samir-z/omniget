@@ -3,9 +3,8 @@
 //! Desktop uses tauri-plugin-updater, which is not linked into the Android
 //! build. Android instead checks the `android-latest` prerelease on GitHub:
 //! CI stamps every build with `LIBREGET_BUILD_TIME` (UTC ISO-8601), so the
-//! release's `published_at` being newer means a newer approved build exists.
-//! The APK downloads to the app cache (SHA-256 verified when the release
-//! notes carry one; the CI publish step writes it) and the system package
+//! asset time and installed source commit identify newer approved builds.
+//! The APK downloads to the app cache (SHA-256 verification is mandatory) and the system package
 //! installer opens it through the `ApkInstaller` Kotlin helper that
 //! `.github/android/patch_project.py` injects into the generated project.
 
@@ -149,8 +148,7 @@ struct UpdateProgress {
 }
 
 /// Downloads the APK to the app cache directory, reporting
-/// `android-update-progress` events, and verifies the SHA-256 when the
-/// release notes provided one. Returns the local path on success; partial
+/// `android-update-progress` events, and requires a release SHA-256 match. Returns the local path on success; partial
 /// or corrupted downloads are deleted and reported as errors.
 #[tauri::command]
 pub async fn download_android_update(
@@ -163,6 +161,9 @@ pub async fn download_android_update(
     use tokio::io::AsyncWriteExt;
 
     let _guard = UPDATE_LOCK.lock().await;
+    if !crate::network_policy::downloads_allowed(&app) {
+        return Err("Waiting for Wi-Fi before downloading the update".to_string());
+    }
     *VERIFIED_APK.lock().map_err(|e| e.to_string())? = None;
     let release = check_android_update().await?;
     let expected = release
@@ -206,6 +207,11 @@ pub async fn download_android_update(
         downloaded += chunk.len() as u64;
         if downloaded - last_emit >= 512 * 1024 || downloaded == total {
             last_emit = downloaded;
+            if !crate::network_policy::downloads_allowed(&app) {
+                drop(file);
+                let _ = tokio::fs::remove_file(&path).await;
+                return Err("Wi-Fi disconnected. Retry the update when Wi-Fi returns".to_string());
+            }
             let _ = app.emit(
                 "android-update-progress",
                 UpdateProgress { downloaded, total },
@@ -343,4 +349,4 @@ mod tests {
     fn ignores_short_hex_like_commit_hashes() {
         assert_eq!(extract_sha256("build of commit a64c145"), None);
     }
-                   }
+}

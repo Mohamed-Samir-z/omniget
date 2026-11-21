@@ -1225,6 +1225,12 @@ pub async fn resume_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
 ) -> Result<String, String> {
+    if !crate::network_policy::downloads_allowed(&app) {
+        return Err(
+            "Waiting for Wi-Fi. Turn off Wi-Fi only in Downloads settings to use mobile data"
+                .to_string(),
+        );
+    }
     let (state_to_emit, torrent_id) = {
         let mut q = state.download_queue.lock().await;
         if q.resume(download_id) {

@@ -1,4 +1,6 @@
 {
+  "wifi_only": "Wi-Fi only",
+  "wifi_only_desc": "Wait for Wi-Fi before downloading. Interrupted downloads keep partial files and retry when Wi-Fi returns. Network changes may take up to 2 seconds to detect.",
   "error": {
     "cause": {
       "po_token_required": "YouTube asked for a proof-of-origin token before serving this video.",
