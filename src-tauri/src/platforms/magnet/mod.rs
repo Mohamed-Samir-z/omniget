@@ -276,7 +276,12 @@ impl PlatformDownloader for MagnetDownloader {
             match session.add_torrent(add_torrent, Some(torrent_opts)).await {
                 Ok(resp) => match resp {
                     librqbit::AddTorrentResponse::Added(id, handle) => (id, handle),
-                    librqbit::AddTorrentResponse::AlreadyManaged(id, handle) => (id, handle),
+                    librqbit::AddTorrentResponse::AlreadyManaged(id, handle) => {
+                        if handle.is_paused() {
+                            session.unpause(&handle).await?;
+                        }
+                        (id, handle)
+                    }
                     librqbit::AddTorrentResponse::ListOnly(_) => {
                         anyhow::bail!("Torrent was added in list-only mode");
                     }

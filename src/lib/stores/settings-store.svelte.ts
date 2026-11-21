@@ -21,6 +21,7 @@ export type AppSettings = {
     filename_template: string;
     organize_by_platform: boolean;
     download_subtitles: boolean;
+    wifi_only?: boolean;
     include_auto_subtitles: boolean;
     caption_locale: string;
     keep_vtt: boolean;

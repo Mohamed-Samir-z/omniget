@@ -1,4 +1,5 @@
 import { checkForUpdate, installUpdate, type UpdateInfo } from "$lib/updater";
+import { showToast } from "./toast-store.svelte";
 
 let updateInfo: UpdateInfo = $state({ available: false });
 let updateDismissed: boolean = $state(false);
@@ -37,6 +38,9 @@ export async function performUpdate(): Promise<void> {
   isUpdating = true;
   try {
     await installUpdate();
+  } catch (error) {
+    showToast("error", String(error));
+    throw error;
   } finally {
     isUpdating = false;
   }

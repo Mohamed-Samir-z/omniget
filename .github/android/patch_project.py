@@ -73,7 +73,7 @@ if "extractNativeLibs" not in m:
 if "MANAGE_EXTERNAL_STORAGE" not in m:
     m = m.replace("<application", '<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <application', 1)
 PERMS = ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS",
-         "WAKE_LOCK", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "REQUEST_INSTALL_PACKAGES"]
+         "WAKE_LOCK", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "REQUEST_INSTALL_PACKAGES", "ACCESS_NETWORK_STATE"]
 for perm in PERMS:
     if "android.permission." + perm + '"' not in m:
         m = m.replace("<application", '<uses-permission android:name="android.permission.%s" />\n    <application' % perm, 1)

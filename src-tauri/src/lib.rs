@@ -32,6 +32,7 @@ pub mod hotkey;
 pub mod local_bridge;
 pub mod mcp;
 pub mod models;
+pub mod network_policy;
 pub mod platforms;
 pub mod plugin_host;
 pub mod plugin_loader;

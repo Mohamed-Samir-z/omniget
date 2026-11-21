@@ -114,6 +114,8 @@ pub struct DownloadSettings {
     #[serde(default)]
     pub download_subtitles: bool,
     #[serde(default)]
+    pub wifi_only: bool,
+    #[serde(default)]
     pub include_auto_subtitles: bool,
     #[serde(default = "default_caption_locale")]
     pub caption_locale: String,
@@ -492,6 +494,7 @@ impl Default for AppSettings {
                 filename_template: default_filename_template(),
                 organize_by_platform: false,
                 download_subtitles: false,
+                wifi_only: false,
                 include_auto_subtitles: false,
                 caption_locale: default_caption_locale(),
                 keep_vtt: false,

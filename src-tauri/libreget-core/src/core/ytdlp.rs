@@ -3913,7 +3913,7 @@ pub async fn download_video_full(
                 last_was_429
             );
             tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            cleanup_part_files(output_dir).await;
+            // Keep .part/.ytdl files so retries continue downloaded bytes.
         }
 
         let aria2c_args = if use_aria2c && !use_cfb {
@@ -4088,7 +4088,7 @@ pub async fn download_video_full(
                 }
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
-                cleanup_part_files(output_dir).await;
+                // Keep .part/.ytdl files so retries continue downloaded bytes.
                 tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
                 anyhow::bail!("Download cancelled");
             }
@@ -4762,7 +4762,7 @@ async fn run_override_command(
             }
             let _ = line_reader.await;
             let _ = stderr_reader.await;
-            cleanup_part_files(output_dir).await;
+            // Keep .part/.ytdl files so retries continue downloaded bytes.
             anyhow::bail!("Download cancelled");
         }
     };
@@ -4844,18 +4844,6 @@ async fn convert_vtt_sidecars_to_srt(video_path: &Path) {
                     name
                 );
                 let _ = std::fs::remove_file(&srt_path);
-            }
-        }
-    }
-}
-
-async fn cleanup_part_files(dir: &Path) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if name.ends_with(".part") || name.ends_with(".ytdl") {
-                let _ = std::fs::remove_file(entry.path());
             }
         }
     }
