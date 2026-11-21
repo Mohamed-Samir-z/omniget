@@ -96,7 +96,11 @@ jobs:
           /tmp/media-names-test
 
       - name: Build release APK
-        run: pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
+        run: |
+          # Stamp the build so the in-app updater can tell whether the
+          # android-latest release is newer than the installed APK.
+          export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
 
       - name: Sign the APK
         env:
@@ -156,4 +160,4 @@ jobs:
           gh release create "$TAG" dist/libreget-android.apk \
             --target "$GITHUB_SHA" --prerelease \
             --title "Android build ${GITHUB_SHA::7}" \
-            --notes "Debug-quality Android build of commit $GITHUB_SHA. Download libreget-android.apk and install it."
+            --notes "Debug-quality Android build of commit $GITHUB_SHA. Download libreget-android.apk and install it. SHA-256: $(sha256sum dist/libreget-android.apk | awk '{print $1}')"

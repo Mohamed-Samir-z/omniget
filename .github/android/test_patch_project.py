@@ -48,7 +48,8 @@ class RuntimeBundleTests(unittest.TestCase):
                     digest.return_value.hexdigest.return_value = expected_hash
                     runpy.run_path(str(PATCHER))
                 manifest = (app / "src/main/AndroidManifest.xml").read_text()
-                return kotlin.read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes(), manifest
+                installer = (app / "src/main/java/com/openselena/libreget/ApkInstaller.kt").read_text()
+                return kotlin.read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes(), manifest, installer
             finally:
                 os.chdir(original)
 
@@ -64,10 +65,17 @@ class RuntimeBundleTests(unittest.TestCase):
     def test_verified_bundle_replaces_old_script_and_clears_cache_before_ready(self):
         expected = "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3"
         archive = self.archive()
-        kotlin, packaged, manifest = self.run_patcher(archive, expected)
+        kotlin, packaged, manifest, installer = self.run_patcher(archive, expected)
         self.assertEqual(packaged, archive)
         self.assertIn("android.intent.action.SEND", manifest)
         self.assertIn('android:mimeType="text/plain"', manifest)
+        self.assertIn("REQUEST_INSTALL_PACKAGES", manifest)
+        self.assertIn("androidx.core.content.FileProvider", manifest)
+        self.assertIn("FILE_PROVIDER_PATHS", manifest)
+        self.assertIn("@xml/file_paths", manifest)
+        self.assertIn("package com.openselena.libreget", installer)
+        self.assertIn("object ApkInstaller", installer)
+        self.assertIn("getUriForFile", installer)
         self.assertIn("nativeOnSharedText", kotlin)
         self.assertIn("handleShareIntent(intent)", kotlin)
         self.assertIn("onNewIntent", kotlin)
