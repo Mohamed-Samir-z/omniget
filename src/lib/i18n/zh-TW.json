@@ -4426,7 +4426,11 @@
     "subtitle_load": "Check available subtitles",
     "subtitle_off": "Off",
     "subtitle_auto": "Auto-generated",
-    "subtitle_none": "No source subtitles were found."
+    "subtitle_none": "No source subtitles were found.",
+    "multi_audio": "Keep multiple audio tracks",
+    "multi_audio_hint": "Choose at least two source languages. Saves one MKV video, for full downloads and clips. Switch tracks in a compatible phone player such as VLC. The first selected language is the default. Not available for playlists, audio-only or background schedules.",
+    "multi_audio_selected": "Selected: {{count}} languages",
+    "multi_audio_minimum": "Choose at least two audio languages."
   },
   "about": {
     "tab": {

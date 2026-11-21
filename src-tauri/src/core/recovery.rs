@@ -266,6 +266,7 @@ mod migracao_tests {
             time_range: Some("00:01:02-00:01:17".into()),
             subtitle_track: Some("auto:ar".into()),
             audio_language: Some("ar".into()),
+            audio_languages: Some(vec!["ar".into(), "en".into(), "fr".into()]),
             playlist_items: Some(vec![2, 4]),
             torrent_files: Some(vec![0, 3]),
             scheduled_at: Some(1900000000000),

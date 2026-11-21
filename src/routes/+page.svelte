@@ -88,6 +88,8 @@
   let torrentLoading = $state(false);
   let selectedFormatId = $state<string | null>(null);
   let selectedAudioLanguage = $state<string | null>(null);
+  let selectedAudioLanguages = $state<string[]>([]);
+  let multipleAudio = $state(false);
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
   let formatError = $state<string | null>(null);
@@ -405,6 +407,8 @@
     }
     selectedFormatId = null;
     selectedAudioLanguage = null;
+    selectedAudioLanguages = [];
+    multipleAudio = false;
     formats = [];
     loadingFormats = false;
     formatError = null;
@@ -668,9 +672,13 @@
     // An explicit format pick already carries its own audio; it wins over
     // the dub-track preference, so the two never fight.
     selectedAudioLanguage = null;
+    selectedAudioLanguages = [];
+    multipleAudio = false;
   }
 
   function selectAudioLanguage(language: string | null) {
+    selectedAudioLanguages = [];
+    multipleAudio = false;
     selectedAudioLanguage = language;
     if (language) {
       selectedFormatId = null;
@@ -689,6 +697,8 @@
 
   function presetMusic() {
     selectedFormatId = null;
+    selectedAudioLanguages = [];
+    multipleAudio = false;
     downloadMode = "audio";
   }
 
@@ -737,6 +747,10 @@
       return;
     }
 
+    if (multipleAudio && selectedAudioLanguages.length < 2) {
+      showToast("error", $t("librebox.multi_audio_minimum") as string);
+      return;
+    }
     const settings = getSettings();
     let outputDir = settings?.download.default_output_dir ?? "";
 
@@ -804,7 +818,8 @@
         referer: referer.trim() || null,
         cookieSlug: selectedCookieSlug,
         timeRange: buildTimeRange(),
-        audioLanguage: selectedAudioLanguage,
+        audioLanguage: selectedAudioLanguages.length ? null : selectedAudioLanguage,
+        audioLanguages: multipleAudio ? selectedAudioLanguages : null,
         playlistItems: isPlaylist ? [...selectedPlaylistItems] : null,
         torrentFiles: isTorrent ? [...selectedTorrentFiles] : null,
         scheduledAt: toEpochMs(scheduleAt),
@@ -1219,7 +1234,7 @@
                     <summary class="options-toggle">{$t('librebox.options')}</summary>
                     <div class="options-content">
                       <SubtitleChoice url={url} bind:selection={subtitleTrack} />
-                      <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; }} />
+                      <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; selectedAudioLanguages = []; multipleAudio = false; selectedAudioLanguage = null; }} />
                       {#if downloadMode !== "audio" && downloadMode !== "mp3"}
                         <QualityPicker bind:selectedQuality {selectedFormatId} {availableHeights} {hasAudioOnly} />
                       {/if}
@@ -1270,6 +1285,8 @@
                             isPlaylist={libreState.info.content_type === "playlist"}
                             bind:formats
                             bind:selectedFormatId
+                            bind:multipleAudio
+                            bind:selectedAudioLanguages
                             bind:selectedAudioLanguage
                             {loadingFormats}
                             {formatError}

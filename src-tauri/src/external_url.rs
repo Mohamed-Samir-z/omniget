@@ -267,6 +267,7 @@ pub async fn queue_url_with_defaults(
             None,
             None,
             None,
+            None,
         );
 
         let next_ids = q.next_queued_ids();

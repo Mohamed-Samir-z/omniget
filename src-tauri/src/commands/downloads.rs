@@ -837,6 +837,7 @@ pub async fn download_from_url(
     cookie_slug: Option<String>,
     time_range: Option<String>,
     audio_language: Option<String>,
+    audio_languages: Option<Vec<String>>,
     playlist_items: Option<Vec<u32>>,
     torrent_files: Option<Vec<usize>>,
     scheduled_at: Option<u64>,
@@ -916,6 +917,34 @@ pub async fn download_from_url(
                 .join(","),
         ]);
     }
+    let audio_languages = match audio_languages {
+        Some(languages) => {
+            if languages.len() < 2
+                || languages.len() > 16
+                || languages.iter().any(|l| !ytdlp::is_valid_audio_language(l))
+            {
+                return Err("Choose 2 to 16 valid source audio languages".into());
+            }
+            let mut unique = Vec::new();
+            for language in languages {
+                if !unique.contains(&language) {
+                    unique.push(language);
+                }
+            }
+            if unique.len() < 2 {
+                return Err("Choose at least two different source audio languages".into());
+            }
+            if matches!(download_mode.as_deref(), Some("mp3" | "audio" | "mute"))
+                || format_id.is_some()
+                || playlist_items.as_ref().is_some_and(|v| !v.is_empty())
+                || torrent_files.is_some()
+            {
+                return Err("Multiple audio tracks require a single video, not audio-only, mute, an explicit format, playlist or torrent".into());
+            }
+            Some(unique)
+        }
+        _ => None,
+    };
     let audio_language = match audio_language.as_deref().map(str::trim) {
         Some(l) if !l.is_empty() && ytdlp::is_valid_audio_language(l) => Some(l.to_string()),
         Some(l) if !l.is_empty() => return Err(format!("Invalid audio language: {}", l)),
@@ -936,6 +965,7 @@ pub async fn download_from_url(
             || playlist_items.as_ref().is_some_and(|v| !v.is_empty())
             || torrent_files.is_some()
             || audio_language.is_some()
+            || audio_languages.is_some()
             || cookie_slug
                 .as_deref()
                 .is_some_and(|s| !s.is_empty() && s != "_anonymous")
@@ -1000,7 +1030,10 @@ pub async fn download_from_url(
         }
     };
     let force_mp3 = download_mode.as_deref() == Some("mp3");
-    let force_ytdlp = force_mp3 || subtitle_track.as_deref().is_some_and(|s| !s.is_empty());
+    let force_ytdlp = force_mp3
+        || subtitle_track.as_deref().is_some_and(|s| !s.is_empty())
+        || audio_languages.is_some()
+        || audio_language.is_some();
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
         if force_ytdlp || clip_range.is_some() {
             Arc::new(crate::platforms::GenericYtdlpDownloader::new())
@@ -1043,6 +1076,7 @@ pub async fn download_from_url(
             cookie_slug,
             custom_ytdlp_args,
             audio_language,
+            audio_languages,
             torrent_files,
             scheduled_at,
             stop_at,
@@ -1190,6 +1224,7 @@ pub async fn download_with_custom_args(
             false,
             cookie_slug,
             Some(custom_args),
+            None,
             None,
             None,
             None,
@@ -1537,6 +1572,7 @@ pub async fn restore_recovery(
             options.cookie_slug,
             options.time_range,
             options.audio_language,
+            options.audio_languages,
             options.playlist_items,
             options.torrent_files,
             options.scheduled_at.filter(|t| *t > queue::now_ms()),

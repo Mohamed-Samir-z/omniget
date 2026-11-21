@@ -36,6 +36,8 @@ pub struct RecoveryOptions {
     #[serde(default)]
     pub audio_language: Option<String>,
     #[serde(default)]
+    pub audio_languages: Option<Vec<String>>,
+    #[serde(default)]
     pub playlist_items: Option<Vec<u32>>,
     #[serde(default)]
     pub torrent_files: Option<Vec<usize>>,

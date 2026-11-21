@@ -214,6 +214,7 @@ pub struct QueueItem {
     pub cookie_slug: Option<String>,
     pub custom_ytdlp_args: Option<Vec<String>>,
     pub audio_language: Option<String>,
+    pub audio_languages: Option<Vec<String>>,
     pub torrent_files: Option<Vec<usize>>,
     pub scheduled_at_ms: Option<u64>,
     pub stop_at_ms: Option<u64>,
@@ -334,6 +335,7 @@ impl DownloadQueue {
         cookie_slug: Option<String>,
         custom_ytdlp_args: Option<Vec<String>>,
         audio_language: Option<String>,
+        audio_languages: Option<Vec<String>>,
         torrent_files: Option<Vec<usize>>,
         scheduled_at_ms: Option<u64>,
         stop_at_ms: Option<u64>,
@@ -388,6 +390,7 @@ impl DownloadQueue {
             cookie_slug,
             custom_ytdlp_args,
             audio_language,
+            audio_languages,
             torrent_files,
             scheduled_at_ms,
             stop_at_ms,
@@ -433,6 +436,7 @@ impl DownloadQueue {
                     .map(|s| s.trim_start_matches('*').to_string()),
                 subtitle_track,
                 audio_language: item.audio_language.clone(),
+                audio_languages: item.audio_languages.clone(),
                 playlist_items: option("--playlist-items")
                     .map(|s| s.split(',').filter_map(|v| v.parse().ok()).collect()),
                 torrent_files: item.torrent_files.clone(),
@@ -512,6 +516,7 @@ impl DownloadQueue {
                 cookie_slug: None,
                 custom_ytdlp_args: None,
                 audio_language: None,
+                audio_languages: None,
                 torrent_files: None,
                 scheduled_at_ms: None,
                 stop_at_ms: None,
@@ -1410,6 +1415,7 @@ async fn spawn_download_inner(
         cookie_slug,
         custom_ytdlp_args,
         audio_language,
+        audio_languages,
         torrent_files,
         argv_override,
     ) = {
@@ -1437,6 +1443,7 @@ async fn spawn_download_inner(
             item.cookie_slug.clone(),
             item.custom_ytdlp_args.clone(),
             item.audio_language.clone(),
+            item.audio_languages.clone(),
             item.torrent_files.clone(),
             item.ytdlp_argv_override.clone(),
         )
@@ -1787,6 +1794,7 @@ async fn spawn_download_inner(
             filtered
         }),
         audio_language,
+        audio_languages: audio_languages.clone(),
         torrent_files: torrent_files.clone(),
         torrent_auto_trackers: settings.advanced.torrent_auto_trackers,
         torrent_upnp: settings.advanced.torrent_upnp,
@@ -2195,6 +2203,18 @@ async fn spawn_download_inner(
                 }
             }
 
+            if let Some(languages) = opts.audio_languages.as_deref() {
+                if let Err(error) = ffmpeg::finalize_audio_tracks(&dl.file_path, languages).await {
+                    let state = {
+                        let mut q = queue.lock().await;
+                        q.mark_complete(item_id, false, Some(error.to_string()), None, None);
+                        q.get_state()
+                    };
+                    emit_queue_state_from_state(&app, state);
+                    try_start_next(app, queue).await;
+                    return;
+                }
+            }
             if settings.download.write_nfo_sidecar
                 && !is_seeding
                 && crate::core::nfo_sidecar::applies(&info)

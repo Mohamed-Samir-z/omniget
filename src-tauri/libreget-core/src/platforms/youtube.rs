@@ -342,6 +342,7 @@ impl PlatformDownloader for YouTubeDownloader {
             &extra_flags,
             opts.audio_format.as_deref(),
             opts.audio_language.as_deref(),
+            opts.audio_languages.as_deref(),
         )
         .await
     }
@@ -417,6 +418,7 @@ impl YouTubeDownloader {
                 &extra_flags,
                 opts.audio_format.as_deref(),
                 opts.audio_language.as_deref(),
+                opts.audio_languages.as_deref(),
             )
             .await
             {

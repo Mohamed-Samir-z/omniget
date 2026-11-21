@@ -298,7 +298,11 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             .is_some_and(|args| args.iter().any(|a| a == "--download-sections"));
         let converting_mp3 = opts.audio_format.as_deref() == Some("mp3")
             && opts.download_mode.as_deref() == Some("audio");
-        if selected.format == "hls" && !converting_mp3 && !clipping {
+        if selected.format == "hls"
+            && !converting_mp3
+            && !clipping
+            && opts.audio_languages.is_none()
+        {
             let title = sanitize_filename::sanitize(&info.title);
             let filename = if title.ends_with(".mp4") {
                 title
@@ -469,11 +473,12 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             .as_deref()
             .or_else(|| platform_referer(video_url));
 
-        let format_fallbacks: &[Option<&str>] = if opts.format_id.is_some() {
-            &[None]
-        } else {
-            &[None, Some("b"), Some("worst")]
-        };
+        let format_fallbacks: &[Option<&str>] =
+            if opts.format_id.is_some() || opts.audio_languages.is_some() {
+                &[None]
+            } else {
+                &[None, Some("b"), Some("worst")]
+            };
 
         let mut last_err: Option<anyhow::Error> = None;
         let extra_flags_owned: Vec<String> = opts
@@ -501,6 +506,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
                 &extra_flags_owned,
                 opts.audio_format.as_deref(),
                 opts.audio_language.as_deref(),
+                opts.audio_languages.as_deref(),
             )
             .await;
 

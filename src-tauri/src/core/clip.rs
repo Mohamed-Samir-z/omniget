@@ -197,6 +197,86 @@ fn reserve_name(
 /// Decode/re-encode the downloaded section rather than trusting inherited
 /// container timestamps or duration tags. Video is H.264/AAC MP4 for sharing;
 /// audio-only jobs retain their chosen audio format. No source file is replaced.
+/// The extractor writes source-timeline subtitles, even for download sections.
+/// Keep selected sidecars with the final clip, trimmed and rebased to zero.
+async fn finish_subtitles(
+    input: &Path,
+    final_path: &Path,
+    start: f64,
+    duration: f64,
+    token: &CancellationToken,
+) -> anyhow::Result<()> {
+    let Some(parent) = input.parent() else {
+        return Ok(());
+    };
+    let source_stem = input
+        .file_stem()
+        .and_then(|v| v.to_str())
+        .unwrap_or("source");
+    let target_stem = final_path
+        .file_stem()
+        .and_then(|v| v.to_str())
+        .ok_or_else(|| anyhow!("Missing clip name"))?;
+    let mut published = Vec::new();
+    let result = async {
+        for entry in std::fs::read_dir(parent)? {
+            let path = entry?.path();
+            let Some(ext) = path.extension().and_then(|v| v.to_str()) else {
+                continue;
+            };
+            if !matches!(ext, "srt" | "vtt" | "ass" | "ssa") {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|v| v.to_str()) else {
+                continue;
+            };
+            let Some(suffix) = stem.strip_prefix(source_stem) else {
+                continue;
+            };
+            if !suffix.is_empty() && !suffix.starts_with('.') {
+                continue;
+            }
+            // This destination is unique to the already-reserved clip name.
+            let target = final_path.with_file_name(format!("{target_stem}{suffix}.{ext}"));
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&target)
+                .context("A subtitle file already uses this clip name")?;
+            published.push(target.clone());
+            let mut command = super::process::command("ffmpeg");
+            command
+                .args(["-nostdin", "-y", "-i"])
+                .arg(&path)
+                .args([
+                    "-ss",
+                    &format!("{start:.3}"),
+                    "-t",
+                    &format!("{duration:.3}"),
+                    "-map",
+                    "0:s:0",
+                ])
+                .arg(&target)
+                .kill_on_drop(true);
+            let output = tokio::select! {
+                result = command.output() => result?,
+                _ = token.cancelled() => bail!("Download cancelled"),
+            };
+            if !output.status.success() {
+                bail!("Could not preserve the selected clip subtitles");
+            }
+        }
+        Ok(())
+    }
+    .await;
+    if result.is_err() {
+        for path in published {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+    result
+}
+
 pub async fn finish(
     input: &Path,
     destination: &Path,
@@ -230,7 +310,22 @@ pub async fn finish(
         .and_then(|e| e.to_str())
         .unwrap_or("m4a")
         .to_ascii_lowercase();
-    let ext = if video { "mp4" } else { input_ext.as_str() };
+    let ext = if video {
+        if input_ext == "mkv"
+            && probe
+                .streams
+                .iter()
+                .filter(|s| s.codec_type == "audio")
+                .count()
+                > 1
+        {
+            "mkv"
+        } else {
+            "mp4"
+        }
+    } else {
+        input_ext.as_str()
+    };
     let output = input
         .parent()
         .ok_or_else(|| anyhow!("Clip folder missing"))?
@@ -281,7 +376,7 @@ pub async fn finish(
         args.extend(
             [
                 "-map",
-                "0:a:0",
+                "0:a",
                 "-af",
                 "asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0",
                 "-c:a",
@@ -292,6 +387,23 @@ pub async fn finish(
         );
         if !matches!(codec, "flac" | "pcm_s16le") {
             args.extend(["-b:a".into(), "192k".into()]);
+        }
+    }
+    if video && audio {
+        for (index, stream) in probe
+            .streams
+            .iter()
+            .filter(|s| s.codec_type == "audio")
+            .enumerate()
+        {
+            args.extend([
+                format!("-map_metadata:s:a:{index}"),
+                format!("0:s:{}", stream.index),
+            ]);
+            args.extend([
+                format!("-disposition:a:{index}"),
+                if index == 0 { "default" } else { "0" }.into(),
+            ]);
         }
     }
     if let Some(duration) = expected {
@@ -323,6 +435,19 @@ pub async fn finish(
     let checked = super::ffmpeg::probe(&output)
         .await
         .context("Cannot validate normalized clip")?;
+    if checked
+        .streams
+        .iter()
+        .filter(|s| s.codec_type == "audio")
+        .count()
+        != probe
+            .streams
+            .iter()
+            .filter(|s| s.codec_type == "audio")
+            .count()
+    {
+        bail!("Clip audio track count changed during normalization");
+    }
     let duration = checked.duration_seconds;
     if !duration.is_finite() || duration <= 0.0 {
         bail!("Normalized clip has no valid duration");
@@ -369,6 +494,7 @@ pub async fn finish(
             reserved.0.display()
         )
     })?;
+    finish_subtitles(input, &reserved.0, range.start, duration, token).await?;
     let path = reserved.commit();
     Ok((path, duration))
 }
