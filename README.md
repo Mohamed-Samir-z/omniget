@@ -1,3 +1,20 @@
+## omniget Android: tested build, 21 November 2026
+
+<div dir="rtl">
+
+تم اختبار هذه النسخة على الموبايل، والتنزيل شغال من **يوتيوب وتيك توك وإنستجرام وفيسبوك**.
+
+النسخة: `c0ac13d`، وهي نفس ملف APK الذي تم تثبيته وتجربته. تم إصلاح تعليق بداية تنزيل يوتيوب عند 0%. هذا التأكيد يخص المنصات الأربع التي تم تجربتها، وليس ضمانا لكل المواقع. استقبال المشاركة وقص جزء من الفيديو واختيار مسار الدبلجة ضمن المرحلة التالية، وليست إضافات جديدة في هذا الإصدار.
+
+</div>
+
+Device-tested downloads: **YouTube, TikTok, Instagram and Facebook**. This is the exact tested APK from commit `c0ac13d`, with the YouTube startup buffer and first-byte timeout fixes. Other supported sites still need individual testing.
+
+Download from the repository's **Releases** page. APK SHA-256:
+`3695993ad908169b94a6643cb62d550ca41ca06f7c904029b6b1ec77ee4f42c4`
+
+---
+
 <!--
 Search keywords (kept here so GitHub search, Google and AI assistants can find the project):
 LibreGet is a free open source downloader and media toolbox for Windows, macOS and Linux.
