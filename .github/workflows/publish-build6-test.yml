@@ -1,0 +1,52 @@
+name: Publish feature round 6 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build6-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44910502508
+          SHA=3b04b8bd6c396ec43135887b9bc416c2aef1a038
+          TAG=android-feature-round-6-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Test build for on-device verification, not a stable release. The existing android-latest release is unchanged.
+
+          Feature round 6, cumulative with feature rounds 1 to 5:
+          - Collision-safe clip names include the selected from/to range. Repeated clips use numbered names instead of overwriting files.
+          - Trimmed video is normalized to H.264/AAC MP4 with zero-start timestamps and checked clip duration. Queue duration reflects the clip. Re-encoding may use more time and battery.
+          - Mobile trimming uses separate hours, minutes and seconds fields.
+          - Share-only entry hides its task from Recents while keeping the download runtime alive. Opening the full app restores normal task visibility.
+          - Fixed nullable Android task metadata in the Recents lookup and added a generated-activity regression guard.
+
+          Verification: all eight checks passed on the final feature PR and follow-up Android compilation fix PR. 150 frontend tests and the controlled production-code media harness passed, including duplicate clips, malformed duration metadata, MP3 and long-GOP cuts. The signed Android Gradle build, signing and APK inspection succeeded.
+
+          IMPORTANT: real-phone sharing, source-app visibility, clip playback/duration in external apps and Recents behavior still need device verification. These are not claims of device verification. Build 7 changes are not included.
+
+          Scheduling remains in More options. Keep omniget running until the scheduled time; it is not an Android system alarm and will not wake a closed app.
+
+          This is the exact signed APK from successful Android APK run 44910502508, commit 3b04b8bd6c396ec43135887b9bc416c2aef1a038.
+
+          Download the full APK and compare its SHA-256 before installing if Android reports an invalid package.
+
+          Install libreget-android.apk over the existing app.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 6, TEST BUILD' --notes-file notes.md
