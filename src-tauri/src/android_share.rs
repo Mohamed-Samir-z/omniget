@@ -24,9 +24,8 @@ pub fn set_app_handle(app: &AppHandle) {
 /// (parentheses, quotes) stripped.
 fn extract_shared_url(text: &str) -> Option<String> {
     for token in text.split_whitespace() {
-        let trimmed = token.trim_matches(|c: char| {
-            matches!(c, '(' | ')' | '<' | '>' | '"' | '\'' | ',' | ';')
-        });
+        let trimmed = token
+            .trim_matches(|c: char| matches!(c, '(' | ')' | '<' | '>' | '"' | '\'' | ',' | ';'));
         if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
             return Some(trimmed.to_string());
         }
