@@ -3687,6 +3687,9 @@ pub async fn download_video_full(
             "--postprocessor-args".into(),
             format!("Merger+ffmpeg_o:{labels}"),
         ]);
+        // Section downloads merge in FFmpegDownloader rather than MergerPP.
+        // Apply the same ordered labels on that path before clip normalization.
+        base_args.extend(["--downloader-args".into(), format!("ffmpeg_o:{labels}")]);
     }
     if ffmpeg_available {
         base_args.push("--postprocessor-args".to_string());

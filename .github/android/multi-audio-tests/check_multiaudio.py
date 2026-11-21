@@ -1,6 +1,6 @@
 """Exercise strict source selection, mux, clip, labels, and failure paths offline."""
 from pathlib import Path
-import json, subprocess, tempfile, shutil
+import json, subprocess, tempfile, http.server, functools, threading
 ROOT=Path(__file__).resolve().parents[3]
 FINAL=Path(__file__).parent/'target/debug/multi-audio-harness'
 CLIP=ROOT/'.github/android/clip-tests/target/debug/clip-harness'
@@ -14,13 +14,18 @@ def probe(path):
 def audios(path): return [s for s in probe(path)['streams'] if s['codec_type']=='audio']
 with tempfile.TemporaryDirectory() as directory:
  root=Path(directory)
+ class QuietHandler(http.server.SimpleHTTPRequestHandler):
+  def log_message(self, *_): pass
+ server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(QuietHandler,directory=directory))
+ threading.Thread(target=server.serve_forever,daemon=True).start()
+ base=f'http://127.0.0.1:{server.server_port}/' 
  video=root/'video.mp4'
  run('ffmpeg','-v','error','-f','lavfi','-i','color=size=160x90:rate=12','-t','3','-an','-c:v','libx264',video)
- formats=[dict(format_id='v',url=video.as_uri(),ext='mp4',vcodec='h264',acodec='none',width=160,height=90)]
+ formats=[dict(format_id='v',url=base+video.name,ext='mp4',vcodec='h264',acodec='none',width=160,height=90)]
  for i,(lang,freq) in enumerate([('ar',440),('en',660),('fr',880)]):
   path=root/f'{lang}.m4a'
   run('ffmpeg','-v','error','-f','lavfi','-i',f'sine=frequency={freq}','-t','3','-c:a','aac','-metadata:s:a:0',f'language={lang}',path)
-  formats.append(dict(format_id=lang,url=path.as_uri(),ext='m4a',vcodec='none',acodec='aac',language=lang,abr=128))
+  formats.append(dict(format_id=lang,url=base+path.name,ext='m4a',vcodec='none',acodec='aac',language=lang,abr=128))
  info=root/'info.json';info.write_text(json.dumps(dict(id='fixture',title='Three source languages',extractor='generic',webpage_url='https://example.invalid/fixture',duration=3,formats=formats)))
  target=root/'full.mkv'
  selector='bv[height<=720]+ba[language=ar]+ba[language=en]+ba[language=fr]'
@@ -34,6 +39,11 @@ with tempfile.TemporaryDirectory() as directory:
  # The metadata rewrite must map every stream before the final check.
  metadata=root/'metadata.mkv';run('ffmpeg','-v','error','-i',target,'-map','0','-c','copy','-metadata','title=Metadata regression',metadata)
  run(FINAL,metadata,'ar','en','fr')
+ # Section downloads use FFmpegDownloader, not MergerPP. Verify that path too.
+ section=root/'section.mkv'
+ run('yt-dlp','--load-info-json',info,'--no-simulate','--no-playlist','--download-sections','*1-3','--audio-multistreams','--downloader-args','ffmpeg_o:-metadata:s:a:0 language=ar -metadata:s:a:1 language=en -metadata:s:a:2 language=fr','--merge-output-format','mkv','--remux-video','mkv','-f',selector,'-o',section)
+ run(FINAL,section,'ar','en','fr')
+ metadata=section
  # Source subtitles use original timestamps and must survive temporary cleanup.
  subtitle=metadata.with_suffix('.ar.srt')
  subtitle.write_text('1\n00:00:00,000 --> 00:00:00,500\nBefore\n\n2\n00:00:01,200 --> 00:00:02,000\nSelected Arabic source caption\n\n3\n00:00:02,800 --> 00:00:03,000\nAfter\n')
