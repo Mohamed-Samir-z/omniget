@@ -34,6 +34,14 @@ where
         .map_err(|e| e.to_string())
 }
 
+/// Remove the launch cover once the frontend shell has mounted.
+pub fn dismiss_launch_splash(app: &AppHandle) {
+    let _ = run_on_activity(app, "dismiss launch splash", |env, activity| {
+        env.call_method(activity, "dismissLaunchSplash", "()V", &[])?;
+        Ok(())
+    });
+}
+
 /// Runs `f` with a JNI environment and the application context from *any*
 /// thread, whether or not the activity is currently in the foreground. The
 /// webview-thread route used by `run_on_activity` only runs while the app is on

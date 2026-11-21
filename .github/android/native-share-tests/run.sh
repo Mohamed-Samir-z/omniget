@@ -4,8 +4,11 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-cp "$HERE"/{MainActivity.kt,PopupRenderTest.kt,pom.xml} "$WORK/"
+cp "$HERE"/{MainActivity.kt,PopupRenderTest.kt,SplashTest.kt,pom.xml} "$WORK/"
 sed 's/@PACKAGE@/com.openselena.libreget/' "$HERE/../SharePopup.kt" > "$WORK/SharePopup.kt"
+sed 's/@PACKAGE@/com.openselena.libreget/' "$HERE/../LaunchSplash.kt" > "$WORK/LaunchSplash.kt"
+cp "$HERE/../omniget_launch.webp" "$WORK/icon.png"
+printf '%s\n' 'package com.openselena.libreget' 'object R { object drawable { const val omniget_launch = android.R.drawable.sym_def_app_icon } }' > "$WORK/R.kt"
 cd "$WORK"
 "${MVN:-mvn}" -q dependency:build-classpath -Dmdep.outputFile=classpath.txt
 python3 - <<'PYCODE'
@@ -22,6 +25,6 @@ PYCODE
 # Android classes are in the Robolectric SDK jar. Pin this compile SDK too.
 curl --fail --location --silent --show-error https://repo.maven.apache.org/maven2/org/robolectric/android-all/14-robolectric-10818077/android-all-14-robolectric-10818077.jar -o android.jar
 CP=$(cat all-classpath.txt):android.jar
-"${KOTLINC:-kotlinc}" -classpath "$CP" SharePopup.kt MainActivity.kt PopupRenderTest.kt -d popup-tests.jar
-"${JAVA:-java}" -Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2 -cp "popup-tests.jar:$CP" org.junit.runner.JUnitCore PopupRenderTest
-if [ -n "${RENDER_DIR:-}" ]; then mkdir -p "$RENDER_DIR"; cp native-renders/*.png "$RENDER_DIR/"; fi
+"${KOTLINC:-kotlinc}" -classpath "$CP" SharePopup.kt LaunchSplash.kt MainActivity.kt R.kt PopupRenderTest.kt SplashTest.kt -d popup-tests.jar
+"${JAVA:-java}" -Drobolectric.dependency.repo.url=https://repo.maven.apache.org/maven2 -cp "popup-tests.jar:$CP" org.junit.runner.JUnitCore PopupRenderTest SplashTest
+if [ -n "${RENDER_DIR:-}" ]; then mkdir -p "$RENDER_DIR"; cp native-renders/*.png splash-light.png "$RENDER_DIR/"; fi

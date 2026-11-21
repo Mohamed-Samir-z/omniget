@@ -394,6 +394,8 @@ pub async fn prefill_shared_url(app: &AppHandle, url: String) {
 }
 
 pub async fn register_frontend(app: &AppHandle) -> Vec<ExternalUrlEvent> {
+    #[cfg(target_os = "android")]
+    crate::android_media::dismiss_launch_splash(app);
     let state = app.state::<AppState>();
 
     {

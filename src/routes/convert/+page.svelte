@@ -458,7 +458,7 @@
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('convert.trim_end')}</span>
-          <ClipTimeFields label={$t('librebox.timerange_end') as string} value={options.trimEnd} onchange={(value) => updateOptions({ trimEnd: value })} />
+          <ClipTimeFields label={$t('librebox.timerange_end') as string} optionalEnd value={options.trimEnd} onchange={(value) => updateOptions({ trimEnd: value })} />
         </div>
       </div>
     </section>

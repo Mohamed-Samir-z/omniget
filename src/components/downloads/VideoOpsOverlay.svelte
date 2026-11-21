@@ -137,7 +137,7 @@
 
       <div class="trim">
         <ClipTimeFields label={$t('librebox.timerange_start') as string} bind:value={trimStart} disabled={stage === "busy"} />
-        <ClipTimeFields label={$t('librebox.timerange_end') as string} bind:value={trimEnd} disabled={stage === "busy"} />
+        <ClipTimeFields label={$t('librebox.timerange_end') as string} optionalEnd bind:value={trimEnd} disabled={stage === "busy"} />
         <button disabled={stage === "busy"} onclick={() => runPreset("trim")}>{$t('downloads.vop.trim')}</button>
       </div>
 

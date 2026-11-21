@@ -5441,5 +5441,7 @@
     "seconds": "Seconds",
     "invalid_range": "Enter valid hours, minutes and seconds. End must be after start.",
     "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
-  }
+  },
+  "clip_end_clamped": "{{name}}: your chosen end was past the video length. The clip ends at {{end}} (the end of the video).",
+  "clip_end_optional": "Optional. Leave all three fields empty to clip to the end of the video."
 }

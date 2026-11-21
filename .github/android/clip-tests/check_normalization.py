@@ -38,4 +38,17 @@ with tempfile.TemporaryDirectory() as temp:
     mp3=Path(run(BIN,audio,destination,'0:00-0:04','60').splitlines()[0])
     assert mp3.suffix=='.mp3';assert [s['codec_type'] for s in probe(mp3)['streams']]==['audio']
     assert abs(float(probe(mp3)['format']['duration'])-4)<0.3
-    print('PASS: 30-minute timestamp phantom -> 60s; concurrent unique clips; EOF; MP3')
+    # Device regression: an AV1 section can decode slightly short of its
+    # integer-valued requested span. Keep actual duration, never pad/fake it.
+    av1=root/'av1-short.mp4'
+    run('ffmpeg','-v','error','-f','lavfi','-i','testsrc2=size=160x90:rate=24000/1001','-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','11.652','-c:v','libaom-av1','-cpu-used','8','-crf','40','-c:a','aac',av1)
+    fixed=Path(run(BIN,av1,destination,'0:00-0:12','15').splitlines()[0])
+    measured=probe(fixed)
+    assert 11.5<float(measured['format']['duration'])<12
+    assert next(s for s in measured['streams'] if s['codec_type']=='video')['codec_name']=='h264'
+    assert all(abs(float(s['start_time']))<0.1 for s in measured['streams'])
+    # A one-second loss is a real truncation and must still fail validation.
+    broken=root/'broken.mp4';run('ffmpeg','-v','error','-i',av1,'-t','11','-c','copy',broken)
+    rejected=subprocess.run([str(BIN),str(broken),str(destination),'0:00-0:12','15'],capture_output=True,text=True)
+    assert rejected.returncode!=0 and 'Clip duration mismatch' in rejected.stderr
+    print('PASS: timestamp phantom; concurrent names; EOF; MP3; short AV1 accepted; real truncation rejected')

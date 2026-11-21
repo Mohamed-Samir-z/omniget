@@ -81,6 +81,11 @@ impl ClipRange {
         Ok(end.map(|end| end - self.start))
     }
 
+    pub fn clamped_end(&self, source_duration: Option<f64>) -> Option<f64> {
+        let duration = source_duration.filter(|d| d.is_finite() && *d > self.start)?;
+        self.end.filter(|end| *end > duration).map(|_| duration)
+    }
+
     fn suffix(&self) -> String {
         format!(
             " (from {} to {})",
@@ -88,6 +93,16 @@ impl ClipRange {
             self.end.map(display_time).unwrap_or_else(|| "end".into())
         )
     }
+}
+
+// Section downloads can end slightly early when platform duration metadata is
+// rounded or the last codec packet falls before the requested boundary. Accept
+// at most half a second and 5% of the requested span, whichever is smaller.
+// Keep the overshoot limit separate: stale source-duration metadata must never
+// turn a short clip back into a full-length video.
+fn duration_matches(expected: f64, actual: f64, source_known: bool, rounding: f64) -> bool {
+    let shortfall = 0.5_f64.min(expected * 0.05);
+    actual <= expected + rounding && (!source_known || actual >= expected - shortfall)
 }
 
 pub struct ClipJob {
@@ -300,7 +315,8 @@ pub async fn finish(
         bail!("Normalized clip has no valid duration");
     }
     // A clip cannot claim the original video's duration or stop well before the
-    // requested end. Allow codec frame/padding rounding, not phantom minutes.
+    // requested end. Keep codec/frame agreement and overshoot checks strict;
+    // bounded section shortfalls are handled separately below.
     let tolerance = 0.3_f64.max(
         checked
             .streams
@@ -311,9 +327,7 @@ pub async fn finish(
             .fold(0.0, f64::max),
     );
     if let Some(expected) = expected {
-        if duration > expected + tolerance
-            || (source_duration.is_some() && (duration - expected).abs() > tolerance)
-        {
+        if !duration_matches(expected, duration, source_duration.is_some(), tolerance) {
             bail!("Clip duration mismatch: expected {expected:.3}s, got {duration:.3}s");
         }
     }
@@ -327,7 +341,11 @@ pub async fn finish(
     if token.is_cancelled() {
         bail!("Download cancelled");
     }
-    let reserved = reserve_name(destination, title, range, ext)?;
+    let mut named_range = range.clone();
+    if let Some(end) = range.clamped_end(source_duration) {
+        named_range.end = Some(end);
+    }
+    let reserved = reserve_name(destination, title, &named_range, ext)?;
     // The placeholder belongs to this job alone. Copy before advertising the
     // final path; no other job can reserve or overwrite it while we finish.
     // Rename on the same filesystem publishes a complete file atomically.
@@ -344,6 +362,12 @@ mod tests {
         let range = ClipRange::parse("3:00-6:00").unwrap();
         assert_eq!(range.expected_duration(Some(300.0)).unwrap(), Some(120.0));
         assert!(range.expected_duration(Some(100.0)).is_err());
+        let past_end = ClipRange::parse("3-17").unwrap();
+        assert_eq!(past_end.expected_duration(Some(15.0)).unwrap(), Some(12.0));
+        assert_eq!(past_end.clamped_end(Some(15.0)), Some(15.0));
+        assert_eq!(past_end.clamped_end(None), None);
+        assert_eq!(past_end.clamped_end(Some(f64::NAN)), None);
+        assert_eq!(past_end.clamped_end(Some(20.0)), None);
         assert_eq!(
             ClipRange::parse("30-inf").unwrap().suffix(),
             " (from 0:30 to end)"
@@ -359,6 +383,21 @@ mod tests {
         ] {
             assert!(ClipRange::parse(bad).is_err(), "{bad}");
         }
+    }
+    #[test]
+    fn section_duration_allows_small_shortfalls_without_hiding_broken_clips() {
+        // Device report: YouTube AV1, requested 12s, decoded media 11.652s.
+        assert!(duration_matches(12.0, 11.652, true, 0.3));
+        assert!(duration_matches(12.0, 12.0, true, 0.3));
+        assert!(!duration_matches(12.0, 11.0, true, 0.3));
+        assert!(!duration_matches(12.0, 15.0, true, 0.3));
+        assert!(!duration_matches(12.0, 1800.0, true, 0.3));
+        // Half a second is not acceptable for a one-second clip.
+        assert!(!duration_matches(1.0, 0.652, true, 0.3));
+        assert!(duration_matches(1.0, 0.975, true, 0.3));
+        // Unknown source duration retains EOF support, not overshoot permission.
+        assert!(duration_matches(12.0, 8.0, false, 0.3));
+        assert!(!duration_matches(12.0, 1800.0, false, 0.3));
     }
     #[test]
     fn numbering_is_atomic_and_never_replaces_an_existing_clip() {
