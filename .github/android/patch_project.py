@@ -73,7 +73,7 @@ if "extractNativeLibs" not in m:
 if "MANAGE_EXTERNAL_STORAGE" not in m:
     m = m.replace("<application", '<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <application', 1)
 PERMS = ["FOREGROUND_SERVICE", "FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS",
-         "WAKE_LOCK", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"]
+         "WAKE_LOCK", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "REQUEST_INSTALL_PACKAGES"]
 for perm in PERMS:
     if "android.permission." + perm + '"' not in m:
         m = m.replace("<application", '<uses-permission android:name="android.permission.%s" />\n    <application' % perm, 1)
@@ -241,6 +241,55 @@ if "nativeOnSharedText" not in k:
     idx = stripped.rfind("}")
     k = stripped[:idx] + share_code + "}\n"
     act.write_text(k)
+
+# ---- In-app updates: FileProvider so the installer can read the APK ------
+# install_android_update (src-tauri/src/android_update.rs) downloads the new
+# APK into the app cache and opens it with ACTION_VIEW; the provider grants
+# the system installer one-shot read access to that private file.
+m = manifest.read_text()
+if "FILE_PROVIDER_PATHS" not in m:
+    provider = (
+        '<provider android:name="androidx.core.content.FileProvider" '
+        'android:authorities="com.openselena.libreget.fileprovider" '
+        'android:exported="false" android:grantUriPermissions="true">'
+        '<meta-data android:name="android.support.FILE_PROVIDER_PATHS" '
+        'android:resource="@xml/file_paths" />'
+        "</provider>"
+    )
+    m = m.replace("</application>", "        " + provider + "\n    </application>", 1)
+    manifest.write_text(m)
+xml_dir = root / "src/main/res/xml"
+xml_dir.mkdir(parents=True, exist_ok=True)
+(xml_dir / "file_paths.xml").write_text(
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    "<paths>\n"
+    '    <cache-path name="updates" path="." />\n'
+    "</paths>\n"
+)
+
+# ---- In-app updates: ApkInstaller Kotlin helper called over JNI -----------
+installer_target = act.parent / "ApkInstaller.kt"
+if not installer_target.exists():
+    pkg_match = re.search(r"^package\s+([\w.]+)", act.read_text(), re.M)
+    if not pkg_match or pkg_match.group(1) != "com.openselena.libreget":
+        sys.exit(
+            "MainActivity package is not com.openselena.libreget; "
+            "the ApkInstaller JNI bridge in android_update.rs would break"
+        )
+    installer_template = pathlib.Path(__file__).resolve().with_name("ApkInstaller.kt").read_text()
+    installer_target.write_text(installer_template.replace("@PACKAGE@", pkg_match.group(1)))
+
+# FileProvider lives in androidx.core, which the generated project does not
+# depend on directly.
+g = gradle.read_text()
+if "androidx.core:core" not in g:
+    g = re.sub(
+        r"(dependencies\s*\{)",
+        r'\1\n    implementation("androidx.core:core:1.13.1")',
+        g,
+        count=1,
+    )
+    gradle.write_text(g)
 
 print(act.read_text())
 print(gradle.read_text())
