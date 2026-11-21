@@ -292,9 +292,13 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             first
         };
 
+        let clipping = opts
+            .custom_ytdlp_args
+            .as_ref()
+            .is_some_and(|args| args.iter().any(|a| a == "--download-sections"));
         let converting_mp3 = opts.audio_format.as_deref() == Some("mp3")
             && opts.download_mode.as_deref() == Some("audio");
-        if selected.format == "hls" && !converting_mp3 {
+        if selected.format == "hls" && !converting_mp3 && !clipping {
             let title = sanitize_filename::sanitize(&info.title);
             let filename = if title.ends_with(".mp4") {
                 title
@@ -389,6 +393,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
 
         if (selected.format == "direct_video" || selected.format == "direct_audio")
             && !converting_mp3
+            && !clipping
         {
             let title = sanitize_filename::sanitize(&info.title);
             let output_path = opts.output_dir.join(&title);

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ClipTimeFields from "$components/librebox/ClipTimeFields.svelte";
+  import { validTimeRange } from "$lib/clip-time";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { goto } from "$app/navigation";
@@ -322,17 +324,9 @@
   let showLibrebox = $derived(showLibreboxForState(libreState));
   let showInspector = $derived(showInspectorForState(libreState));
 
-  function isValidTimeBound(v: string): boolean {
-    return /^(\d+:)?\d{1,2}:\d{1,2}(\.\d+)?$|^\d+(\.\d+)?$/.test(v.trim());
-  }
-
   function buildTimeRange(): string | null {
-    const s = clipStart.trim();
-    const e = clipEnd.trim();
-    if (!s && !e) return null;
-    if (s && !isValidTimeBound(s)) return null;
-    if (e && !isValidTimeBound(e)) return null;
-    return `${s || "0"}-${e || "inf"}`;
+    if (!clipStart.trim() && !clipEnd.trim()) return null;
+    return `${clipStart.trim() || "0"}-${clipEnd.trim() || "inf"}`;
   }
 
   function toEpochMs(v: string): number | null {
@@ -710,6 +704,10 @@
   async function handleAction() {
     if (libreState.kind !== "detected") return;
     const info = libreState.info;
+    if (!validTimeRange(clipStart, clipEnd)) {
+      showToast("error", $t("clip.invalid_range") as string);
+      return;
+    }
 
     if (COURSE_PLATFORMS.has(info.platform)) {
       goto(`/courses/${encodeURIComponent(info.platform)}`);
@@ -1235,11 +1233,10 @@
                             <div class="timerange-wrapper">
                               <span class="timerange-label">{$t('librebox.timerange_label')}</span>
                               <div class="timerange-inputs">
-                                <input class="timerange-input" type="text" placeholder={$t('librebox.timerange_start')} bind:value={clipStart} spellcheck="false" inputmode="numeric" aria-label={$t('librebox.timerange_start') as string} />
-                                <span class="timerange-sep" aria-hidden="true">—</span>
-                                <input class="timerange-input" type="text" placeholder={$t('librebox.timerange_end')} bind:value={clipEnd} spellcheck="false" inputmode="numeric" aria-label={$t('librebox.timerange_end') as string} />
+                                <ClipTimeFields label={$t('librebox.timerange_start') as string} bind:value={clipStart} />
+                                <ClipTimeFields label={$t('librebox.timerange_end') as string} bind:value={clipEnd} />
                               </div>
-                              <span class="timerange-hint">{$t('librebox.timerange_hint')}</span>
+                              <span class="timerange-hint">{$t('clip.hint')}</span>
                             </div>
                           {/if}
                           <div class="timerange-wrapper">
@@ -1255,7 +1252,7 @@
                             <div class="timerange-inputs schedule-row">
                               <input class="timerange-input schedule-date" type="date" value={schedulePart(scheduleAt, "date")} oninput={(e) => { scheduleAt = withSchedulePart(scheduleAt, "date", e.currentTarget.value); }} aria-label={$t('librebox.schedule_start') as string} />
                               <input class="timerange-input schedule-time" type="time" step="60" value={schedulePart(scheduleAt, "time")} oninput={(e) => { scheduleAt = withSchedulePart(scheduleAt, "time", e.currentTarget.value); }} aria-label={$t('librebox.schedule_start') as string} />
-                              <span class="timerange-sep" aria-hidden="true">—</span>
+                              <span class="timerange-sep" aria-hidden="true">&#8211;</span>
                               <input class="timerange-input schedule-date" type="date" value={schedulePart(scheduleStop, "date")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "date", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
                               <input class="timerange-input schedule-time" type="time" step="60" value={schedulePart(scheduleStop, "time")} oninput={(e) => { scheduleStop = withSchedulePart(scheduleStop, "time", e.currentTarget.value); }} aria-label={$t('librebox.schedule_stop') as string} />
                             </div>

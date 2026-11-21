@@ -74,6 +74,12 @@ export type TranslationKeys =
   | 'changelog.empty'
   | 'changelog.title'
 
+  | 'clip.hint'
+  | 'clip.hours'
+  | 'clip.invalid_range'
+  | 'clip.minutes'
+  | 'clip.seconds'
+
   | 'command_palette.action_paste'
   | 'command_palette.close'
   | 'command_palette.empty'

@@ -7,7 +7,7 @@ class Build4Tests(unittest.TestCase):
   q=(ROOT/'src-tauri/src/core/queue.rs').read_text()
   self.assertIn('let force_mp3 = download_mode.as_deref() == Some("mp3")',q)
   self.assertIn('Some("mp3".to_string())',q)
-  self.assertIn('if download_mode.as_deref() == Some("mp3") {\n                    downloader.get_media_info(&url).await',q)
+  self.assertIn('if download_mode.as_deref() == Some("mp3") || clip_range.is_some() {\n                    downloader.get_media_info(&url).await',q)
   cmd=(ROOT/'src-tauri/src/commands/downloads.rs').read_text()
   download=cmd[cmd.index('pub async fn download_from_url'):cmd.index('pub async fn download_from_url')+16000]
   self.assertIn('let force_mp3 = download_mode.as_deref()',download)

@@ -5434,5 +5434,12 @@
     "test_extract_cookies": "测试桥接",
     "testing_cookies": "正在测试...",
     "cookies_bridge_hint": "无插件桥接会自动从您的浏览器读取会话 Cookie，用于下载快拍与精选。"
+  },
+  "clip": {
+    "hours": "Hours",
+    "minutes": "Minutes",
+    "seconds": "Seconds",
+    "invalid_range": "Enter valid hours, minutes and seconds. End must be after start.",
+    "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
   }
 }

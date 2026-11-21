@@ -1434,8 +1434,9 @@ async fn spawn_download_inner(
         );
     }
 
+    let clip_range = crate::core::clip::ClipRange::from_args(custom_ytdlp_args.as_deref());
     let info_start = std::time::Instant::now();
-    let info = match media_info {
+    let mut info = match media_info {
         Some(i) if !i.available_qualities.is_empty() => {
             tracing::info!(
                 "[queue] info for {} from cache/pre-fetched in {:?}",
@@ -1491,7 +1492,7 @@ async fn spawn_download_inner(
             // A native downloader's cached URLs are not interchangeable with
             // yt-dlp metadata. MP3 explicitly uses the generic converter.
             let info_future = async {
-                if download_mode.as_deref() == Some("mp3") {
+                if download_mode.as_deref() == Some("mp3") || clip_range.is_some() {
                     downloader.get_media_info(&url).await
                 } else {
                     fetch_and_cache_info(&url, &*downloader, &platform_name, ytdlp_path.as_deref())
@@ -1588,7 +1589,6 @@ async fn spawn_download_inner(
         info_start.elapsed()
     );
 
-    let mut info = info;
     if is_generic_title(&info.title) {
         let pokemon = libreget_core::core::pokemon_names::random_pokemon_name();
         info.title = format!("video_{}", pokemon);
@@ -1938,10 +1938,40 @@ async fn spawn_download_inner(
         ),
     );
     let dl_future = async {
-        tokio::select! {
-            r = downloader.download(&info, &opts, tx) => r,
-            _ = cancel_token.cancelled() => {
-                Err(anyhow::anyhow!("Download cancelado"))
+        // Each clip has isolated intermediates so even simultaneous downloads
+        // cannot reuse yt-dlp's source-title output or an existing .part file.
+        if let Some(range) = clip_range.as_ref() {
+            range.expected_duration(info.duration_seconds)?;
+            let job = crate::core::clip::ClipJob::new(&opts.output_dir, item_id)?;
+            let mut isolated = opts.clone();
+            isolated.output_dir = job.directory.clone();
+            isolated.filename_template = Some("source.%(ext)s".into());
+            let mut result = tokio::select! {
+                r = downloader.download(&info, &isolated, tx) => r?,
+                _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+            };
+            append_download_log(
+                &app,
+                item_id,
+                "[clip] Normalizing clip timestamps and duration for sharing",
+            );
+            let (path, duration) = crate::core::clip::finish(
+                &result.file_path,
+                &opts.output_dir,
+                &info.title,
+                range,
+                info.duration_seconds,
+                &cancel_token,
+            )
+            .await?;
+            result.file_size_bytes = std::fs::metadata(&path)?.len();
+            result.file_path = path;
+            result.duration_seconds = duration;
+            Ok(result)
+        } else {
+            tokio::select! {
+                r = downloader.download(&info, &opts, tx) => r,
+                _ = cancel_token.cancelled() => Err(anyhow::anyhow!("Download cancelled")),
             }
         }
     };
@@ -1995,6 +2025,15 @@ async fn spawn_download_inner(
 
     match result {
         Ok(dl) => {
+            if dl.duration_seconds > 0.0 && clip_range.is_some() {
+                info.duration_seconds = Some(dl.duration_seconds);
+                let mut q = queue.lock().await;
+                if let Some(item) = q.items.iter_mut().find(|item| item.id == item_id) {
+                    if let Some(media) = item.media_info.as_mut() {
+                        media.duration_seconds = Some(dl.duration_seconds);
+                    }
+                }
+            }
             append_download_log(
                 &app,
                 item_id,

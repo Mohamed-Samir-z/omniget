@@ -5434,5 +5434,12 @@
     "test_extract_cookies": "آزمایش پل",
     "testing_cookies": "در حال آزمایش...",
     "cookies_bridge_hint": "پل بدون افزونه کوکی‌های نشست را برای استوری‌ها خودکار می‌خواند."
+  },
+  "clip": {
+    "hours": "Hours",
+    "minutes": "Minutes",
+    "seconds": "Seconds",
+    "invalid_range": "Enter valid hours, minutes and seconds. End must be after start.",
+    "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
   }
 }

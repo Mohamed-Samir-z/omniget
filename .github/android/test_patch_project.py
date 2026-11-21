@@ -78,6 +78,8 @@ class RuntimeBundleTests(unittest.TestCase):
         self.assertIn("getUriForFile", installer)
         self.assertIn("nativeShareAction", kotlin)
         self.assertIn("onWebViewCreate", kotlin)
+        self.assertIn("setExcludeFromRecents(!visible)", kotlin)
+        self.assertIn("it.taskInfo.taskId == taskId", kotlin)
         self.assertIn("setShareContentVisible(false)", kotlin)
         self.assertIn("@style/OmnigetShareHost", manifest)
         self.assertIn("handleShareIntent(intent)", kotlin)

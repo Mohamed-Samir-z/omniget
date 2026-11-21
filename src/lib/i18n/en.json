@@ -5434,5 +5434,12 @@
     "test_extract_cookies": "Test Bridge",
     "testing_cookies": "Testing...",
     "cookies_bridge_hint": "Zero-extension bridge automatically reads session cookies from your browser for private stories and highlights."
+  },
+  "clip": {
+    "hours": "Hours",
+    "minutes": "Minutes",
+    "seconds": "Seconds",
+    "invalid_range": "Enter valid hours, minutes and seconds. End must be after start.",
+    "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
   }
 }

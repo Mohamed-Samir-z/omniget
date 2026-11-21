@@ -163,18 +163,6 @@ pub struct DownloadStarted {
     pub title: String,
 }
 
-fn is_valid_time_range(r: &str) -> bool {
-    let Some((a, b)) = r.split_once('-') else {
-        return false;
-    };
-    let part_ok = |s: &str| {
-        !s.is_empty()
-            && s.chars()
-                .all(|c| c.is_ascii_digit() || c == ':' || c == '.')
-    };
-    part_ok(a) && (b == "inf" || part_ok(b))
-}
-
 #[derive(Clone, Serialize)]
 pub struct PlaylistEntryInfo {
     pub index: u32,
@@ -872,12 +860,16 @@ pub async fn download_from_url(
         return Err("Course platforms can't be downloaded from a URL. Open the Courses page (requires the Courses plugin and a logged-in account).".to_string());
     }
 
-    let custom_ytdlp_args = match time_range.as_deref().map(str::trim) {
-        Some(r) if !r.is_empty() && is_valid_time_range(r) => {
-            Some(vec!["--download-sections".to_string(), format!("*{}", r)])
-        }
-        _ => None,
+    let clip_range = match time_range.as_deref().map(str::trim) {
+        Some("") | None => None,
+        Some(range) => Some(crate::core::clip::ClipRange::parse(range)?),
     };
+    let custom_ytdlp_args = clip_range.as_ref().map(|_| {
+        vec![
+            "--download-sections".to_string(),
+            format!("*{}", time_range.as_deref().unwrap_or_default().trim()),
+        ]
+    });
 
     let audio_language = match audio_language.as_deref().map(str::trim) {
         Some(l) if !l.is_empty() && ytdlp::is_valid_audio_language(l) => Some(l.to_string()),
@@ -909,7 +901,7 @@ pub async fn download_from_url(
         q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
         q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
         q.default_max_retries = settings.advanced.max_retries;
-        if q.has_url(&url) {
+        if q.has_url(&url) && clip_range.is_none() {
             tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
             return Err("Download already in progress for this URL".to_string());
         }
@@ -925,17 +917,18 @@ pub async fn download_from_url(
         }
     };
     let force_mp3 = download_mode.as_deref() == Some("mp3");
-    let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> = if force_mp3 {
-        Arc::new(crate::platforms::GenericYtdlpDownloader::new())
-    } else {
-        resolved.downloader
-    };
+    let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
+        if force_mp3 || clip_range.is_some() {
+            Arc::new(crate::platforms::GenericYtdlpDownloader::new())
+        } else {
+            resolved.downloader
+        };
     let platform_name = resolved.platform_name;
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
     let cached_info = {
-        let info = if force_mp3 {
+        let info = if force_mp3 || clip_range.is_some() {
             None
         } else {
             queue::try_get_cached_info(&url).await

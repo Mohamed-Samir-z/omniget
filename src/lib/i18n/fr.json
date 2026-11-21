@@ -5434,5 +5434,12 @@
     "test_extract_cookies": "Tester le pont",
     "testing_cookies": "Test en cours...",
     "cookies_bridge_hint": "La passerelle sans extension lit automatiquement les cookies de session depuis votre navigateur."
+  },
+  "clip": {
+    "hours": "Hours",
+    "minutes": "Minutes",
+    "seconds": "Seconds",
+    "invalid_range": "Enter valid hours, minutes and seconds. End must be after start.",
+    "hint": "Set hours, minutes and seconds. Leave End empty to keep the rest. Clips are processed for accurate duration and sharing, which takes extra time."
   }
 }

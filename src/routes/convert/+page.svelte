@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ClipTimeFields from "$components/librebox/ClipTimeFields.svelte";
+  import { validTimeRange } from "$lib/clip-time";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { open } from "@tauri-apps/plugin-dialog";
@@ -166,6 +168,10 @@
   }
 
   async function startConversion() {
+    if (!validTimeRange(options.trimStart || "", options.trimEnd || "")) {
+      showToast("error", $t("clip.invalid_range") as string);
+      return;
+    }
     const readyFiles = files.filter((f) => f.status === "ready" || f.status === "idle");
     if (readyFiles.length === 0) return;
 
@@ -447,24 +453,12 @@
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('convert.trim_start')}</span>
-          <input
-            type="text"
-            class="input-text"
-            placeholder="00:00:00"
-            value={options.trimStart}
-            onchange={(e) => updateOptions({ trimStart: (e.target as HTMLInputElement).value })}
-          />
+          <ClipTimeFields label={$t('librebox.timerange_start') as string} value={options.trimStart} onchange={(value) => updateOptions({ trimStart: value })} />
         </div>
         <div class="divider"></div>
         <div class="setting-row">
           <span class="setting-label">{$t('convert.trim_end')}</span>
-          <input
-            type="text"
-            class="input-text"
-            placeholder="00:00:00"
-            value={options.trimEnd}
-            onchange={(e) => updateOptions({ trimEnd: (e.target as HTMLInputElement).value })}
-          />
+          <ClipTimeFields label={$t('librebox.timerange_end') as string} value={options.trimEnd} onchange={(value) => updateOptions({ trimEnd: value })} />
         </div>
       </div>
     </section>
