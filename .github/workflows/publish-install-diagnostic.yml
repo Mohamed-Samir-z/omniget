@@ -1,0 +1,37 @@
+name: Publish isolated install diagnostic APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-install-diagnostic.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copy the verified signed artifact to a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44838138305
+          SHA=f867940fb2f23cdb60061da362237097af79aec0
+          TAG=android-install-diagnostic-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name omniget-isolated-install-diagnostic-apk --dir dist
+          echo '8f7cdcd77e7bd4960392ead81d3d9cd13591512e08a3914e8399d8040b110d25  dist/libreget-android.apk' | sha256sum --check
+          cat > notes.md <<'NOTES'
+          Diagnostic test build, not a stable release or a confirmed fix for installation failures. The existing android-latest release is unchanged.
+
+          Clean rebuild of the previously working fa0051a4 source with only the YouTube startup buffer/watchdog patch. Rust 1.100.0 and NDK27 are pinned; no Rust build cache was restored. Built and signed in successful diagnostic run 44838138305. APK signatures, ZIP integrity and alignment checks passed. Installation on the affected Android13 phone remains unverified.
+
+          This build is for a controlled installation test. If possible, download using mobile data and open from Android Files/Downloads. Do not uninstall a working app just to run this test.
+
+          APK SHA-256: 8f7cdcd77e7bd4960392ead81d3d9cd13591512e08a3914e8399d8040b110d25
+          NOTES
+          # No delete, clobber, or android-latest operation. Fail if this tag exists.
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android clean rebuild, DIAGNOSTIC TEST' --notes-file notes.md
