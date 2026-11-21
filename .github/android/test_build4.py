@@ -8,7 +8,9 @@ class Build4Tests(unittest.TestCase):
   self.assertIn('let force_mp3 = download_mode.as_deref() == Some("mp3")',q)
   self.assertIn('Some("mp3".to_string())',q)
   cmd=(ROOT/'src-tauri/src/commands/downloads.rs').read_text()
-  self.assertIn('if force_mp3 {',cmd)
+  download=cmd[cmd.index('pub async fn download_from_url'):cmd.index('pub async fn download_from_url')+16000]
+  self.assertIn('let force_mp3 = download_mode.as_deref()',download)
+  self.assertNotIn('let force_mp3 =',cmd[:cmd.index('pub async fn download_from_url')])
   self.assertIn('GenericYtdlpDownloader::new()',cmd)
   core=(ROOT/'src-tauri/libreget-core/src/platforms/generic_ytdlp.rs').read_text()
   self.assertIn('&& !converting_mp3',core)

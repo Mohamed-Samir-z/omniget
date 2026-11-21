@@ -138,12 +138,7 @@ pub async fn prefetch_media_info(
         Some(r) => r,
         None => return Err("No downloader available".to_string()),
     };
-    let force_mp3 = download_mode.as_deref() == Some("mp3");
-    let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> = if force_mp3 {
-        Arc::new(crate::platforms::GenericYtdlpDownloader::new())
-    } else {
-        resolved.downloader
-    };
+    let downloader = resolved.downloader;
     let platform_name = resolved.platform_name;
 
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
@@ -929,7 +924,12 @@ pub async fn download_from_url(
             return Err("No downloader available for this URL".to_string());
         }
     };
-    let downloader = resolved.downloader;
+    let force_mp3 = download_mode.as_deref() == Some("mp3");
+    let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> = if force_mp3 {
+        Arc::new(crate::platforms::GenericYtdlpDownloader::new())
+    } else {
+        resolved.downloader
+    };
     let platform_name = resolved.platform_name;
     let title = url.clone();
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
