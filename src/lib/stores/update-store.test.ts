@@ -70,4 +70,20 @@ describe("update-store", () => {
     await expect(store.performUpdate()).rejects.toThrow("Network failed");
     expect(store.getIsUpdating()).toBe(false);
   });
+  it("keeps a failed check visible and allows retry", async () => {
+    vi.mocked(updater.checkForUpdate).mockResolvedValueOnce({ available: false, error: "Network unavailable" }).mockResolvedValueOnce({ available: false });
+    await store.refreshUpdateInfo();
+    expect(store.getUpdateInfo().error).toBe("Network unavailable");
+    expect(store.getHasChecked()).toBe(true);
+    expect(store.getIsChecking()).toBe(false);
+    await store.refreshUpdateInfo();
+    expect(store.getUpdateInfo().error).toBeUndefined();
+  });
+  it("releases the check lock when the checker throws", async () => {
+    vi.mocked(updater.checkForUpdate).mockRejectedValueOnce(new Error("offline"));
+    await store.refreshUpdateInfo();
+    expect(store.getIsChecking()).toBe(false);
+    expect(store.getUpdateInfo().error).toContain("offline");
+  });
+
 });

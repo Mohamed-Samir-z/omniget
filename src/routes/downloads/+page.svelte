@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ScheduledDownloads from "$components/downloads/ScheduledDownloads.svelte";
+  import DeveloperCard from "$components/DeveloperCard.svelte";
+  import CompletedFileActions from "$components/downloads/CompletedFileActions.svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { invoke } from "@tauri-apps/api/core";
@@ -704,6 +707,7 @@
                 <div class="history-item-actions">
 
                   {#if entry.success && entry.file_path}
+                    <CompletedFileActions path={entry.file_path} />
                     <button
                       class="action-icon-btn"
                       onclick={() => revealFile(entry.file_path!)}
@@ -893,6 +897,7 @@
                 {/if}
               </button>
             {:else if item.status === "complete" && item.filePath}
+              <CompletedFileActions path={item.filePath} />
 
               <button
                 class="action-icon-btn"
@@ -1184,6 +1189,9 @@
     {/if}
   </div>
 {/snippet}
+
+<ScheduledDownloads />
+<DeveloperCard />
 
 <style>
   /* ---------- Empty state ---------- */

@@ -1028,6 +1028,8 @@ pub fn run() {
             commands::downloads::clear_download_history,
             commands::downloads::reveal_file,
             commands::downloads::open_path_default,
+            commands::downloads::share_downloaded_file,
+            commands::downloads::android_schedules,
             commands::host_queue::host_queue_enqueue_external,
             commands::host_queue::host_queue_report_progress,
             commands::host_queue::host_queue_report_complete,

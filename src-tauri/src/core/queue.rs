@@ -1685,7 +1685,11 @@ async fn spawn_download_inner(
         quality: effective_quality,
         output_dir: final_output_dir,
         filename_template: Some(tmpl),
-        download_subtitles: settings.download.download_subtitles,
+        download_subtitles: match custom_ytdlp_args.as_deref() {
+            Some(args) if args.iter().any(|a| a == "--no-write-subs") => false,
+            Some(args) if args.iter().any(|a| a == "--write-subs") => true,
+            _ => settings.download.download_subtitles,
+        },
         include_auto_subtitles: settings.download.include_auto_subtitles,
         download_mode,
         audio_format,
@@ -2176,6 +2180,10 @@ async fn spawn_download_inner(
                 }
                 q.get_state()
             };
+            #[cfg(target_os = "android")]
+            if !is_seeding && dl.file_path.is_file() {
+                crate::android_media::notify_complete(&dl.file_path, &info.title);
+            }
             emit_queue_state_from_state(&app, state);
         }
         Err(e) => {

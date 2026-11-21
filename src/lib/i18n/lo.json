@@ -3252,7 +3252,22 @@
     "view_downloads": "View downloads",
     "eta_left": "About {{eta}} left",
     "view_history": "ປະຫວັດ",
-    "view_tools": "ເຄື່ອງມື"
+    "view_tools": "ເຄື່ອງມື",
+    "file_open": "Open file",
+    "file_share": "Share file",
+    "os_schedules": "Android scheduled downloads",
+    "schedule_refresh": "Refresh",
+    "schedule_system_note": "Android starts scheduled downloads no earlier than the chosen time. Battery and network rules can delay them. You can close the app; force-stopping it in Android settings prevents work until you reopen it. Background schedules support one public link, type, quality and source subtitles.",
+    "schedule_empty": "No Android schedules yet.",
+    "schedule_waiting": "Waiting for time, network or Android",
+    "schedule_running": "Downloading",
+    "schedule_complete": "Complete",
+    "schedule_failed": "Failed",
+    "schedule_cancelled": "Cancelled",
+    "schedule_interrupted": "Interrupted before scheduling, remove and try again",
+    "schedule_cancel": "Cancel",
+    "schedule_remove": "Remove record",
+    "schedule_saved": "Saved in Android. View or cancel it in Downloads."
   },
   "toast": {
     "download_preparing": "ກຳລັງກຽມດາວໂຫຼດ...",
@@ -4265,7 +4280,13 @@
     "hero_desc_channels": "ຕັ້ງຄ່າການຕິດຕາມຊ່ອງອັດຕະໂນມັດ, ຟີດ RSS ແລະ ກົດລະບຽບການດາວໂຫຼດ",
     "hero_desc_ai": "ເຊື່ອມຕໍ່ AI ທ້ອງຖິ່ນ ຫຼື ຄລາວ ສຳລັບການຕັ້ງຊື່ໄຟລ໌ ແລະ ສະຫຼຸບອັດສະລິຍະ",
     "hero_desc_plugins": "ກວດສອບສະຖານະ yt-dlp, ffmpeg, ການອັບເດດ ແລະ ປລັກອິນເສີມ",
-    "hero_desc_advanced": "ການເລັ່ງຮາດແວ, ການວິນິດໄສດີບັກ ແລະ ການຣີເຊັດແອັບ"
+    "hero_desc_advanced": "ການເລັ່ງຮາດແວ, ການວິນິດໄສດີບັກ ແລະ ການຣີເຊັດແອັບ",
+    "update_check": "Check for updates",
+    "update_approved_channel": "Approved builds only. Test prereleases are installed separately and are never offered automatically.",
+    "update_unstamped": "This development build has no update stamp. Install an approved signed build to enable updates.",
+    "update_current": "No newer approved update is available.",
+    "update_checking": "Checking…",
+    "update_retry": "Retry"
   },
   "librebox": {
     "placeholder": "ວາງ URL, ລິ້ງ magnet, .torrent ຫຼື ຄົ້ນຫາ",
@@ -4394,7 +4415,14 @@
     },
     "courses_plugin_needed": "ນີ້ແມ່ນໜ້າຄອສຮຽນ. ປລັກອິນ Courses ຟຣີຈະເຂົ້າສູ່ລະບົບດ້ວຍບັນຊີຂອງທ່ານ ແລະ ດາວໂຫຼດທຸກບົດຮຽນ.",
     "courses_plugin_ready": "ໜ້າຄອສຮຽນຈະຖືກດາວໂຫຼດຈາກແຖບ Courses ໂດຍເຂົ້າສູ່ລະບົບບັນຊີຂອງທ່ານ.",
-    "install_courses_plugin": "ຮັບປລັກອິນ Courses"
+    "install_courses_plugin": "ຮັບປລັກອິນ Courses",
+    "subtitle_label": "Subtitles for this download",
+    "subtitle_source_only": "Only tracks provided by the source. Auto-generated captions are labelled; no translation is generated.",
+    "subtitle_loading": "Checking source…",
+    "subtitle_load": "Check available subtitles",
+    "subtitle_off": "Off",
+    "subtitle_auto": "Auto-generated",
+    "subtitle_none": "No source subtitles were found."
   },
   "about": {
     "tab": {

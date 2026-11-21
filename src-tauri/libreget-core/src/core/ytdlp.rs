@@ -1741,8 +1741,6 @@ pub async fn find_ytdlp_cached() -> Option<PathBuf> {
                     return cached.clone();
                 }
                 tracing::warn!("[ytdlp] cached path no longer exists: {}", path.display());
-            } else {
-                return None;
             }
         }
     }
@@ -3828,10 +3826,28 @@ pub async fn download_video_full(
         base_args.push("--windows-filenames".to_string());
     }
 
-    let include_auto_subs = include_auto_subs_setting();
+    let include_auto_subs = if effective_extra_flags
+        .iter()
+        .any(|a| a == "--no-write-auto-subs")
+    {
+        false
+    } else if effective_extra_flags
+        .iter()
+        .any(|a| a == "--write-auto-subs")
+    {
+        true
+    } else {
+        include_auto_subs_setting()
+    };
+    let explicit_subtitle_lang = effective_extra_flags
+        .windows(2)
+        .find(|pair| pair[0] == "--sub-langs")
+        .map(|pair| pair[1].clone());
     let mut selected_subtitle_lang: Option<String> = None;
     let mut should_download_subs = download_subtitles && rate_limit_429_count() < 2;
-    if should_download_subs {
+    if should_download_subs && explicit_subtitle_lang.is_some() {
+        selected_subtitle_lang = explicit_subtitle_lang;
+    } else if should_download_subs {
         match select_available_subtitle_lang(ytdlp, url, &effective_extra_flags, include_auto_subs)
             .await
         {

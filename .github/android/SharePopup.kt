@@ -17,7 +17,8 @@ import android.widget.*
  * web content stays hidden until the user explicitly chooses the full app. */
 class SharePopup(private val activity: MainActivity) {
     private var dialog: Dialog? = null
-    private var generation = 0
+    @Volatile private var generation = 0
+    private val preferences = activity.getSharedPreferences("omniget.share.choices", 0)
     private val accent = Color.rgb(255, 165, 0)
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private fun rounded(color: Int) = GradientDrawable().apply {
@@ -83,7 +84,7 @@ class SharePopup(private val activity: MainActivity) {
         val mp3 = RadioButton(activity).apply { id = View.generateViewId(); text = "MP3"; setTextColor(Color.WHITE); buttonTintList = ColorStateList.valueOf(accent) }
         types.addView(video)
         types.addView(mp3)
-        video.isChecked = true
+        if (preferences.getString("mode", "video") == "mp3") mp3.isChecked = true else video.isChecked = true
         box.addView(types)
         val qualityLabel = label("Video quality")
         box.addView(qualityLabel)
@@ -99,7 +100,15 @@ class SharePopup(private val activity: MainActivity) {
             }
             background = rounded(Color.rgb(225, 225, 230))
         }
+        quality.setSelection(preferences.getInt("quality", 0).coerceIn(0, qualities.lastIndex))
         box.addView(quality, LinearLayout.LayoutParams(-1, dp(44)))
+        val reset = button("Reset choices")
+        reset.setOnClickListener {
+            preferences.edit().clear().apply()
+            video.isChecked = true
+            quality.setSelection(0)
+        }
+        box.addView(reset)
         types.setOnCheckedChangeListener { _, id ->
             val visible = if (id == video.id) View.VISIBLE else View.GONE
             quality.visibility = visible
@@ -107,6 +116,7 @@ class SharePopup(private val activity: MainActivity) {
         }
         val error = label("", 13f).apply { setTextColor(Color.rgb(255, 150, 140)); visibility = View.GONE }
         box.addView(error)
+        if (mp3.isChecked) { quality.visibility = View.GONE; qualityLabel.visibility = View.GONE }
         val download = button("Download", true)
         val more = button("More options in the app")
         val cancel = button("Not now")
@@ -133,6 +143,7 @@ class SharePopup(private val activity: MainActivity) {
         }
         fun runAction(action: String) {
             if (token != generation) return
+            reset.isEnabled = false
             download.isEnabled = false
             more.isEnabled = false
             cancel.isEnabled = false
@@ -146,9 +157,11 @@ class SharePopup(private val activity: MainActivity) {
                 var result = "The app is still starting. Try again or open omniget first."
                 try {
                     var ready = false
-                    for (attempt in 0 until 100) {
-                        try { ready = activity.nativeShareReady() } catch (_: UnsatisfiedLinkError) { }
+                    for (attempt in 0 until 600) {
+                        try { ready = activity.nativeShareReady() && (action == "prefill" || MediaRuntime.ready) } catch (_: UnsatisfiedLinkError) { }
                         if (ready) break
+                        if (action != "prefill" && MediaRuntime.error != null) { result = MediaRuntime.error!!; break }
+                        if (token != generation || activity.isFinishing || activity.isDestroyed) return@Thread
                         Thread.sleep(200)
                     }
                     if (ready) result = activity.nativeShareAction(shared, mode, selectedQuality, action)
@@ -159,6 +172,7 @@ class SharePopup(private val activity: MainActivity) {
                         error.text = result
                         error.visibility = View.VISIBLE
                         download.text = "Download"
+                        reset.isEnabled = true
                         download.isEnabled = true
                         more.isEnabled = true
                         cancel.isEnabled = true
@@ -166,6 +180,7 @@ class SharePopup(private val activity: MainActivity) {
                     } else if (action == "prefill") {
                         openFullApp()
                     } else {
+                        preferences.edit().putString("mode", mode).putInt("quality", quality.selectedItemPosition).apply()
                         // Enqueued is accurate even when Wi-Fi policy delays transfer.
                         box.removeAllViews()
                         box.addView(label("Download added", 21f))
