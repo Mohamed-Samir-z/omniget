@@ -92,7 +92,11 @@ pub extern "C" fn Java_com_openselena_libreget_MainActivity_nativeShareAction(
             return Err("Unsupported video quality".to_string());
         }
         let settings = crate::storage::config::load_settings(&app);
-        let output = settings.download.default_output_dir;
+        let output = settings
+            .download
+            .default_output_dir
+            .to_string_lossy()
+            .into_owned();
         if output.trim().is_empty() {
             return Err("Open omniget and choose a download folder first".to_string());
         }
