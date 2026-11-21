@@ -25,6 +25,7 @@ pub mod binary_versions;
 pub mod cas;
 pub mod channel_poller;
 pub mod channels;
+pub mod clip;
 pub mod db;
 pub mod download_log;
 pub mod events;

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ClipTimeFields from "$components/librebox/ClipTimeFields.svelte";
+  import { validTimeRange } from "$lib/clip-time";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -49,6 +51,10 @@
 
   async function runPreset(action: string) {
     if (stage === "busy") return;
+    if (action === "trim" && !validTimeRange(trimStart, trimEnd)) {
+      showToast("error", $t("clip.invalid_range") as string);
+      return;
+    }
     stage = "busy";
     try {
       const r = await invoke<{ output_path: string }>("video_op_preset", {
@@ -130,8 +136,8 @@
       </div>
 
       <div class="trim">
-        <input type="text" placeholder={$t('downloads.vop.trim_start')} bind:value={trimStart} />
-        <input type="text" placeholder={$t('downloads.vop.trim_end')} bind:value={trimEnd} />
+        <ClipTimeFields label={$t('librebox.timerange_start') as string} bind:value={trimStart} disabled={stage === "busy"} />
+        <ClipTimeFields label={$t('librebox.timerange_end') as string} bind:value={trimEnd} disabled={stage === "busy"} />
         <button disabled={stage === "busy"} onclick={() => runPreset("trim")}>{$t('downloads.vop.trim')}</button>
       </div>
 
