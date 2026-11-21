@@ -18,6 +18,7 @@ pub mod android_env;
 pub mod android_media;
 #[cfg(target_os = "android")]
 pub mod android_share;
+pub mod android_update;
 pub mod commands;
 pub mod cookies;
 pub mod core;
@@ -911,6 +912,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             local_bridge::media_stream_url,
+            android_update::check_android_update,
+            android_update::download_android_update,
+            android_update::install_android_update,
             commands::auth_webview::open_auth_webview,
             commands::bilibili_auth::bilibili_qr_generate,
             commands::bilibili_auth::bilibili_qr_poll,
