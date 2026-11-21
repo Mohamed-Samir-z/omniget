@@ -1,5 +1,5 @@
 diff --git a/src-tauri/libreget-core/src/core/errors.rs b/src-tauri/libreget-core/src/core/errors.rs
-index 0ed1caf6..ca7fb6c7 100644
+index 0ed1caf..ca7fb6c 100644
 --- a/src-tauri/libreget-core/src/core/errors.rs
 +++ b/src-tauri/libreget-core/src/core/errors.rs
 @@ -16,7 +16,7 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
@@ -47,19 +47,19 @@ index 0ed1caf6..ca7fb6c7 100644
      fn network_and_rate_limit_still_retry() {
          assert!(!is_terminal_category(
 diff --git a/src-tauri/libreget-core/src/core/ytdlp.rs b/src-tauri/libreget-core/src/core/ytdlp.rs
-index 647f9de1..544017f1 100644
+index 11fa859..0104723 100644
 --- a/src-tauri/libreget-core/src/core/ytdlp.rs
 +++ b/src-tauri/libreget-core/src/core/ytdlp.rs
-@@ -462,7 +462,7 @@ pub(crate) fn prepare_override_args(
-         args.push("-o".to_string());
+@@ -463,7 +463,7 @@ pub(crate) fn prepare_override_args(
          args.push(
              output_dir
--                .join(if cfg!(target_os = "android") { "%(title).40s [%(id)s].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
-+                .join(if cfg!(target_os = "android") { "%(title,id|download).120B [%(id).32B].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
-                 .to_string_lossy()
-                 .to_string(),
-         );
-@@ -1503,9 +1503,17 @@ pub fn android_ytdl_base() -> Option<PathBuf> {
+                 .join(if cfg!(target_os = "android") {
+-                    "%(title).40s [%(id)s].%(ext)s"
++                    "%(title,id|download).120B [%(id).32B].%(ext)s"
+                 } else {
+                     "%(title).200s [%(id)s].%(ext)s"
+                 })
+@@ -1507,9 +1507,17 @@ pub fn android_ytdl_base() -> Option<PathBuf> {
      )
  }
  
@@ -77,21 +77,23 @@ index 647f9de1..544017f1 100644
      // Preferred: the zipapp unpacked into a directory whose bytecode has been
      // precompiled (see `android_prepare_ytdlp`). Python can run a directory
      // with a `__main__.py` directly and then reuses its `__pycache__`, which
-@@ -1530,9 +1538,12 @@ pub fn android_prepare_ytdlp() {
-             let Some(base) = android_ytdl_base() else { return };
-             let ready_flag = Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
+@@ -1537,11 +1545,14 @@ pub fn android_prepare_ytdlp() {
+             let ready_flag =
+                 Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
              for _ in 0..240 {
--                if ready_flag.exists() { break; }
+-                if ready_flag.exists() {
 +                let bundle_ready = std::fs::read_to_string(base.join("yt-dlp/.bundle-sha256"))
 +                    .is_ok_and(|hash| hash.trim() == ANDROID_YTDLP_BUNDLE_SHA256);
-+                if ready_flag.exists() && bundle_ready { break; }
++                if ready_flag.exists() && bundle_ready {
+                     break;
+                 }
                  std::thread::sleep(std::time::Duration::from_millis(500));
              }
 +            if android_ytdlp_script().is_none() { return; }
              let Some(py) = android_python() else { return };
              let zip = base.join("yt-dlp").join("yt-dlp");
              let app = base.join("yt-dlp").join("app");
-@@ -2657,6 +2668,8 @@ pub async fn get_video_info(
+@@ -2716,6 +2727,8 @@ pub async fn get_video_info(
              args.push(proxy_url);
          }
          args.extend(effective_extra_flags.iter().cloned());
@@ -100,7 +102,7 @@ index 647f9de1..544017f1 100644
          args.push(url.to_string());
  
          let _slot = acquire_ytdlp_slot("video info").await;
-@@ -2725,6 +2738,16 @@ pub async fn get_video_info(
+@@ -2784,6 +2797,16 @@ pub async fn get_video_info(
              stderr.len(),
              stderr.trim()
          );
@@ -117,7 +119,7 @@ index 647f9de1..544017f1 100644
          let stderr_lower = stderr.to_lowercase();
          if stderr_lower.contains("http error 429") {
              rate_limit_429_increment();
-@@ -3355,14 +3378,19 @@ pub async fn download_video(
+@@ -3488,14 +3511,19 @@ pub async fn download_video_full(
          200
      };
      #[cfg(target_os = "android")]
@@ -141,7 +143,7 @@ index 647f9de1..544017f1 100644
      let output_template = output_dir.join(&template).to_string_lossy().to_string();
  
      std::fs::create_dir_all(output_dir)?;
-@@ -3486,6 +3514,17 @@ pub async fn download_video(
+@@ -3619,6 +3647,17 @@ pub async fn download_video_full(
          "--progress".to_string(),
      ];
      base_args.extend(js_runtime_args());
@@ -159,7 +161,7 @@ index 647f9de1..544017f1 100644
  
      if mode == "audio" {
          let target_fmt = audio_format.unwrap_or("m4a");
-@@ -3804,16 +3843,12 @@ pub async fn download_video(
+@@ -3937,16 +3976,12 @@ pub async fn download_video_full(
              None
          };
  
