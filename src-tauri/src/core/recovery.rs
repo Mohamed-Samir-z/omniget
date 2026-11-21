@@ -93,7 +93,7 @@ fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal
         format_id: item.format_id.clone(),
         referer: item.referer.clone(),
         position,
-        options: item.options.clone(),
+        options: Box::new(item.options.clone()),
     }
 }
 
@@ -276,7 +276,7 @@ mod migracao_tests {
             options: stored, ..
         } = &mut records[0]
         {
-            *stored = options.clone();
+            **stored = options.clone();
         }
         let compacted = compact(&records);
         let text = compacted
@@ -361,4 +361,4 @@ mod migracao_tests {
         assert_eq!(itens.len(), 1);
         assert_eq!(itens[0].id, 2);
     }
-}
+    }
