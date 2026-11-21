@@ -10,7 +10,7 @@
   import { initDownloadListener } from "$lib/stores/download-listener";
   import { getCounts } from "$lib/stores/download-store.svelte";
   import { getSettings, loadSettings } from "$lib/stores/settings-store.svelte";
-  import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
+  import { queueExternalPrefill, queueExternalShare, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
@@ -90,6 +90,12 @@
   let AnnouncementDialog = $state<any>(null);
 
   function handleExternalUrlEvent(event: Omit<ExternalUrlEvent, "id">) {
+    if (event.action === "share") {
+      queueExternalShare(event);
+      goto("/share");
+      return;
+    }
+
     if (event.action === "prefill") {
       queueExternalPrefill(event);
       showToast("info", $t("toast.external_url_ready"));
@@ -199,6 +205,16 @@
     }).then((un) => {
       unlistenExternalUrl = un;
     });
+
+    // Drain external URLs that arrived before the frontend was ready
+    // (cold start from a share intent, deep link or CLI argument).
+    invoke<Omit<ExternalUrlEvent, "id">[]>("register_external_frontend")
+      .then((pending) => {
+        for (const event of pending) {
+          handleExternalUrlEvent(event);
+        }
+      })
+      .catch(() => {});
 
     listen("plugins-changed", () => {
       reloadPluginNav();
