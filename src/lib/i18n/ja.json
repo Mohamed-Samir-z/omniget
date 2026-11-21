@@ -3643,6 +3643,19 @@
       "manage_chat": "{{title}} を管理"
     }
   },
+  "share": {
+    "title": "共有リンクをダウンロード",
+    "type": "種類",
+    "video": "動画",
+    "audio": "音声",
+    "more_options": "アプリで詳細設定",
+    "added": "ダウンロードに追加しました",
+    "open_downloads": "ダウンロードを表示",
+    "back_home": "ホームに戻る",
+    "starting": "開始中…",
+    "failed": "ダウンロードを開始できませんでした",
+    "no_output_dir": "先にアプリでダウンロードフォルダを設定してください"
+  },
   "settings": {
     "title": "設定",
     "manage_preferences": "アプリの環境設定とシステム構成を管理します",
@@ -4296,6 +4309,8 @@
     "no_formats": "この動画で利用可能なフォーマットはありません",
     "formats_error": "フォーマットの読み込みに失敗しました",
     "preset_best": "最適",
+    "audio_track": "音声トラック",
+    "audio_track_default": "デフォルト",
     "preset_music": "音楽",
     "preset_custom": "カスタム",
     "formats_presets_label": "フォーマットプリセット",
