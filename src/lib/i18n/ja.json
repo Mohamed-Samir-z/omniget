@@ -3271,15 +3271,15 @@
     "report_prepare": "Prepare safe diagnostic report",
     "report_review": "Review this summary before copying or sharing. Nothing is sent automatically. Raw logs, URLs and account details are excluded.",
     "report_copy": "Copy safe report",
-    "audio_choice_title": "Audio tracks need your choice",
-    "audio_choice_hint": "Two attempts failed, including one automatic retry. Nothing was accepted as a partial success. Source checks below do not guarantee a download.",
-    "audio_unavailable": "Unavailable source languages",
-    "audio_available": "Available in the source check",
-    "audio_unknown": "Could not verify",
+    "audio_choice_title": "Could not download every audio track",
+    "audio_choice_hint": "The requested audio tracks could not all be downloaded after two attempts. You can try again or download the tracks currently available.",
+    "audio_unavailable": "Unavailable languages",
+    "audio_available": "Available languages",
+    "audio_unknown": "Could not confirm availability",
     "audio_none": "None",
     "audio_other_failure": "All requested source tracks passed the check. The failure may be during transfer or processing, so no particular language is marked unavailable.",
-    "audio_retry_all": "Retry all requested tracks",
-    "audio_accept_available": "Download only checked available tracks"
+    "audio_retry_all": "Try again",
+    "audio_accept_available": "Download available"
   },
   "toast": {
     "download_preparing": "ダウンロードを準備中...",
