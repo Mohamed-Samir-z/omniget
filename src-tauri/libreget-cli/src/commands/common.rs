@@ -247,6 +247,7 @@ pub fn download_options(
         torrent_listen_port: None,
         torrent_id_slot: None,
         custom_ytdlp_args: (!custom_ytdlp_args.is_empty()).then_some(custom_ytdlp_args),
+        audio_language: None,
         torrent_files: None,
         torrent_auto_trackers: true,
         torrent_upnp: false,
