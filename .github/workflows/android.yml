@@ -82,6 +82,7 @@ jobs:
       - name: Test Android runtime patcher
         run: |
           python3 .github/android/test_patch_project.py
+          python3 .github/android/test_resume_policy.py
           python3 .github/android/test_download_startup.py
 
       - name: Bundle yt-dlp, Python and ffmpeg
@@ -99,6 +100,7 @@ jobs:
         run: |
           # Stamp the build so the in-app updater can tell whether the
           # android-latest release is newer than the installed APK.
+          export LIBREGET_BUILD_SHA="$GITHUB_SHA"
           export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
 
