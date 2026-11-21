@@ -16,11 +16,25 @@ class RuntimeBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
             app = root / "src-tauri/gen/android/app"
-            kotlin = app / "src/main/java/com/example/MainActivity.kt"
+            kotlin = app / "src/main/java/com/openselena/libreget/MainActivity.kt"
             kotlin.parent.mkdir(parents=True)
-            kotlin.write_text("package com.example\nimport android.os.Bundle\nclass MainActivity : TauriActivity()\n")
+            kotlin.write_text(
+                "package com.openselena.libreget\n"
+                "import android.os.Bundle\n"
+                "class MainActivity : TauriActivity() {\n"
+                "  override fun onCreate(savedInstanceState: Bundle?) {\n"
+                "    super.onCreate(savedInstanceState)\n"
+                "  }\n"
+                "}\n"
+            )
             (app / "build.gradle.kts").write_text("android { defaultConfig {} }\ndependencies {}\n")
-            (app / "src/main/AndroidManifest.xml").write_text("<manifest><application></application></manifest>")
+            (app / "src/main/AndroidManifest.xml").write_text(
+                '<manifest><application>'
+                '<activity android:launchMode="singleTask" android:name=".MainActivity" android:exported="true">'
+                '<intent-filter><action android:name="android.intent.action.MAIN" />'
+                '<category android:name="android.intent.category.LAUNCHER" /></intent-filter>'
+                "</activity></application></manifest>"
+            )
             (root / "src-tauri/libreget-core/src/core").mkdir(parents=True)
             (root / "src-tauri/icons").mkdir(parents=True)
             (root / "src-tauri/icons/icon.png").write_bytes(b"icon fixture")
@@ -33,7 +47,8 @@ class RuntimeBundleTests(unittest.TestCase):
                      unittest.mock.patch("hashlib.sha256") as digest:
                     digest.return_value.hexdigest.return_value = expected_hash
                     runpy.run_path(str(PATCHER))
-                return kotlin.read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes()
+                manifest = (app / "src/main/AndroidManifest.xml").read_text()
+                return kotlin.read_text(), (app / "src/main/res/raw/omniget_ytdlp").read_bytes(), manifest
             finally:
                 os.chdir(original)
 
@@ -49,8 +64,13 @@ class RuntimeBundleTests(unittest.TestCase):
     def test_verified_bundle_replaces_old_script_and_clears_cache_before_ready(self):
         expected = "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3"
         archive = self.archive()
-        kotlin, packaged = self.run_patcher(archive, expected)
+        kotlin, packaged, manifest = self.run_patcher(archive, expected)
         self.assertEqual(packaged, archive)
+        self.assertIn("android.intent.action.SEND", manifest)
+        self.assertIn('android:mimeType="text/plain"', manifest)
+        self.assertIn("nativeOnSharedText", kotlin)
+        self.assertIn("handleShareIntent(intent)", kotlin)
+        self.assertIn("onNewIntent", kotlin)
         self.assertIn(expected, kotlin)
         self.assertIn("noBackupFilesDir", kotlin)
         self.assertLess(kotlin.index("deleteRecursively()"), kotlin.index("pending.renameTo(script)"))

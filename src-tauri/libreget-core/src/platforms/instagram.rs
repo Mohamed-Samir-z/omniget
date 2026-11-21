@@ -962,6 +962,7 @@ mod tests {
             torrent_listen_port: None,
             torrent_id_slot: None,
             custom_ytdlp_args: None,
+            audio_language: None,
             torrent_files: None,
             torrent_auto_trackers: false,
             torrent_upnp: false,

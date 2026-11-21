@@ -462,7 +462,11 @@ pub(crate) fn prepare_override_args(
         args.push("-o".to_string());
         args.push(
             output_dir
-                .join(if cfg!(target_os = "android") { "%(title).40s [%(id)s].%(ext)s" } else { "%(title).200s [%(id)s].%(ext)s" })
+                .join(if cfg!(target_os = "android") {
+                    "%(title).40s [%(id)s].%(ext)s"
+                } else {
+                    "%(title).200s [%(id)s].%(ext)s"
+                })
                 .to_string_lossy()
                 .to_string(),
         );
@@ -1527,10 +1531,15 @@ pub fn android_prepare_ytdlp() {
         .name("ytdlp-prepare".into())
         .spawn(|| {
             let started = std::time::Instant::now();
-            let Some(base) = android_ytdl_base() else { return };
-            let ready_flag = Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
+            let Some(base) = android_ytdl_base() else {
+                return;
+            };
+            let ready_flag =
+                Path::new(&std::env::var("HOME").unwrap_or_default()).join("runtime-ready");
             for _ in 0..240 {
-                if ready_flag.exists() { break; }
+                if ready_flag.exists() {
+                    break;
+                }
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
             let Some(py) = android_python() else { return };
@@ -1539,11 +1548,32 @@ pub fn android_prepare_ytdlp() {
             let mut report = String::new();
             if !app.join(".ready").exists() && zip.exists() {
                 let _ = std::fs::remove_dir_all(&app);
-                let script = "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
-                let r = std::process::Command::new(&py).args(["-c", script]).arg(&zip).arg(&app).output();
-                report.push_str(&format!("extract: {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string()))));
-                let r = std::process::Command::new(&py).args(["-m", "compileall", "-q"]).arg(&app).output();
-                report.push_str(&format!("compile: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stderr).to_string())), started.elapsed()));
+                let script =
+                    "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])";
+                let r = std::process::Command::new(&py)
+                    .args(["-c", script])
+                    .arg(&zip)
+                    .arg(&app)
+                    .output();
+                report.push_str(&format!(
+                    "extract: {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stderr).to_string()
+                    ))
+                ));
+                let r = std::process::Command::new(&py)
+                    .args(["-m", "compileall", "-q"])
+                    .arg(&app)
+                    .output();
+                report.push_str(&format!(
+                    "compile: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stderr).to_string()
+                    )),
+                    started.elapsed()
+                ));
                 if app.join("__main__.py").exists() {
                     let _ = std::fs::write(app.join(".ready"), b"1");
                     reset_ytdlp_cache();
@@ -1551,16 +1581,41 @@ pub fn android_prepare_ytdlp() {
             }
             if let Some(script) = android_ytdlp_script() {
                 let t = std::time::Instant::now();
-                let r = std::process::Command::new(&py).arg(&script).arg("--version").output();
-                report.push_str(&format!("yt-dlp --version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).trim().to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+                let r = std::process::Command::new(&py)
+                    .arg(&script)
+                    .arg("--version")
+                    .output();
+                report.push_str(&format!(
+                    "yt-dlp --version: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stdout).trim().to_string(),
+                        String::from_utf8_lossy(&o.stderr).trim().to_string()
+                    )),
+                    t.elapsed()
+                ));
             } else {
                 report.push_str("yt-dlp script missing\n");
             }
             let t = std::time::Instant::now();
-            let ff = std::env::var("HOME").ok().map(|h| Path::new(&h).join("data/com.openselena.libreget/bin/ffmpeg"));
+            let ff = std::env::var("HOME")
+                .ok()
+                .map(|h| Path::new(&h).join("data/com.openselena.libreget/bin/ffmpeg"));
             if let Some(ff) = ff {
                 let r = std::process::Command::new(&ff).arg("-version").output();
-                report.push_str(&format!("ffmpeg -version: {:?} in {:?}\n", r.as_ref().map(|o| (o.status.code(), String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_string(), String::from_utf8_lossy(&o.stderr).trim().to_string())), t.elapsed()));
+                report.push_str(&format!(
+                    "ffmpeg -version: {:?} in {:?}\n",
+                    r.as_ref().map(|o| (
+                        o.status.code(),
+                        String::from_utf8_lossy(&o.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .to_string(),
+                        String::from_utf8_lossy(&o.stderr).trim().to_string()
+                    )),
+                    t.elapsed()
+                ));
             }
             report.push_str(&format!("total: {:?}\n", started.elapsed()));
             tracing::info!("[android] runtime self-test:\n{}", report);
@@ -1734,7 +1789,10 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
 
 pub fn is_ytdlp_zipapp(path: &Path) -> bool {
     #[cfg(target_os = "android")]
-    if matches!(path.file_name().and_then(|n| n.to_str()), Some("yt-dlp") | Some("app")) {
+    if matches!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some("yt-dlp") | Some("app")
+    ) {
         return true;
     }
     path.extension()
@@ -1925,17 +1983,18 @@ async fn usable_zipapp() -> Option<PathBuf> {
 pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     #[cfg(target_os = "android")]
     {
-        return android_ytdlp_script()
-            .ok_or_else(|| {
-                let diag = std::env::var("HOME")
-                    .ok()
-                    .and_then(|h| std::fs::read_to_string(Path::new(&h).join("ytdl-init-error.txt")).ok())
-                    .map(|t| t.chars().take(600).collect::<String>());
-                match diag {
-                    Some(d) => anyhow!("yt-dlp setup failed: {}", d),
-                    None => anyhow!("yt-dlp is still being unpacked, try again in a moment"),
-                }
-            });
+        return android_ytdlp_script().ok_or_else(|| {
+            let diag = std::env::var("HOME")
+                .ok()
+                .and_then(|h| {
+                    std::fs::read_to_string(Path::new(&h).join("ytdl-init-error.txt")).ok()
+                })
+                .map(|t| t.chars().take(600).collect::<String>());
+            match diag {
+                Some(d) => anyhow!("yt-dlp setup failed: {}", d),
+                None => anyhow!("yt-dlp is still being unpacked, try again in a moment"),
+            }
+        });
     }
     let _timer_start = std::time::Instant::now();
 
@@ -3246,6 +3305,17 @@ pub async fn write_netscape_cookie_file(
     Ok(())
 }
 
+/// Language codes arrive from yt-dlp format metadata or the UI. Keep them
+/// strictly alphanumeric/dash/underscore so they can never break out of the
+/// `-f` selector string they are interpolated into.
+pub fn is_valid_audio_language(lang: &str) -> bool {
+    !lang.is_empty()
+        && lang.len() <= 16
+        && lang
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn download_video(
     ytdlp: &Path,
@@ -3263,6 +3333,46 @@ pub async fn download_video(
     download_subtitles: bool,
     extra_flags: &[String],
     audio_format: Option<&str>,
+) -> anyhow::Result<DownloadResult> {
+    download_video_full(
+        ytdlp,
+        url,
+        output_dir,
+        quality_height,
+        progress,
+        download_mode,
+        format_id,
+        filename_template,
+        referer,
+        cancel_token,
+        cookie_file,
+        concurrent_fragments,
+        download_subtitles,
+        extra_flags,
+        audio_format,
+        None,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn download_video_full(
+    ytdlp: &Path,
+    url: &str,
+    output_dir: &Path,
+    quality_height: Option<u32>,
+    progress: mpsc::Sender<ProgressUpdate>,
+    download_mode: Option<&str>,
+    format_id: Option<&str>,
+    filename_template: Option<&str>,
+    referer: Option<&str>,
+    cancel_token: CancellationToken,
+    cookie_file: Option<&Path>,
+    concurrent_fragments: u32,
+    download_subtitles: bool,
+    extra_flags: &[String],
+    audio_format: Option<&str>,
+    audio_language: Option<&str>,
 ) -> anyhow::Result<DownloadResult> {
     let _timer_start = std::time::Instant::now();
 
@@ -3346,6 +3456,29 @@ pub async fn download_video(
                 }
             }
         }
+    };
+
+    // Dubbed-audio preference: merge the best video with an audio track in the
+    // requested language. An explicit format_id and audio/mute modes keep
+    // their existing selectors, and when no track matches the language the
+    // chain falls through to the default selector untouched.
+    let format_selector = match audio_language {
+        Some(lang)
+            if format_id.is_none()
+                && mode != "audio"
+                && mode != "mute"
+                && ffmpeg_available
+                && is_valid_audio_language(lang) =>
+        {
+            match quality_height.filter(|h| *h > 0) {
+                Some(h) => format!(
+                    "bv*[height<={}]+ba[language={}]/{}",
+                    h, lang, format_selector
+                ),
+                None => format!("bv*+ba[language={}]/{}", lang, format_selector),
+            }
+        }
+        _ => format_selector,
     };
 
     let dir_len = output_dir.to_string_lossy().len();
@@ -4064,7 +4197,8 @@ pub async fn download_video(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
-        let android_yt_ladder_left = cfg!(target_os = "android") && is_youtube && attempt + 1 < max_attempts;
+        let android_yt_ladder_left =
+            cfg!(target_os = "android") && is_youtube && attempt + 1 < max_attempts;
         if is_terminal_ytdlp_error(&stderr_lower) && !android_yt_ladder_left {
             let last_line = last_error.lines().last().unwrap_or("unknown error").trim();
             tracing::warn!(
@@ -5360,6 +5494,11 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             .get("format_note")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        let audio_language = f
+            .get("language")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty() && *s != "und")
+            .map(|s| s.to_string());
 
         let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
         let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
@@ -5390,6 +5529,7 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             has_video,
             has_audio,
             format_note,
+            audio_language,
         });
     }
 

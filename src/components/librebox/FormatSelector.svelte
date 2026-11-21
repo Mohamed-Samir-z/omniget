@@ -24,10 +24,12 @@
     isPlaylist = false,
     formats = $bindable([]),
     selectedFormatId = $bindable<string | null>(null),
+    selectedAudioLanguage = $bindable<string | null>(null),
     loadingFormats = false,
     formatError = null as string | null,
     onLoadFormats,
     onSelectFormat,
+    onSelectAudioLanguage,
     onClearFormat,
     onPresetBest,
     onPresetMusic,
@@ -48,6 +50,18 @@
     typeof Intl !== "undefined" && "DisplayNames" in Intl
       ? new Intl.DisplayNames(undefined, { type: "language" })
       : null;
+
+  // Distinct dub/audio languages across the loaded formats. Shown only when
+  // there is a real choice (dubbed videos carry 2+ audio tracks).
+  let audioLanguages = $derived(
+    [
+      ...new Set(
+        formats
+          .filter((f) => f.has_audio && f.audio_language)
+          .map((f) => f.audio_language as string)
+      ),
+    ].sort()
+  );
 
   function formatAudioLanguage(code: string | null | undefined): string | null {
     if (!code) return null;
@@ -199,6 +213,32 @@
         </button>
       </div>
 
+      {#if audioLanguages.length > 1}
+        <div class="audio-track-row">
+          <span class="audio-track-label">{$t('librebox.audio_track')}</span>
+          <div class="audio-track-pills">
+            <button
+              type="button"
+              class="preset-pill"
+              class:active={selectedAudioLanguage === null}
+              onclick={() => onSelectAudioLanguage(null)}
+            >
+              <span>{$t('librebox.audio_track_default')}</span>
+            </button>
+            {#each audioLanguages as lang (lang)}
+              <button
+                type="button"
+                class="preset-pill"
+                class:active={selectedAudioLanguage === lang}
+                onclick={() => onSelectAudioLanguage(lang)}
+              >
+                <span>{formatAudioLanguage(lang) ?? lang}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
       {#if selectedFormatId}
         <div class="format-selected">
           <span class="format-selected-label">{selectedFormatLabel}</span>
@@ -331,6 +371,21 @@
     overflow: hidden;
   }
 
+  .audio-track-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .audio-track-label {
+    font-size: 12px;
+    opacity: 0.65;
+  }
+  .audio-track-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
   .formats-presets {
     display: flex;
     gap: calc(var(--padding) / 2);

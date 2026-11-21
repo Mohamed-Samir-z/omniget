@@ -81,6 +81,22 @@ if "DownloadService" not in m:
     m = m.replace("</application>", '<service android:name=".DownloadService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>', 1)
 manifest.write_text(m)
 
+# ---- Share target: omniget appears in Android's share sheet --------------
+m = manifest.read_text()
+if "android.intent.action.SEND" not in m:
+    act_tag = re.search(r'<activity[^>]*android:name="\.MainActivity"[^>]*>', m)
+    if not act_tag:
+        sys.exit("MainActivity activity tag not found in AndroidManifest.xml")
+    share_filter = (
+        "\n            <intent-filter>\n"
+        '                <action android:name="android.intent.action.SEND" />\n'
+        '                <category android:name="android.intent.category.DEFAULT" />\n'
+        '                <data android:mimeType="text/plain" />\n'
+        "            </intent-filter>"
+    )
+    m = m.replace(act_tag.group(0), act_tag.group(0) + share_filter, 1)
+    manifest.write_text(m)
+
 # ---- MainActivity: unpack runtimes on a background thread -------------
 acts = list(root.glob("src/main/java/**/MainActivity.kt"))
 if not acts:
@@ -173,5 +189,58 @@ if "YoutubeDL" not in k:
         text = locale.read_text()
         text = re.sub(r'("hero_title"\s*:\s*)"LibreGet"', r'\1"omniget"', text)
         locale.write_text(text)
+# ---- Share bridge: MainActivity forwards shared text to Rust over JNI ----
+# The Rust side exports Java_com_openselena_libreget_MainActivity_nativeOnSharedText
+# (src-tauri/src/android_share.rs); fail the build if the generated package
+# ever drifts from the application id, instead of shipping a dead share target.
+k = act.read_text()
+if "nativeOnSharedText" not in k:
+    pkg_match = re.search(r"^package\s+([\w.]+)", k, re.M)
+    if not pkg_match or pkg_match.group(1) != "com.openselena.libreget":
+        sys.exit(
+            "MainActivity package is not com.openselena.libreget; "
+            "the JNI share bridge symbol in android_share.rs would break"
+        )
+    share_code = (
+        "\n"
+        "  override fun onNewIntent(intent: android.content.Intent) {\n"
+        "    super.onNewIntent(intent)\n"
+        "    handleShareIntent(intent)\n"
+        "  }\n"
+        "\n"
+        "  private external fun nativeOnSharedText(text: String)\n"
+        "\n"
+        "  private fun handleShareIntent(intent: android.content.Intent?) {\n"
+        "    if (intent?.action != android.content.Intent.ACTION_SEND) return\n"
+        "    val shared = intent.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: return\n"
+        "    var attempts = 0\n"
+        "    fun tryDeliver() {\n"
+        "      try {\n"
+        "        nativeOnSharedText(shared)\n"
+        "      } catch (e: UnsatisfiedLinkError) {\n"
+        "        // Native library may not be loaded yet on a cold share launch.\n"
+        "        if (++attempts <= 10) {\n"
+        "          android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tryDeliver() }, 1000)\n"
+        "        } else {\n"
+        '          android.util.Log.e("libreget", "share bridge: native library never loaded", e)\n'
+        "        }\n"
+        "      } catch (e: Throwable) {\n"
+        '        android.util.Log.e("libreget", "share bridge failed", e)\n'
+        "      }\n"
+        "    }\n"
+        "    tryDeliver()\n"
+        "  }\n"
+    )
+    k = re.sub(
+        r"(super\.onCreate\([^)]*\)[^\n]*\n)",
+        r"\1    handleShareIntent(intent)\n",
+        k,
+        count=1,
+    )
+    stripped = k.rstrip()
+    idx = stripped.rfind("}")
+    k = stripped[:idx] + share_code + "}\n"
+    act.write_text(k)
+
 print(act.read_text())
 print(gradle.read_text())

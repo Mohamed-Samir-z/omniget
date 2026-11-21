@@ -475,7 +475,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
         for (idx, override_format) in format_fallbacks.iter().enumerate() {
             let effective_format = override_format.or(opts.format_id.as_deref());
             let attempt_progress = progress.clone();
-            let result = ytdlp::download_video(
+            let result = ytdlp::download_video_full(
                 &ytdlp_path,
                 video_url,
                 &opts.output_dir,
@@ -491,6 +491,7 @@ impl PlatformDownloader for GenericYtdlpDownloader {
                 opts.download_subtitles,
                 &extra_flags_owned,
                 opts.audio_format.as_deref(),
+                opts.audio_language.as_deref(),
             )
             .await;
 

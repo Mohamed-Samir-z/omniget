@@ -3643,6 +3643,19 @@
       "manage_chat": "مدیریت {{title}}"
     }
   },
+  "share": {
+    "title": "دانلود پیوند اشتراک‌گذاشته‌شده",
+    "type": "نوع",
+    "video": "ویدیو",
+    "audio": "صدا",
+    "more_options": "گزینه‌های بیشتر در برنامه",
+    "added": "به دانلودها اضافه شد",
+    "open_downloads": "مشاهده دانلودها",
+    "back_home": "بازگشت به خانه",
+    "starting": "در حال شروع…",
+    "failed": "شروع دانلود ممکن نشد",
+    "no_output_dir": "ابتدا پوشه دانلود را در برنامه تنظیم کنید"
+  },
   "settings": {
     "title": "Settings",
     "manage_preferences": "مدیریت تنظیمات برنامه و پیکربندی‌های سیستم",
@@ -4296,6 +4309,8 @@
     "no_formats": "No formats available for this video",
     "formats_error": "Failed to load formats",
     "preset_best": "Best",
+    "audio_track": "آهنگ صوتی",
+    "audio_track_default": "پیش‌فرض",
     "preset_music": "Music",
     "preset_custom": "Custom",
     "formats_presets_label": "Format preset",

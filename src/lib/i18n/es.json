@@ -3643,6 +3643,19 @@
       "manage_chat": "Administrar {{title}}"
     }
   },
+  "share": {
+    "title": "Descargar enlace compartido",
+    "type": "Tipo",
+    "video": "Video",
+    "audio": "Audio",
+    "more_options": "Más opciones en la app",
+    "added": "Añadido a las descargas",
+    "open_downloads": "Ver descargas",
+    "back_home": "Volver al inicio",
+    "starting": "Iniciando…",
+    "failed": "No se pudo iniciar la descarga",
+    "no_output_dir": "Configura primero una carpeta de descargas en la app"
+  },
   "settings": {
     "title": "Configuración",
     "manage_preferences": "Administrar preferencias de la aplicación y configuraciones del sistema",
@@ -4296,6 +4309,8 @@
     "no_formats": "No hay formatos disponibles para este vídeo",
     "formats_error": "Error al cargar formatos",
     "preset_best": "Mejor",
+    "audio_track": "Pista de audio",
+    "audio_track_default": "Predeterminada",
     "preset_music": "Música",
     "preset_custom": "Personalizado",
     "formats_presets_label": "Preset de formato",
