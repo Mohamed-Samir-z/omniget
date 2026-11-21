@@ -266,6 +266,7 @@ pub async fn queue_url_with_defaults(
             None,
             None,
             None,
+            None,
         );
 
         let next_ids = q.next_queued_ids();
@@ -357,6 +358,23 @@ pub async fn handle_external_url(
     Ok(action)
 }
 
+/// Android share target: never queues silently — always opens the compact
+/// share sheet so the user picks video/audio and quality first.
+pub async fn share_received(app: &AppHandle, url: String) {
+    if !is_external_url(&url) {
+        return;
+    }
+    push_or_emit_event(
+        app,
+        ExternalUrlEvent {
+            url,
+            source: "android-share".to_string(),
+            action: "share".to_string(),
+        },
+    )
+    .await;
+}
+
 pub async fn register_frontend(app: &AppHandle) -> Vec<ExternalUrlEvent> {
     let state = app.state::<AppState>();
 
@@ -392,7 +410,11 @@ async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
     };
 
     if ready {
+        // Emit under both names: "external-url-event" is what the layout
+        // listener subscribes to; "external-url" is kept for any older
+        // listener so this rename cannot strand an existing consumer.
         let _ = app.emit("external-url", &event);
+        let _ = app.emit("external-url-event", &event);
     } else {
         let mut pending = state.pending_external_events.lock().await;
         pending.push(event);
