@@ -82,6 +82,7 @@
   let selectedTorrentFiles = $state<Set<number>>(new Set());
   let torrentLoading = $state(false);
   let selectedFormatId = $state<string | null>(null);
+  let selectedAudioLanguage = $state<string | null>(null);
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
   let formatError = $state<string | null>(null);
@@ -406,6 +407,7 @@
       downloadMode = savedMode === "audio" || savedMode === "mute" ? savedMode : "auto";
     }
     selectedFormatId = null;
+    selectedAudioLanguage = null;
     formats = [];
     loadingFormats = false;
     formatError = null;
@@ -666,6 +668,16 @@
 
   function selectFormat(formatId: string) {
     selectedFormatId = formatId;
+    // An explicit format pick already carries its own audio; it wins over
+    // the dub-track preference, so the two never fight.
+    selectedAudioLanguage = null;
+  }
+
+  function selectAudioLanguage(language: string | null) {
+    selectedAudioLanguage = language;
+    if (language) {
+      selectedFormatId = null;
+    }
   }
 
   function clearFormatSelection() {
@@ -791,6 +803,7 @@
         referer: referer.trim() || null,
         cookieSlug: selectedCookieSlug,
         timeRange: buildTimeRange(),
+        audioLanguage: selectedAudioLanguage,
         playlistItems: isPlaylist ? [...selectedPlaylistItems] : null,
         torrentFiles: isTorrent ? [...selectedTorrentFiles] : null,
         scheduledAt: toEpochMs(scheduleAt),
@@ -1253,10 +1266,12 @@
                             isPlaylist={libreState.info.content_type === "playlist"}
                             bind:formats
                             bind:selectedFormatId
+                            bind:selectedAudioLanguage
                             {loadingFormats}
                             {formatError}
                             onLoadFormats={loadFormats}
                             onSelectFormat={selectFormat}
+                            onSelectAudioLanguage={selectAudioLanguage}
                             onClearFormat={clearFormatSelection}
                             onPresetBest={presetBest}
                             onPresetMusic={presetMusic}
