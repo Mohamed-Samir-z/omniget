@@ -101,6 +101,27 @@ jobs:
       - name: Generate the Android project
         run: pnpm tauri android init --ci
 
+      - name: Resolve buildSrc plugin dependencies from Maven Central first
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import re
+          
+          root = Path('src-tauri/gen/android/buildSrc')
+          if not root.is_dir():
+              raise SystemExit('Generated Android buildSrc is missing')
+          settings = root / 'settings.gradle.kts'
+          existing = settings.read_text() if settings.exists() else ''
+          marker = '// omniget: resolve Kotlin plugin dependencies directly from Maven Central first'
+          if marker in existing:
+              print('buildSrc plugin dependency routing already configured')
+          elif re.search(r'\bpluginManagement\s*\{', existing):
+              raise SystemExit('Unexpected existing buildSrc pluginManagement; inspect before modifying')
+          else:
+              settings.write_text(marker + '\npluginManagement {\n    repositories {\n        mavenCentral()\n        gradlePluginPortal()\n    }\n}\n\n' + existing)
+              print('buildSrc plugin dependencies: Maven Central first, Gradle Plugin Portal retained')
+          PYCODE
+
       - name: Test Android runtime patcher
         run: |
           python3 .github/android/test_patch_project.py
@@ -171,7 +192,7 @@ jobs:
           python3 - <<'PYCODE'
           import os,pathlib,hashlib,json
           apk=pathlib.Path('dist/libreget-android.apk')
-          manifest={"channel":"isolated-test-artifact","promoted":False,"app_snapshot_commit":os.environ["OMNIGET_APP_SOURCE_COMMIT"],"app_patch_base":os.environ["OMNIGET_PATCH_BASE"],"source_patch_sha256":os.environ["OMNIGET_SOURCE_PATCH_SHA256"],"workflow_checkout_commit":os.environ["GITHUB_SHA"],"apk_build_stamp_commit":os.environ["GITHUB_SHA"],"run_id":os.environ["GITHUB_RUN_ID"],"apk_bytes":apk.stat().st_size,"apk_sha256":hashlib.sha256(apk.read_bytes()).hexdigest(),"remaining_scope":["guide and later localization work","Android-device behavior verification","independent artifact retrieval and local inspection"]}
+          manifest={"channel":"isolated-test-artifact","promoted":False,"app_snapshot_commit":os.environ["OMNIGET_APP_SOURCE_COMMIT"],"app_patch_base":os.environ["OMNIGET_PATCH_BASE"],"source_patch_sha256":os.environ["OMNIGET_SOURCE_PATCH_SHA256"],"gradle_repository_routing":"buildSrc pluginManagement uses Maven Central before Gradle Plugin Portal","workflow_checkout_commit":os.environ["GITHUB_SHA"],"apk_build_stamp_commit":os.environ["GITHUB_SHA"],"run_id":os.environ["GITHUB_RUN_ID"],"apk_bytes":apk.stat().st_size,"apk_sha256":hashlib.sha256(apk.read_bytes()).hexdigest(),"remaining_scope":["guide and later localization work","Android-device behavior verification","independent artifact retrieval and local inspection"]}
           pathlib.Path('dist/build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
           print(json.dumps(manifest,indent=2))
           PYCODE
