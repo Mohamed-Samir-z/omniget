@@ -1,6 +1,8 @@
 name: Android APK
 
 on:
+  push:
+    branches: [android-next-artifact-20261122]
   workflow_dispatch:
 
 concurrency:
