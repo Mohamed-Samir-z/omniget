@@ -1,0 +1,157 @@
+name: Build12 tested-source APK artifact only
+'on':
+  push:
+    branches:
+    - android-build12-artifact-only
+    paths:
+    - .github/workflows/build12-artifact-only.yml
+permissions:
+  contents: read
+jobs:
+  verify-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+    - name: Require all8 exact-source checks and current PR/source identity
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: "set -euo pipefail\npython3 - <<'PY'\nimport json,os,urllib.request\nbase='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']\ndef read(path):\n    request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})\n    with urllib.request.urlopen(request,timeout=30) as response:\n        return json.load(response)\nsource='3471aa60867bade299abed5bda761965638e7608'\ntree='3dd7c7fa2fafa5c35f680aa564427acbec557bb4'\npr=read('/pulls/23')\nassert pr['state']=='open' and pr['head']['sha']==source and pr['base']['ref']=='android', 'PR identity/state changed'\nassert read('/git/commits/'+source)['tree']['sha']==tree, 'Source tree changed'\nrun=read('/actions/runs/45016029690')\nassert run['head_sha']==source and run['head_branch']=='android-build12-caption-notification', 'CI source mismatch'\nassert run['path']=='.github/workflows/ci.yml' and run['event']=='pull_request', 'Unexpected CI workflow/event'\nassert run['status']=='completed' and run['conclusion']=='success', 'CI not successful'\njobs=read('/actions/runs/45016029690/jobs?filter=latest&per_page=100')\nexpected={'frontend','metainfo','rust (ubuntu-latest)','rust (windows-latest)','rust (macos-latest)','rust-debian','smoke (ubuntu-latest)','smoke (windows-latest)'}\nassert jobs['total_count']==8 and len(jobs['jobs'])==8, 'Unexpected job count'\nassert {job['name'] for job in jobs['jobs']}==expected, 'Required job set changed'\nassert all(job['status']=='completed' and job['conclusion']=='success' for job in jobs['jobs']), 'Not all8jobs green'\nprint('All8 exact-source CI jobs and current PR/source gates passed. No branch promotion is performed.')\nPY\n"
+  apk:
+    needs: verify-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      ANDROID_TARGET: aarch64
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: 3471aa60867bade299abed5bda761965638e7608
+        fetch-depth: 1
+        persist-credentials: false
+    - name: Verify checked-out tested source identity
+      run: 'set -euo pipefail
+
+        test "$(git rev-parse HEAD)" = "3471aa60867bade299abed5bda761965638e7608"
+
+        test "$(git rev-parse HEAD^{tree})" = "3dd7c7fa2fafa5c35f680aa564427acbec557bb4"
+
+        test -z "$(git status --porcelain)"
+
+        test "$(sha256sum .github/workflows/android.yml | cut -d'' '' -f1)" = "7a894b2bf63f5d55515b355f3ad544df2567bac7c5379be52f91a8288a0feb9d"
+
+        echo "APK source is 3471aa60867bade299abed5bda761965638e7608; workflow orchestration head is $GITHUB_SHA"
+
+        '
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Install NDK and build tools
+      run: "SDKM=\"$(ls -d \"$ANDROID_HOME\"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)\"\nyes | \"$SDKM\" --licenses >/dev/null || true\n\"$SDKM\" \"platforms;android-34\" \"build-tools;34.0.0\" \"build-tools;35.0.0\" \"ndk;27.0.12077973\"\necho \"ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973\" >> \"$GITHUB_ENV\"\necho \"NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973\" >> \"$GITHUB_ENV\"\n\n# NDK r23+ dropped the `<triple>-ranlib` / `-ar` binutils names and\n# ships only llvm-* tools. The vendored OpenSSL build still looks for\n# the old names, so expose them as symlinks on PATH.\nNDKBIN=\"$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin\"\nSHIMS=\"$HOME/ndk-shims\"\nmkdir -p \"$SHIMS\"\nfor triple in aarch64-linux-android armv7a-linux-androideabi arm-linux-androideabi x86_64-linux-android i686-linux-android; do\n  for tool in ar ranlib strip nm; do\n    ln -sf \"$NDKBIN/llvm-$tool\" \"$SHIMS/$triple-$tool\"\n  done\ndone\necho \"$SHIMS\" >> \"$GITHUB_PATH\"\necho \"$NDKBIN\" >> \"$GITHUB_PATH\"\n"
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ./src-tauri
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+    - name: Install frontend dependencies
+      run: pnpm install --frozen-lockfile
+    - name: Generate the Android project
+      run: pnpm tauri android init --ci
+    - name: Test Android runtime patcher
+      run: 'python3 .github/android/test_patch_project.py
+
+        python3 .github/android/test_resume_policy.py
+
+        python3 .github/android/test_download_startup.py
+
+        '
+    - name: Bundle yt-dlp, Python and ffmpeg
+      run: 'python3 .github/android/patch_project.py
+
+        python3 .github/android/test_download_startup.py --yt-dlp src-tauri/gen/android/app/src/main/res/raw/omniget_ytdlp
+
+        '
+    - name: Test gallery registration and filenames
+      run: 'python3 .github/android/test_gallery_registration.py
+
+        rustc --edition 2021 --test .github/android/media_names.rs -o /tmp/media-names-test
+
+        /tmp/media-names-test
+
+        '
+    - name: Build release APK
+      run: '# Stamp the build so the in-app updater can tell whether the
+
+        # android-latest release is newer than the installed APK.
+
+        export LIBREGET_BUILD_SHA="3471aa60867bade299abed5bda761965638e7608"
+
+        export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
+
+        '
+    - name: Sign the APK
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      run: "set -euo pipefail\n: \"${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}\"\n: \"${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}\"\n: \"${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}\"\n: \"${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}\"\nKEYSTORE=\"$RUNNER_TEMP/omniget-release.keystore\"\ntrap 'rm -f \"$KEYSTORE\"' EXIT\numask 077\nprintf '%s' \"$ANDROID_KEYSTORE_BASE64\" | base64 --decode > \"$KEYSTORE\"\ntest -s \"$KEYSTORE\"\n\nUNSIGNED=\"$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)\"\ntest -n \"$UNSIGNED\" || { echo \"no unsigned APK found\"; exit 1; }\nBT=\"$ANDROID_HOME/build-tools/34.0.0\"\nmkdir -p dist\n\"$BT/zipalign\" -f -p 4 \"$UNSIGNED\" dist/aligned.apk\n\"$BT/apksigner\" sign --ks \"$KEYSTORE\" \\\n  --ks-key-alias \"$ANDROID_KEY_ALIAS\" \\\n  --ks-pass env:ANDROID_KEYSTORE_PASSWORD \\\n  --key-pass env:ANDROID_KEY_PASSWORD \\\n  --out dist/libreget-android.apk dist/aligned.apk\n\"$BT/apksigner\" verify --verbose dist/libreget-android.apk\nrm dist/aligned.apk\n"
+    - name: Inspect the signed APK
+      run: 'set -euo pipefail
+
+        BT="$ANDROID_HOME/build-tools/35.0.0"
+
+        ls -l dist/libreget-android.apk
+
+        sha256sum dist/libreget-android.apk > dist/apk-sha256.txt
+
+        cat dist/apk-sha256.txt
+
+        unzip -tq dist/libreget-android.apk
+
+        "$BT/zipalign" -c -P 16 -v 4 dist/libreget-android.apk > dist/zipalign-verification.txt
+
+        cat dist/zipalign-verification.txt
+
+        "$BT/apksigner" verify --verbose --print-certs dist/libreget-android.apk > dist/signature-verification.txt
+
+        cat dist/signature-verification.txt
+
+        "$BT/aapt2" dump badging dist/libreget-android.apk > dist/manifest-badging.txt
+
+        grep -E "^(package|minSdkVersion|sdkVersion|targetSdkVersion|native-code|application-label:)" dist/manifest-badging.txt
+
+        '
+    - name: Require signing continuity and source stamp; record manifest and native alignment
+      run: "set -euo pipefail\npython3 - <<'PY'\nimport zipfile,hashlib,json,os,re,struct\nfrom pathlib import Path\napk=Path('dist/libreget-android.apk')\ncerts=re.findall(r'^Signer #\\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$',Path('dist/signature-verification.txt').read_text(),re.M)\nexpected_cert='76c5a17e669f7b7121a1d4af680cebf1477106bc970df2d789c8859b66a34af0'\nassert len(certs)==1 and certs[0].lower()==expected_cert, 'Unexpected signing certificate or signer count'\nbadging=Path('dist/manifest-badging.txt').read_text()\ndef field(pattern):\n    match=re.search(pattern,badging,re.M)\n    assert match, 'Missing manifest field: '+pattern\n    return match.group(1)\npackage=field(r\"^package: name='([^']+)'\")\nminimum=int(field(r\"^(?:minSdkVersion|sdkVersion):'(\\d+)'\") )\ntarget=int(field(r\"^targetSdkVersion:'(\\d+)'\") )\nabi=re.findall(r\"'([^']+)'\",field(r'^native-code:(.*)$'))\nassert package=='com.openselena.libreget', 'Package identity changed'\nassert minimum==24 and target>=minimum, 'Unexpected SDK configuration'\nassert abi==['arm64-v8a'], 'Unexpected native ABI set'\nelf=[]\nwith zipfile.ZipFile(apk) as archive:\n    library='lib/arm64-v8a/liblibreget_lib.so'\n    assert library in archive.namelist(), 'Missing application arm64 library'\n    assert b'3471aa60867bade299abed5bda761965638e7608' in archive.read(library), 'APK lacks tested source build stamp'\n    for name in archive.namelist():\n        if not (name.startswith('lib/') and name.endswith('.so')):\n            continue\n        data=archive.read(name)\n        if not data.startswith(b'\\x7fELF'):\n            elf.append({'name':name,'elf':False})\n            continue\n        assert data[4]==2 and data[5]==1, 'Unexpected ELF class/byte order'\n        offset=struct.unpack_from('<Q',data,32)[0]\n        size,count=struct.unpack_from('<HH',data,54)\n        loads=[]\n        for index in range(count):\n            kind,flags,position,address,physical,filesize,memory,alignment=struct.unpack_from('<IIQQQQQQ',data,offset+index*size)\n            if kind==1:\n                loads.append({'alignment':alignment,'congruent16k':(position-address)%16384==0})\n        elf.append({'name':name,'elf':True,'loads':loads,'elf16k':bool(loads) and all(x['alignment']>=16384 and x['congruent16k'] for x in loads)})\nreport={'source_sha':'3471aa60867bade299abed5bda761965638e7608','source_tree':'3dd7c7fa2fafa5c35f680aa564427acbec557bb4','ci_run':45016029690,'workflow_head':os.environ['GITHUB_SHA'],'artifact_sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'artifact_bytes':apk.stat().st_size,'certificate_sha256':certs[0].lower(),'package':package,'min_sdk':minimum,'target_sdk':target,'abis':abi,'zipalign16k_passed':True,'native_elf':elf,'public_distribution':False,'record_scope':'Workflow-generated verification record and embedded stamp, not reproducible-build or independent signed provenance'}\nPath('dist/verification-record.json').write_text(json.dumps(report,indent=2)+'\\n')\nprint(json.dumps(report,indent=2))\nPY\n"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: libreget-android-apk
+        path: dist/libreget-android.apk
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v4
+      with:
+        name: build12-verification-records
+        path: 'dist/verification-record.json
+
+          dist/apk-sha256.txt
+
+          dist/signature-verification.txt
+
+          dist/manifest-badging.txt
+
+          dist/zipalign-verification.txt'
+        if-no-files-found: error
