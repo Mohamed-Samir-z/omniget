@@ -120,11 +120,23 @@ fn unsupported_workspace_lock(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::Unsupported || matches!(error.raw_os_error(), Some(38 | 95))
 }
 
+/// OS lock whose ownership ends with the job, not inherited handles.
+struct ClipLock(std::fs::File);
+
+impl Drop for ClipLock {
+    fn drop(&mut self) {
+        // Closing our handle alone does not release an advisory lock while a
+        // concurrent fork still has the same open-file description. End the
+        // job's ownership explicitly, including early-return error paths.
+        let _ = fs4::FileExt::unlock(&self.0);
+    }
+}
+
 /// Durable job workspace. A completed source survives interruption; only a
 /// verified final publish or an explicit discard may remove it.
 pub struct ClipJob {
     pub directory: PathBuf,
-    _locks: Vec<std::fs::File>,
+    _locks: Vec<ClipLock>,
 }
 impl ClipJob {
     pub fn open(parent: &Path, key: &str) -> anyhow::Result<Self> {
@@ -152,7 +164,7 @@ impl ClipJob {
         workspace_lock_result(FileExt::try_lock(&lock))?;
         Ok(Self {
             directory,
-            _locks: vec![lock],
+            _locks: vec![ClipLock(lock)],
         })
     }
     /// Private sidecar files stay in place after completion. Unlinking a lock
@@ -178,6 +190,7 @@ impl ClipJob {
             .truncate(false)
             .open(lock_root.join(format!("{key}.lock")))?;
         workspace_lock_result(FileExt::try_lock(&private_lock))?;
+        let private_lock = ClipLock(private_lock);
         let directory = parent.join(format!(".omniget-clip-{key}"));
         std::fs::create_dir_all(&directory)?;
         // Retain compatibility with a live older worker on filesystems where
@@ -191,7 +204,7 @@ impl ClipJob {
             .open(directory.join("workspace.lock"))?;
         let mut locks = vec![private_lock];
         match legacy_try_lock(&legacy) {
-            Ok(()) => locks.push(legacy),
+            Ok(()) => locks.push(ClipLock(legacy)),
             Err(fs4::TryLockError::Error(error)) if unsupported_workspace_lock(&error) => {}
             Err(error) => workspace_lock_result(Err(error))?,
         }
@@ -1057,3 +1070,31 @@ mod unsupported_fs_integration {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod inherited_lock_regression {
+    use super::*;
+
+    #[test]
+    fn inherited_descriptors_do_not_keep_a_finished_job_locked() {
+        let root = std::env::temp_dir().join(format!("inherited-clip-{}", uuid::Uuid::new_v4()));
+        let key = uuid::Uuid::new_v4().to_string();
+        let output = root.join("output");
+        let private = root.join("private");
+        let job = ClipJob::open_with_private_lock(&output, &key, &private).unwrap();
+        // dup and fork retain the same open-file description. A concurrent
+        // subprocess may briefly inherit it before its close-on-exec runs.
+        let inherited_private = job._locks[0].0.try_clone().unwrap();
+        let inherited_legacy = job._locks[1].0.try_clone().unwrap();
+        drop(job);
+        let reopened = ClipJob::open_with_private_lock(&output, &key, &private);
+        assert!(
+            reopened.is_ok(),
+            "Finished job remained locked: {:?}",
+            reopened.err()
+        );
+        drop(inherited_private);
+        drop(inherited_legacy);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+        }
