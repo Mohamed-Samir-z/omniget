@@ -71,9 +71,9 @@ class SharePopup(private val activity: MainActivity) {
         dialog?.setOnDismissListener(null)
         dialog?.dismiss()
         fullAppWasOpen = activity.hasFullAppSession()
-        // A warm share overlays the existing host. Never hide or remove its
-        // Recents task just to show another link.
-        if (!fullAppWasOpen) hideApp()
+        // Both cold and warm shares must expose the source task, not Home.
+        // Hiding views does not destroy the single Tauri runtime or its queue.
+        hideApp()
         val box = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = NativeText.direction(activity)

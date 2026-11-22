@@ -1,5 +1,6 @@
 <script lang="ts">
   import { isAndroid } from "$lib/platform";
+  import { createMediaDetailsLoader } from "$lib/home/media-details";
   import SubtitleChoice from "$components/home/SubtitleChoice.svelte";
   import DeveloperCard from "$components/DeveloperCard.svelte";
   import DownloadTiming from "$components/home/DownloadTiming.svelte";
@@ -37,7 +38,7 @@
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { onClipboardUrl } from "$lib/stores/clipboard-monitor";
-  import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
+  import { getMediaPreview, clearMediaPreview, requestMediaPreview, setMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { clearPendingExternalPrefill, getPendingExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import { getLibreboxDraftUrl, setLibreboxDraftUrl } from "$lib/stores/librebox-draft-store.svelte";
   import { t } from "$lib/i18n";
@@ -91,8 +92,12 @@
   let selectedAudioLanguage = $state<string | null>(null);
   let selectedAudioLanguages = $state<string[]>([]);
   let multipleAudio = $state(false);
+  const mediaDetails = createMediaDetailsLoader<{ formats: FormatInfo[]; subtitles: { tracks: { lang: string; name: string; auto: boolean }[] } }>(targetUrl => invoke("get_media_details", { url: targetUrl }));
+  async function loadSubtitleTracks(targetUrl: string) { return (await mediaDetails.load(targetUrl)).subtitles; }
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
+  let formatsExpanded = $state(false);
+  let previewPending = $state(false);
   let formatError = $state<string | null>(null);
   let formatFetchGeneration = $state(0);
   let referer = $state("");
@@ -223,11 +228,6 @@
   });
 
 
-  $effect(() => {
-    if (mediaPreview) {
-      previewImageLoading = true;
-    }
-  });
 
   $effect(() => {
     const incoming = pendingExternalPrefill;
@@ -344,6 +344,7 @@
 
 
   function handleInput() {
+    mediaDetails.reset();
     if (debounceTimer) clearTimeout(debounceTimer);
     if (addedNoticeTimer) {
       clearTimeout(addedNoticeTimer);
@@ -380,6 +381,8 @@
     selectedAudioLanguages = [];
     multipleAudio = false;
     formats = [];
+    formatsExpanded = false;
+    previewPending = false;
     loadingFormats = false;
     formatError = null;
     formatFetchGeneration++;
@@ -441,15 +444,13 @@
           result.platform !== "p2p" &&
           !isTorrentUrl(value);
         if (shouldPrefetch) {
+          requestMediaPreview(value);
           invoke("prefetch_media_info", { url: value }).catch(() => {});
-          const startedAt = Date.now();
-          while (
-            url.trim() === value &&
-            getMediaPreview()?.url !== value &&
-            Date.now() - startedAt < 2200
-          ) {
-            await new Promise((r) => setTimeout(r, 50));
-          }
+          previewPending = true;
+          void invoke<import("$lib/stores/media-preview-store.svelte").MediaPreview | null>("quick_media_preview", { url: value })
+            .then(preview => { if (url.trim() === value && preview && !getMediaPreview()) setMediaPreview(preview); })
+            .catch(() => {})
+            .finally(() => { if (url.trim() === value) previewPending = false; });
         }
         if (url.trim() !== value) return;
         libreState = { kind: "detected", info: result };
@@ -607,9 +608,7 @@
   async function loadFormats() {
     if (loadingFormats) return;
     if (formats.length > 0) {
-      formats = [];
-      selectedFormatId = null;
-      formatError = null;
+      formatsExpanded = !formatsExpanded;
       return;
     }
     const targetUrl = url.trim();
@@ -621,9 +620,10 @@
     formatError = null;
     const gen = ++formatFetchGeneration;
     try {
-      const result = await invoke<FormatInfo[]>("get_media_formats", { url: targetUrl });
+      const result = (await mediaDetails.load(targetUrl)).formats;
       if (gen !== formatFetchGeneration) return;
       formats = result;
+      formatsExpanded = result.length > 0;
       if (result.length === 0) {
         formatError = $t("librebox.no_formats");
       }
@@ -633,7 +633,7 @@
       const msg = typeof e === "string" ? e : e.message ?? "";
       formatError = msg ? translateBackendError(msg, $t) : $t("librebox.formats_error");
     } finally {
-      loadingFormats = false;
+      if (gen === formatFetchGeneration) loadingFormats = false;
     }
   }
 
@@ -1119,7 +1119,7 @@
 
           <HomeInspector open={showInspector} title={$t('home.inspector_title')}>
             {#if libreState.kind === "detected"}
-              <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
+              <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} loading={previewPending} />
               {#if libreState.info.content_type === "playlist"}
                 <div class="playlist-picker">
                   <div class="playlist-head">
@@ -1207,7 +1207,7 @@
                   <details class="options-panel">
                     <summary class="options-toggle">{$t('librebox.options')}</summary>
                     <div class="options-content">
-                      <SubtitleChoice url={url} bind:selection={subtitleTrack} />
+                      <SubtitleChoice url={url} bind:selection={subtitleTrack} loadTracks={loadSubtitleTracks} />
                       <DownloadModeSelector bind:downloadMode onChange={() => { selectedFormatId = null; selectedAudioLanguages = []; multipleAudio = false; selectedAudioLanguage = null; }} />
                       {#if downloadMode !== "audio" && downloadMode !== "mp3"}
                         <QualityPicker bind:selectedQuality {selectedFormatId} {availableHeights} {hasAudioOnly} />
@@ -1234,6 +1234,7 @@
                             bind:selectedAudioLanguages
                             bind:selectedAudioLanguage
                             {loadingFormats}
+                            expanded={formatsExpanded}
                             {formatError}
                             onLoadFormats={loadFormats}
                             onSelectFormat={selectFormat}
@@ -1530,7 +1531,10 @@
   }
 
   .options-toggle {
-    display: inline-flex;
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
     align-items: center;
     gap: 4px;
     font-size: var(--text-sm);

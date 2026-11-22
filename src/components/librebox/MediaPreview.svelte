@@ -1,7 +1,12 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
   import type { MediaPreview } from "$lib/stores/media-preview-store.svelte";
 
-  let { mediaPreview = $bindable(), imageLoading = $bindable(true) } = $props();
+  let { mediaPreview = $bindable(), imageLoading = $bindable(true), loading = false } = $props();
+
+  const thumbnail = $derived(mediaPreview?.thumbnail_url ?? null);
+  let imageFailed = $state(false);
+  $effect(() => { imageLoading = Boolean(thumbnail); imageFailed = false; });
 
   function formatDuration(seconds: number | null): string {
     if (seconds === null) return "";
@@ -16,18 +21,20 @@
 {#if mediaPreview}
   <div class="preview-container">
     <div class="preview-thumbnail-wrapper">
-      {#if imageLoading && mediaPreview.thumbnail_url}
+      {#if imageLoading && !imageFailed && thumbnail}
         <div class="preview-skeleton"></div>
       {/if}
-      {#if mediaPreview.thumbnail_url}
+      {#if thumbnail && !imageFailed}
         <img
           class="preview-thumbnail"
           class:loaded={!imageLoading}
-          src={mediaPreview.thumbnail_url}
+          src={thumbnail}
           alt={mediaPreview.title}
-          loading="lazy"
+          loading="eager"
+          decoding="async"
+          fetchpriority="high"
           onload={() => { imageLoading = false; }}
-          onerror={() => { imageLoading = false; }}
+          onerror={() => { imageLoading = false; imageFailed = true; }}
         />
       {:else}
         <div class="preview-fallback-art">
@@ -45,6 +52,11 @@
       {/if}
     </div>
   </div>
+{:else}
+  <div class="preview-container" role="status" aria-live="polite">
+    <div class="preview-thumbnail-wrapper">{#if loading}<div class="preview-skeleton"></div>{:else}<div class="preview-fallback-art"><img class="preview-art" src="/emoji/package.png" alt="" width="32" height="32" /></div>{/if}</div>
+    <p class="preview-author preview-status">{$t(loading ? "librebox.preview_loading" : "librebox.preview_unavailable")}</p>
+  </div>
 {/if}
 
 <style>
@@ -55,6 +67,8 @@
     padding: 0;
     width: 100%;
   }
+
+  .preview-status { white-space: normal; overflow-wrap: anywhere; flex: 1; min-width: 0; }
 
   .preview-thumbnail-wrapper {
     position: relative;

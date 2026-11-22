@@ -78,16 +78,30 @@ class PopupRenderTest {
   assertFalse(a.contentVisible)
   shot("native-renders/native-confirm.png"); click("Not now"); assertTrue(a.left)
  }
- @Test fun warmShareAndDismissKeepExistingHostVisible() {
+ @Test fun warmShareHidesHomeThenDismissRestoresExistingSession() {
   val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); a.fullAppSession=true
   val popup=SharePopup(a); popup.show("https://example.com/new-job")
-  assertTrue(a.contentVisible); click("Download"); settle(a); assertTrue(a.contentVisible)
+  assertFalse(a.contentVisible); click("Download"); settle(a); assertFalse(a.contentVisible)
   click("Not now"); assertTrue(a.contentVisible); assertTrue(a.left); assertEquals(1,a.calls)
  }
- @Test fun warmShareCancelKeepsExistingHostVisible() {
+ @Test fun warmShareCancelRestoresExistingSessionWithoutQueueing() {
   val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); a.fullAppSession=true
-  SharePopup(a).show("https://example.com/new-job"); ShadowDialog.getLatestDialog().cancel(); ShadowLooper.idleMainLooper()
+  SharePopup(a).show("https://example.com/new-job"); assertFalse(a.contentVisible); ShadowDialog.getLatestDialog().cancel(); ShadowLooper.idleMainLooper()
   assertTrue(a.contentVisible);assertTrue(a.left);assertEquals(0,a.calls)
+ }
+ @Test fun activeAcceptedDownloadSurvivesSecondWarmShareDownloadAndDismiss() {
+  val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); a.fullAppSession=true
+  val popup=SharePopup(a)
+  popup.show("https://example.com/first-active"); click("Download"); settle(a)
+  assertEquals(listOf("https://example.com/first-active"),a.acceptedUrls.toList())
+  popup.show("https://example.com/second-job"); assertFalse(a.contentVisible)
+  click("Download")
+  for(i in 0..100) { if(a.calls>=2) break; Thread.sleep(20) }
+  Thread.sleep(50); ShadowLooper.idleMainLooper()
+  click("Not now")
+  assertEquals(listOf("https://example.com/first-active","https://example.com/second-job"),a.acceptedUrls.toList())
+  assertEquals(2,a.calls);assertTrue(a.left);assertFalse(a.isFinishing);assertFalse(a.isDestroyed)
+  assertTrue(a.fullAppSession);assertTrue(a.contentVisible)
  }
  @Test fun moreOptionsPrefillsAndRestoresApp() {
   val a=Robolectric.buildActivity(MainActivity::class.java).setup().get(); val p=SharePopup(a)

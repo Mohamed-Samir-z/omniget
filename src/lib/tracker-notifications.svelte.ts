@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   isPermissionGranted,
   requestPermission,
@@ -10,6 +11,11 @@ import { onTrackerEvent, type TrackerEventPayload } from "$lib/tracker-bridge";
 import { getTrackerSettings } from "$lib/tracker-settings.svelte";
 import { privacyEnabled, maskCode } from "$lib/tracker-privacy.svelte";
 import { t } from "$lib/i18n";
+
+async function androidAlertChannel(): Promise<string | undefined> {
+  if (typeof navigator === "undefined" || !/android/i.test(navigator.userAgent)) return undefined;
+  return (await invoke<string | null>("android_notification_channel")) ?? undefined;
+}
 
 const NOTIFICATION_DEBOUNCE_MS = 60_000;
 const lastNotifiedAt = new Map<number, number>();
@@ -76,6 +82,7 @@ async function handleStatusChanged(p: TrackerEventPayload["status-changed"]) {
 
   try {
     await sendNotification({
+      channelId: await androidAlertChannel(),
       title: buildNotificationTitle(p.code, p.new_status),
       body: buildNotificationBody(p.location),
     });
@@ -121,6 +128,7 @@ export async function sendTestNotification(): Promise<{ ok: boolean; denied: boo
   }
   try {
     await sendNotification({
+      channelId: await androidAlertChannel(),
       title: tStr("tracking.notification.test_title"),
       body: tStr("tracking.notification.test_body"),
     });

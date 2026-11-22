@@ -2,6 +2,7 @@
   import "../app.css";
   import "$lib/style/queue-kinds.css";
   import { page } from "$app/state";
+  import { sectionSwipe } from "$lib/section-swipe";
   import { isMac } from "$lib/platform";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
@@ -438,7 +439,7 @@
       </div>
     {/if}
 
-    <main id="main-content" class="content">
+    <main id="main-content" class="content" use:sectionSwipe={{ enabled: isAndroid, getPath: () => page.url.pathname, rtl: () => isRtlLocale($locale), navigate: (href) => goto(href) }}>
       <div class="mac-pane" class:mac-pane--flush={isFlushRoute}>
         {#if isCoreRoute}
           <div class="core-shell" class:core-shell--flush={isFlushRoute}>

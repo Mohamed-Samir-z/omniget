@@ -488,6 +488,10 @@ pub async fn subtitles_list(url: String) -> Result<SubtitleListResult, String> {
     let json = ytdlp::get_video_info(&ytdlp_path, &url, &[])
         .await
         .map_err(|e| e.to_string())?;
+    Ok(subtitle_details(&json))
+}
+
+fn subtitle_details(json: &serde_json::Value) -> SubtitleListResult {
     let title = sanitize_filename::sanitize(
         json.get("title")
             .and_then(|v| v.as_str())
@@ -497,7 +501,7 @@ pub async fn subtitles_list(url: String) -> Result<SubtitleListResult, String> {
     let mut tracks = Vec::new();
     collect_sub_tracks(json.get("subtitles"), false, &mut tracks);
     collect_sub_tracks(json.get("automatic_captions"), true, &mut tracks);
-    Ok(SubtitleListResult { title, tracks })
+    SubtitleListResult { title, tracks }
 }
 
 async fn fetch_text(client: &reqwest::Client, url: &str) -> Result<String, String> {
@@ -2016,4 +2020,61 @@ pub async fn android_schedules(action: String, id: Option<String>) -> Result<Str
         let _ = (action, id);
         Err("OS-backed schedules are Android-only".into())
     }
+}
+
+/// Keep frontend notifications on the same user-respecting Android alert policy.
+#[tauri::command]
+pub fn android_notification_channel() -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    return crate::android_media::notification_channel().map(Some);
+    #[cfg(not(target_os = "android"))]
+    Ok(None)
+}
+
+/// A bounded public preview, independent of slow full yt-dlp extraction.
+#[tauri::command]
+pub async fn quick_media_preview(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<Option<crate::core::quick_preview::QuickPreview>, String> {
+    if !crate::core::quick_preview::is_youtube_url(&url) {
+        return Ok(None);
+    }
+    let settings = config::load_settings(&app);
+    let client = crate::core::http_client::apply_proxy(reqwest::Client::builder(), &settings.proxy)
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get("https://www.youtube.com/oembed")
+        .query(&[("url", url.as_str()), ("format", "json")])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?;
+    let value: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    Ok(crate::core::quick_preview::parse(value, &url))
+}
+
+#[derive(Clone, Serialize)]
+pub struct MediaDetails {
+    pub formats: Vec<FormatInfo>,
+    pub subtitles: SubtitleListResult,
+}
+
+/// The Home languages and written-subtitle controls share this full-info result.
+/// Kept separate from quick previews, which cannot supply download metadata.
+#[tauri::command]
+pub async fn get_media_details(url: String) -> Result<MediaDetails, String> {
+    let ytdlp_path = ytdlp::ensure_ytdlp()
+        .await
+        .map_err(|e| format!("yt-dlp unavailable: {}", e))?;
+    let json = ytdlp::get_video_info(&ytdlp_path, &url, &[])
+        .await
+        .map_err(|e| format!("Failed to get media details: {}", e))?;
+    Ok(MediaDetails {
+        formats: ytdlp::parse_formats(&json),
+        subtitles: subtitle_details(&json),
+    })
 }

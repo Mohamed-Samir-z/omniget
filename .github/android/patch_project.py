@@ -134,6 +134,7 @@ if "YoutubeDL" not in k:
     act.write_text(k)
     pkg = re.search(r"^package\s+([\w.]+)", k, re.M).group(1)
     (act.parent / "NativeText.kt").write_text(pathlib.Path(__file__).with_name("NativeText.kt").read_text().replace("@PACKAGE@", pkg))
+    (act.parent / "NativeNotifications.kt").write_text(pathlib.Path(__file__).with_name("NativeNotifications.kt").read_text().replace("@PACKAGE@", pkg))
     schedule_template = pathlib.Path(__file__).resolve().with_name("ScheduledDownloads.kt").read_text()
     (act.parent / "ScheduledDownloads.kt").write_text(schedule_template.replace("@PACKAGE@", pkg))
     actions_template = pathlib.Path(__file__).resolve().with_name("MediaActions.kt").read_text()
@@ -206,7 +207,7 @@ if "nativeShareAction" not in k:
     // Keep queued downloads alive, but do not leave a blank share-only task
     // in Recents. Opening the full app restores its normal task entry.
     val manager = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-    manager.appTasks.firstOrNull { it.taskInfo?.taskId == taskId }?.setExcludeFromRecents(!visible)
+    manager.appTasks.firstOrNull { it.taskInfo?.taskId == taskId }?.setExcludeFromRecents(!visible && !fullAppSession)
     if (visible) fullAppSession = true
     shareContentHidden = !visible
     findViewById<android.view.View>(android.R.id.content)?.alpha = if (visible) 1f else 0f

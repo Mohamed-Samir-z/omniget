@@ -32,7 +32,6 @@ object MediaActions {
     }
     @JvmStatic fun complete(context: Context, path: String, title: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("completed", NativeText.t(context, "Completed downloads"), NotificationManager.IMPORTANCE_DEFAULT))
         val id = (path.hashCode() and 0x1fffffff) + 100
         fun pending(share: Boolean): PendingIntent {
             val action = intent(context, path, share)
@@ -46,17 +45,16 @@ object MediaActions {
     }
     internal fun postCompletion(context: Context, id: Int, title: String, open: PendingIntent, share: PendingIntent) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "completed") else Notification.Builder(context)
+        val builder = NativeNotifications.builder(context, "completed", NativeText.t(context, "Completed downloads"))
         manager.notify(id, builder.setSmallIcon(R.drawable.ic_omniget_download)
             .setContentTitle(NativeText.t(context, "Download complete")).setContentText(title.take(160))
             .setStyle(Notification.BigTextStyle().bigText(title.take(160)))
-            .setContentIntent(open).setAutoCancel(true)
+            .setContentIntent(open).setAutoCancel(true).setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, NativeText.t(context, "Open"), open).build())
             .addAction(Notification.Action.Builder(null, NativeText.t(context, "Share"), share).build()).build())
         // Post only after the normal completion notification, never instead of it.
         // A distinct tag keeps the prayer from replacing Open/Share actions.
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("developer-prayer", NativeText.t(context, "Developer appreciation"), NotificationManager.IMPORTANCE_LOW))
-        val prayer = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "developer-prayer") else Notification.Builder(context)
+        val prayer = NativeNotifications.builder(context, "developer-prayer", NativeText.t(context, "Developer appreciation"))
         manager.notify("developer-prayer", id, prayer
             .setSmallIcon(R.drawable.ic_omniget_download)
             .setContentTitle("دعوة حلوة منك")

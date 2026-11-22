@@ -249,6 +249,33 @@ fn load_class<'a>(env: &mut JNIEnv<'a>, context: &JObject, name: &str) -> JniRes
     .l()
 }
 
+/// Resolve the shared Android alert policy for frontend-originated notifications.
+pub fn notification_channel() -> Result<String, String> {
+    let mut response = None;
+    if !with_context("notification channel", |env, context| {
+        let class = load_class(env, context, "com.openselena.libreget.NativeNotifications")?;
+        let id = env.new_string("default")?;
+        let label = env.new_string("App notifications")?;
+        let value = env
+            .call_static_method(
+                jni::objects::JClass::from(class),
+                "channel",
+                "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                &[
+                    JValue::Object(context),
+                    JValue::Object(&id),
+                    JValue::Object(&label),
+                ],
+            )?
+            .l()?;
+        response = Some(env.get_string(&jni::objects::JString::from(value))?.into());
+        Ok(())
+    }) {
+        return Err("Could not read Android notification settings".into());
+    }
+    response.ok_or_else(|| "Android notification channel is unavailable".into())
+}
+
 pub fn notify_complete(path: &std::path::Path, title: &str) {
     let path = path.to_string_lossy().into_owned();
     let title = title.to_string();

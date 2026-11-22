@@ -31,12 +31,10 @@ class DownloadService : Service() {
     private fun refresh(foreground: Boolean) {
         val p = progress
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) {
-            manager.createNotificationChannel(NotificationChannel("downloads", NativeText.t(this, "Downloads"), NotificationManager.IMPORTANCE_LOW))
-        }
         val launch = packageManager.getLaunchIntentForPackage(packageName)
         val tap = launch?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) }
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "downloads") else Notification.Builder(this)
+        val builder = NativeNotifications.builder(this, "downloads", NativeText.t(this, "Downloads"))
+        if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         val status = when {
             p.percent < 0 -> NativeText.t(this, "Preparing download")
             p.percent >= 100 -> NativeText.t(this, "Finalizing and adding to media library")

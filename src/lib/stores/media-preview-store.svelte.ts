@@ -6,6 +6,7 @@ export type MediaPreview = {
   duration_seconds: number | null;
 };
 
+let expectedUrl: string | null = null;
 let currentPreview = $state<MediaPreview | null>(null);
 
 export function getMediaPreview(): MediaPreview | null {
@@ -13,9 +14,16 @@ export function getMediaPreview(): MediaPreview | null {
 }
 
 export function setMediaPreview(preview: MediaPreview | null) {
+  if (preview && preview.url !== expectedUrl) return;
   currentPreview = preview;
 }
 
 export function clearMediaPreview() {
+  currentPreview = null;
+  expectedUrl = null;
+}
+
+export function requestMediaPreview(url: string) {
+  expectedUrl = url;
   currentPreview = null;
 }

@@ -6,7 +6,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$HERE"/{ScheduleTest.kt,pom.xml} "$WORK/"
-for file in NativeText ScheduledDownloads MediaActions MediaRuntime MediaLibrary; do sed 's/@PACKAGE@/com.openselena.libreget/g' "$HERE/../$file.kt" > "$WORK/$file.kt"; done
+for file in NativeText NativeNotifications ScheduledDownloads MediaActions MediaRuntime MediaLibrary; do sed 's/@PACKAGE@/com.openselena.libreget/g' "$HERE/../$file.kt" > "$WORK/$file.kt"; done
 cd "$WORK"
 "${MVN:-mvn}" -q dependency:build-classpath -Dmdep.outputFile=classpath.txt
 curl --fail --location --silent --show-error https://repo.maven.apache.org/maven2/org/robolectric/android-all/14-robolectric-10818077/android-all-14-robolectric-10818077.jar -o android.jar
