@@ -1,0 +1,48 @@
+name: Publish feature round 11 test APK
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-build11-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publish the verified signed artifact as a separate test prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          RUN=44990107878
+          SHA=3cc60938f7b07f85620af4104d2f44df3ffa6c5d
+          TAG=android-feature-round-11-test
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          gh run download "$RUN" --name libreget-android-apk --dir dist
+          APK_SHA=$(sha256sum dist/libreget-android.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $APK_SHA"
+          cat > notes.md <<NOTES
+          Cumulative test repair build after Build 10. Not a stable release. android-latest is unchanged.
+
+          Changes:
+          1. Clip processing uses stable private-data locks while honoring working legacy locks. Unsupported shared-storage locking no longer produces a false already-running error. Finished-job locks are explicitly released, including error paths, even if another descriptor briefly survives. Existing source checkpoints and recovery identity remain intact.
+          2. Different requested audio/subtitle/quality variants get distinct readable filenames with a deterministic identity prefix. Default audio remains default unless changed. Subtitle choices remain independent of audio choices, including same-language captions. Existing downloaded files are not overwritten or renamed.
+          3. Native sound/high-priority notification channels preserve explicit Android system choices. Progress updates do not repeatedly alert. Warm-share popup background handling retains the single running queue.
+          4. Larger Home control hit areas, clearer available-video-language labels and loading/retry states, shared complete metadata requests, and a quick independent YouTube title/thumbnail preview without the old artificial delay.
+          5. Four-tab Android swipe navigation with RTL direction handling, no wraparound, and exclusions around interactive controls. Subtitle heading changes weight only.
+          6. Reviewed About layout with Mohamed Samir's Android-edition role, existing portrait/contact action, retained Overview/Changelog/Project/Terms navigation, clear lower rows and separate original LibreGet/OpenSelena attribution. All 13 locale dictionaries stay in sync.
+
+          Verification: all eight CI jobs passed on exact source 5f991c8a62d3878fd8ac17467f93e7cfced4bb31 in run 44988034871. The merge tree is identical. Signed APK build $RUN succeeded on $SHA. Checks include 180 frontend tests, zero type errors, strict 4722-key locale parity, 38 clip/lock/recovery tests, 500 repeated full clip suites with zero failures, a descriptor-inheritance regression that failed before the repair, real eight-track FFmpeg SIGKILL/source-reuse recovery, native share/notification and scheduling fixtures, and real yt-dlp/FFmpeg variant/audio/subtitle preservation fixtures. Android runtime generation regressions now also run before APK work in normal CI. About interactions and 320px layout were checked in all 13 locales, with Arabic/English light/dark mobile images inspected.
+
+          Limits: no physical-phone validation of this new APK is claimed. Heads-up notification behavior, system sound settings, OEM process limits and warm-share compositing still need device feedback. Quick preview is best-effort and does not replace full extraction. Existing missing duplicate files cannot be recreated retroactively. Clip recovery restarts unfinished final processing rather than resuming a particular frame. Subtitle files remain sidecars; switchable internal subtitle embedding is not included. The optional pre-existing hidden debug destination remains outside this release's changes.
+
+          Exact signed APK from successful run $RUN, commit $SHA.
+          Install over the existing app. Download the complete APK over a reliable connection, preferably VPN if local downloads are corrupted.
+
+          APK SHA-256: $APK_SHA
+          NOTES
+          gh release create "$TAG" dist/libreget-android.apk --target "$SHA" --prerelease --latest=false --title 'Android feature round 11, TEST BUILD' --notes-file notes.md
