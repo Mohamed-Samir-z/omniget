@@ -118,7 +118,7 @@ jobs:
               valid(asset(entry, BACKUP), OLD_SHA, 101480651, OLD_ID)
               save('outcome.json', {'state': 'already-canonical', 'release': entry['html_url'], 'apk': current['browser_download_url']})
               raise SystemExit(0)
-          assert os.environ['GITHUB_RUN_NUMBER'] == '1' and os.environ['GITHUB_RUN_ATTEMPT'] == '1'
+          assert os.environ['GITHUB_RUN_NUMBER'] == '2' and os.environ['GITHUB_RUN_ATTEMPT'] == '1'
           valid(current, OLD_SHA, 101480651, OLD_ID)
           assert entry['name'] == 'omniget Android, TEST'
           assert entry['target_commitish'] == 'dde38615048e591560346fb301464db0650e1307'
@@ -126,7 +126,7 @@ jobs:
           assert asset(entry, BACKUP) is None
           valid(asset(entry, STAGE), NEW_SHA, 101624011, 780174311)
           original_refs = refs(); save('refs-before.json', original_refs)
-          unrelated = {a['id']: (a['name'], a['digest'], a['size']) for a in entry['assets'] if a['id'] != OLD_ID}
+          unrelated = {a['id']: (a['name'], a['digest'], a['size']) for a in entry['assets'] if a['id'] not in (OLD_ID, 780174311)}
 
           run = api(R + '/actions/runs/45055794408')
           assert run['status'] == 'completed' and run['conclusion'] == 'success' and run['head_sha'] == BUILD
