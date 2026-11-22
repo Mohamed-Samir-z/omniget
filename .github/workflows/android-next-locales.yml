@@ -1,0 +1,230 @@
+name: Android next locales and developer card artifact
+on:
+  push:
+    branches: [android-next-locales-card-20261122]
+  workflow_dispatch:
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  apk:
+    if: ${{ github.ref == 'refs/heads/android-next-locales-card-20261122' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANDROID_TARGET: aarch64
+      OMNIGET_APP_SOURCE_COMMIT: 4e1b3f28419860750f656041a44db55cd1da91b7
+      OMNIGET_PATCH_BASE: 3471aa60867bade299abed5bda761965638e7608
+      OMNIGET_SOURCE_PATCH_SHA256: 6c39d885af34048b2611a8bdba671f63ac69fc5d150a2b0f8013fca213beb163
+      OMNIGET_SOURCE_BLOB_SUFFIX: omniget-source-4e1b3f2.part*.b85
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply and verify the exact next-release source snapshot
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import pathlib, os, subprocess, hashlib, base64, lzma
+          matches=list(pathlib.Path('.github/workflows').glob('*'+os.environ['OMNIGET_SOURCE_BLOB_SUFFIX']))
+          assert len(matches)==3, 'Expected one exact source payload'
+          matches=sorted(matches)
+          payload=matches[0]
+          workflow=os.environ['GITHUB_WORKFLOW_REF'].split(os.environ['GITHUB_REPOSITORY']+'/',1)[1].rsplit('@',1)[0]
+          exclude=[':!.github/workflows/android.yml',':(exclude)'+workflow,*[':(exclude)'+str(p) for p in matches]]
+          base=os.environ['OMNIGET_PATCH_BASE']
+          subprocess.run(['git','fetch','--depth=1','origin',base],check=True)
+          subprocess.run(['git','diff','--exit-code',base,'HEAD','--','.',*exclude],check=True)
+          patch=lzma.decompress(base64.b85decode(b''.join(p.read_bytes().strip() for p in matches)))
+          assert hashlib.sha256(patch).hexdigest()==os.environ['OMNIGET_SOURCE_PATCH_SHA256']
+          path=pathlib.Path('/tmp/omniget-next-source.patch'); path.write_bytes(patch)
+          subprocess.run(['git','apply','--unidiff-zero','--check',str(path)],check=True)
+          subprocess.run(['git','apply','--unidiff-zero',str(path)],check=True)
+          subprocess.run(['git','add','--intent-to-add','--force','--','.',*exclude],check=True)
+          data=subprocess.check_output(['git','diff','--no-ext-diff','--no-color','--full-index','--binary','--no-renames','--unified=0',base,'--','.',*exclude])
+          assert hashlib.sha256(data).hexdigest()==os.environ['OMNIGET_SOURCE_PATCH_SHA256']
+          print('Exact next-release snapshot verified:',os.environ['OMNIGET_APP_SOURCE_COMMIT'])
+          PYCODE
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install NDK and build tools
+        # GitHub's ubuntu runners already ship the Android SDK (ANDROID_HOME),
+        # so we only add the pieces we need with its own sdkmanager.
+        run: |
+          SDKM="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)"
+          yes | "$SDKM" --licenses >/dev/null || true
+          "$SDKM" "platforms;android-34" "build-tools;35.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+          # NDK r23+ dropped the `<triple>-ranlib` / `-ar` binutils names and
+          # ships only llvm-* tools. The vendored OpenSSL build still looks for
+          # the old names, so expose them as symlinks on PATH.
+          NDKBIN="$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          SHIMS="$HOME/ndk-shims"
+          mkdir -p "$SHIMS"
+          for triple in aarch64-linux-android armv7a-linux-androideabi arm-linux-androideabi x86_64-linux-android i686-linux-android; do
+            for tool in ar ranlib strip nm; do
+              ln -sf "$NDKBIN/llvm-$tool" "$SHIMS/$triple-$tool"
+            done
+          done
+          echo "$SHIMS" >> "$GITHUB_PATH"
+          echo "$NDKBIN" >> "$GITHUB_PATH"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri"
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify frontend and source formatting
+        run: |
+          pnpm check
+          pnpm test
+          cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Generate the Android project
+        run: pnpm tauri android init --ci
+
+      - name: Resolve buildSrc plugin dependencies from Maven Central first
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import re
+          
+          root = Path('src-tauri/gen/android/buildSrc')
+          if not root.is_dir():
+              raise SystemExit('Generated Android buildSrc is missing')
+          settings = root / 'settings.gradle.kts'
+          existing = settings.read_text() if settings.exists() else ''
+          marker = '// omniget: resolve Kotlin plugin dependencies directly from Maven Central first'
+          if marker in existing:
+              print('buildSrc plugin dependency routing already configured')
+          elif re.search(r'\bpluginManagement\s*\{', existing):
+              raise SystemExit('Unexpected existing buildSrc pluginManagement; inspect before modifying')
+          else:
+              settings.write_text(marker + '\npluginManagement {\n    repositories {\n        mavenCentral()\n        gradlePluginPortal()\n    }\n}\n\n' + existing)
+              print('buildSrc plugin dependencies: Maven Central first, Gradle Plugin Portal retained')
+          PYCODE
+
+      - name: Test Android runtime patcher
+        run: |
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_resume_policy.py
+          python3 .github/android/test_download_startup.py
+
+      - name: Bundle yt-dlp, Python and ffmpeg
+        run: |
+          python3 .github/android/patch_project.py
+          python3 .github/android/test_download_startup.py --yt-dlp src-tauri/gen/android/app/src/main/res/raw/omniget_ytdlp
+
+      - name: Test gallery registration and filenames
+        run: |
+          python3 .github/android/test_gallery_registration.py
+          rustc --edition 2021 --test .github/android/media_names.rs -o /tmp/media-names-test
+          /tmp/media-names-test
+
+      - name: Build release APK
+        run: |
+          # Stamp the build so the in-app updater can tell whether the
+          # android-latest release is newer than the installed APK.
+          export LIBREGET_BUILD_SHA="$GITHUB_SHA"
+          export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
+
+      - name: Sign the APK
+        id: sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+          KEYSTORE="$RUNNER_TEMP/omniget-release.keystore"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          test -s "$KEYSTORE"
+
+          UNSIGNED="$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)"
+          test -n "$UNSIGNED" || { echo "no unsigned APK found"; exit 1; }
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          mkdir -p dist
+          "$BT/zipalign" -f -P 16 -v 4 "$UNSIGNED" dist/aligned.apk
+          "$BT/apksigner" sign --ks "$KEYSTORE" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --out dist/libreget-android.apk dist/aligned.apk
+          "$BT/apksigner" verify --verbose dist/libreget-android.apk
+          rm dist/aligned.apk
+
+      - name: Inspect the signed APK and save provenance
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          python3 - <<'PYCODE'
+          import os,pathlib,hashlib,json,zipfile,struct
+          apk=pathlib.Path('dist/libreget-android.apk')
+          elf=[]
+          with zipfile.ZipFile(apk) as archive:
+              for name in archive.namelist():
+                  if name.startswith('lib/') and name.endswith('.so'):
+                      data=archive.read(name)
+                      if data[:5]!=b'\x7fELF\x02':
+                          continue  # Some runtime archives use a .so suffix without being ELF.
+                      order='<' if data[5]==1 else '>'
+                      offset=struct.unpack_from(order+'Q',data,32)[0]
+                      size,count=struct.unpack_from(order+'HH',data,54)
+                      alignments=[struct.unpack_from(order+'Q',data,offset+i*size+48)[0] for i in range(count) if struct.unpack_from(order+'I',data,offset+i*size)[0]==1]
+                      elf.append({'name':name,'load_alignments':alignments,'elf_16k_ready':bool(alignments) and all(x>=16384 for x in alignments)})
+          manifest={'channel':'isolated-test-artifact','promoted':False,'inspection_status':'pending','app_snapshot_commit':os.environ['OMNIGET_APP_SOURCE_COMMIT'],'app_patch_base':os.environ['OMNIGET_PATCH_BASE'],'source_patch_sha256':os.environ['OMNIGET_SOURCE_PATCH_SHA256'],'gradle_repository_routing':'buildSrc pluginManagement uses Maven Central before Gradle Plugin Portal','workflow_checkout_commit':os.environ['GITHUB_SHA'],'apk_build_stamp_commit':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],'apk_bytes':apk.stat().st_size,'apk_sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'native_elf_alignment':elf,'elf_16k_ready':bool(elf) and all(x['elf_16k_ready'] for x in elf),'device_validation':'pending','remaining_scope':['semantic and device behavior review','Android-device behavior verification','independent artifact retrieval and local inspection']}
+          pathlib.Path('dist/build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          print(json.dumps(manifest,indent=2))
+          PYCODE
+          {
+            echo "== size / sha256 =="; ls -l dist/libreget-android.apk; sha256sum dist/libreget-android.apk
+            echo "== zip integrity =="; unzip -tq dist/libreget-android.apk
+            echo "== zipalign check =="; "$BT/zipalign" -c -P 16 -v 4 dist/libreget-android.apk
+            echo "== signatures =="; "$BT/apksigner" verify --verbose --print-certs dist/libreget-android.apk
+            echo "== manifest summary =="; "$BT/aapt2" dump badging dist/libreget-android.apk | grep -E "^(package|sdkVersion|targetSdkVersion|native-code|application-label:)"
+          } 2>&1 | tee dist/apk-verification.txt
+          python3 - <<'PYCODE'
+          import pathlib,json
+          path=pathlib.Path('dist/build-manifest.json')
+          data=json.loads(path.read_text())
+          data['inspection_status']='passed'
+          path.write_text(json.dumps(data,indent=2)+'\n')
+          PYCODE
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.sign.outcome == 'success' }}
+        with:
+          name: omniget-next-locales-card-4e1b3f2
+          path: |
+            dist/libreget-android.apk
+            dist/build-manifest.json
+            dist/apk-verification.txt
+          if-no-files-found: error
+          retention-days: 1
