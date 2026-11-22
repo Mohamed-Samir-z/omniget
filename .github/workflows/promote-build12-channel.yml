@@ -1,0 +1,243 @@
+name: Promote verified Build12 APK to Android test channel
+on:
+  push:
+    branches: [android-build12-channel-promotion]
+    paths: [.github/workflows/promote-build12-channel.yml]
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: android-build12-channel-promotion
+  cancel-in-progress: false
+jobs:
+  promote-existing-apk:
+    if: github.repository == 'Mohamed-Samir-z/omniget' && github.ref == 'refs/heads/android-build12-channel-promotion' && github.run_number == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reconcile and promote exact existing APK, once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > promote.py <<'PY'
+          import hashlib, json, os, pathlib, subprocess, time, urllib.request
+          assert os.environ['GH_REPO'] == 'Mohamed-Samir-z/omniget'
+          R = 'repos/Mohamed-Samir-z/omniget'
+          REL = R + '/releases/tags/android-latest'
+          OLD_ID = 774322444
+          OLD = '3695993ad908169b94a6643cb62d550ca41ca06f7c904029b6b1ec77ee4f42c4'
+          NEW = '3fe8d4b25410e27c616dfa2400b8bc6389090198cb4023af0d6790bfa3e1f76b'
+          SOURCE = '3471aa60867bade299abed5bda761965638e7608'
+          NAME = 'libreget-android.apk'
+          STAGE = 'libreget-android-build12-TEST.apk'
+          ARCHIVE = 'libreget-android-before-build12-3695993a.apk'
+          URL = 'https://github.com/Mohamed-Samir-z/omniget/releases/download/android-latest/'
+          STAMP = '2026-11-22T05:37:35Z'
+          BODY = 'ad7b850ea55dae5e38474e424e69d290ec05d0101ef6bd75e0e437ffc3da71b0'
+          TITLE = 'omniget Android, Build12 TEST, staging'
+          TARGET = 'fa0051a45d4876d05c4c44ca885af5114e8dab18'
+          REFS = {'tags/android-latest':'c0ac13dede1f6e505e1a4ec78acf912187448f4d', 'heads/android':'46938bb03d557aabd4ea3113ab4f682f884e3f7c', 'heads/main':'b4c733f5a8a699634845e445fc8f162acde547c9'}
+          ROOT = pathlib.Path('evidence'); ROOT.mkdir(exist_ok=True)
+          DATA = pathlib.Path('downloads'); DATA.mkdir(exist_ok=True)
+          DEADLINE = time.monotonic() + 420
+          MODE = os.environ.get('MODE', 'PROMOTE')
+          
+          def save(name, value):
+              (ROOT / name).write_text(json.dumps(value, indent=2))
+          def timeleft():
+              left = int(DEADLINE - time.monotonic())
+              assert left > 10, 'Operation margin exhausted; stop for recovery'
+              return min(30, left - 5)
+          def rawapi(path, method='GET', data=None):
+              args = ['gh', 'api', path, '--method', method, '-H', 'Cache-Control: no-cache']
+              if data is not None: args += ['--input', '-']
+              return json.loads(subprocess.check_output(args, input=None if data is None else json.dumps(data).encode(), timeout=timeleft()))
+          def read(path):
+              for attempt in range(4):
+                  try: return rawapi(path)
+                  except Exception:
+                      if attempt == 3: raise
+                      time.sleep(2 ** attempt)
+          def release():
+              value = read(REL)
+              assert value['id'] == 453014803 and value['tag_name'] == 'android-latest'
+              return value
+          def assets(value, name):
+              matches = [a for a in value['assets'] if a['name'] == name]
+              assert len(matches) <= 1, 'Duplicate exact asset name'
+              return matches[0] if matches else None
+          def valid(asset, sha, size, asset_id=None):
+              assert asset and asset['state'] == 'uploaded' and asset['size'] == size
+              assert asset['digest'] == 'sha256:' + sha
+              if asset_id is not None: assert asset['id'] == asset_id
+          def fields(value):
+              assert value['name'] == TITLE and value['target_commitish'] == TARGET
+              assert value['draft'] is False and value['prerelease'] is True
+              assert hashlib.sha256(value['body'].encode()).hexdigest() == BODY
+              assert SOURCE in value['body'] and NEW in value['body']
+          def refs():
+              actual = {name: read(R + '/git/ref/' + name)['object']['sha'] for name in REFS}
+              assert actual == REFS, 'Reference changed; no ref write is authorized'
+              return actual
+          def no_publisher():
+              own = int(os.environ['GITHUB_RUN_ID'])
+              for status in ['in_progress', 'queued']:
+                  rows = read(R + '/actions/runs?status=' + status + '&per_page=100')
+                  assert rows['total_count'] <= 100
+                  assert not [r for r in rows['workflow_runs'] if r['id'] != own], 'Another Actions run is active; stop for coordination'
+          def digest(path):
+              h = hashlib.sha256()
+              with path.open('rb') as file:
+                  for block in iter(lambda: file.read(1024 * 1024), b''): h.update(block)
+              return h.hexdigest()
+          def downloaded(asset, sha, size, label):
+              assert asset['browser_download_url'] == URL + asset['name']
+              path = DATA / (label + '.apk')
+              for attempt in range(3):
+                  try:
+                      req = urllib.request.Request(asset['browser_download_url'], headers={'User-Agent':'omniget-channel-verification', 'Cache-Control':'no-cache'})
+                      with urllib.request.urlopen(req, timeout=timeleft()) as response, path.open('wb') as out:
+                          while block := response.read(1024 * 1024):
+                              timeleft(); out.write(block)
+                      result = {'id':asset['id'], 'url':asset['browser_download_url'], 'sha256':digest(path), 'bytes':path.stat().st_size}
+                      save(label + '-download.json', result)
+                      assert result['sha256'] == sha and result['bytes'] == size
+                      return result
+                  except Exception:
+                      if attempt == 2: raise
+                      time.sleep(2 ** attempt)
+          def rename(asset_id, oldname, newname):
+              item = read(R + '/releases/assets/' + str(asset_id))
+              assert item['name'] in [oldname, newname]
+              if item['name'] != newname:
+                  try: rawapi(R + '/releases/assets/' + str(asset_id), 'PATCH', {'name':newname})
+                  except Exception: print('Rename response uncertain; re-reading exact asset before further decisions')
+              item = read(R + '/releases/assets/' + str(asset_id))
+              assert item['name'] == newname, 'Rename unconfirmed; stop and reconcile'
+              return item
+          
+          def final(value=None):
+              value = release() if value is None else value
+              fields(value); current_refs = refs()
+              candidate = assets(value, NAME); archived = assets(value, ARCHIVE)
+              valid(candidate, NEW, 100939922); valid(archived, OLD, 100816240, OLD_ID)
+              assert candidate['id'] != OLD_ID and candidate['browser_download_url'] == URL + NAME
+              assert candidate['created_at'] > STAMP
+              proof = downloaded(candidate, NEW, 100939922, 'canonical')
+              after = release(); fields(after); refs()
+              assert assets(after, NAME)['id'] == candidate['id']
+              valid(assets(after, NAME), NEW, 100939922, candidate['id'])
+              valid(assets(after, ARCHIVE), OLD, 100816240, OLD_ID)
+              save('release-verified.json', after); save('refs-verified.json', current_refs)
+              result = {'state':'new-canonical-verified', 'release':value['html_url'], 'canonical':proof, 'created_at':candidate['created_at'], 'source':SOURCE, 'old_archive_id':OLD_ID, 'old_archive_url':archived['browser_download_url']}
+              save('outcome.json', result); print(json.dumps(result))
+              return result
+          
+          def recover():
+              value = release(); save('recovery-state.json', value)
+              current = assets(value, NAME)
+              if current is None:
+                  archived = assets(value, ARCHIVE); valid(archived, OLD, 100816240, OLD_ID)
+                  # Restore the independently known old object first. No artifact/build dependency.
+                  rename(OLD_ID, ARCHIVE, NAME)
+                  value = release(); current = assets(value, NAME)
+              if current.get('digest') == 'sha256:' + NEW:
+                  return final(value)
+              valid(current, OLD, 100816240, OLD_ID)
+              assert current['browser_download_url'] == URL + NAME
+              proof = downloaded(current, OLD, 100816240, 'recovered-old')
+              result = {'state':'old-canonical-verified', 'canonical':proof, 'not_ready_for_new_update':True}
+              save('outcome.json', result); print(json.dumps(result))
+              return result
+          
+          def spent():
+              attempt = int(os.environ['GITHUB_RUN_ATTEMPT']); assert attempt <= 10
+              for number in range(1, attempt):
+                  prior = read(R + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/attempts/' + str(number))
+                  if prior['conclusion'] == 'success': return True
+              return False
+          
+          def promote():
+              assert int(os.environ['GITHUB_RUN_NUMBER']) == 1
+              if spent():
+                  # Successful one-shot authority does not become future repair/promotion authority.
+                  save('authority-spent.json', {'state':'read-only', 'reason':'an earlier attempt succeeded'})
+                  print('Authority spent; no mutations permitted on this rerun')
+                  return
+              value = release(); save('release-entry.json', value)
+              current = assets(value, NAME)
+              if current is None:
+                  recover(); value = release(); current = assets(value, NAME)
+              if current.get('digest') == 'sha256:' + NEW:
+                  final(value); return
+              fields(value); refs(); valid(current, OLD, 100816240, OLD_ID)
+              assert assets(value, ARCHIVE) is None, 'Archive collision; preserve all and stop'
+              downloaded(current, OLD, 100816240, 'before-old')
+              run = read(R + '/actions/runs/45018184508')
+              assert run['status'] == 'completed' and run['conclusion'] == 'success'
+              assert run['head_sha'] == 'cae36a85f2c01ae72c2d5e80e7f9f55621c109f3'
+              assert run['repository']['full_name'] == 'Mohamed-Samir-z/omniget'
+              artifact = read(R + '/actions/artifacts/14752814348')
+              assert artifact['id'] == 14752814348 and not artifact['expired'] and artifact['workflow_run']['id'] == 45018184508
+              assert artifact['name'] == 'libreget-android-apk'
+              save('artifact.json', artifact); save('source-run.json', run)
+              subprocess.run(['gh','run','download','45018184508','--name','libreget-android-apk','--dir','incoming'], check=True, timeout=min(90, timeleft() * 3))
+              apk = pathlib.Path('incoming') / NAME
+              assert apk.stat().st_size == 100939922 and digest(apk) == NEW
+              save('candidate-bytes.json', {'sha256':NEW, 'bytes':apk.stat().st_size, 'app_source':SOURCE, 'orchestration_head':run['head_sha']})
+              value = release(); fields(value); refs(); no_publisher()
+              valid(assets(value, NAME), OLD, 100816240, OLD_ID)
+              assert assets(value, ARCHIVE) is None
+              stage = assets(value, STAGE)
+              if stage is None:
+                  staged_path = apk.with_name(STAGE); apk.rename(staged_path)
+                  subprocess.run(['gh','release','upload','android-latest',str(staged_path)], check=True, timeout=min(90, timeleft() * 3))
+              value = release(); fields(value); refs(); no_publisher()
+              current = assets(value, NAME); stage = assets(value, STAGE)
+              valid(current, OLD, 100816240, OLD_ID); valid(stage, NEW, 100939922)
+              assert stage['id'] != OLD_ID and stage['created_at'] > STAMP
+              assert assets(value, ARCHIVE) is None
+              save('immediate-pre-mutation.json', value)
+              save('recovery-ids.json', {'old_id':OLD_ID,'new_id':stage['id'],'old_name':NAME,'archive_name':ARCHIVE,'stage_name':STAGE,'old_sha256':OLD,'new_sha256':NEW,'canonical_url':URL+NAME})
+              # Two distinct GitHub mutations. A crash gap is possible, not claimed atomic.
+              rename(OLD_ID, NAME, ARCHIVE)
+              rename(stage['id'], STAGE, NAME)
+              final()
+          
+          try:
+              if MODE == 'RECOVER':
+                  if spent(): print('Authority spent; recovery is read-only')
+                  else: recover()
+              else: promote()
+          except Exception as error:
+              failure = {'state':'unverified','kind':type(error).__name__,'message':str(error)[:500]}
+              save('failure.json', failure)
+              # Any later exception invalidates a previously verified intermediate state.
+              save('outcome.json', failure)
+              raise
+          finally:
+              report = ROOT / 'outcome.json'
+              result = json.loads(report.read_text()) if report.exists() else {'state':'unverified'}
+              summary = os.environ.get('GITHUB_STEP_SUMMARY')
+              if summary:
+                  with open(summary,'a') as out: out.write('## Exact APK channel verification\n\n```json\n'+json.dumps(result,indent=2)+'\n```\n')
+          PY
+          python3 promote.py
+      - name: Reconcile after failure or cancellation, without deleting assets
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MODE: RECOVER
+        run: |
+          if [ -f promote.py ]; then python3 promote.py; else echo 'Recovery script unavailable; external state inspection required'; exit 1; fi
+      - name: Preserve safe verification and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: build12-channel-verification
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 3
