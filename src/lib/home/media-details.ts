@@ -4,6 +4,7 @@ export function createMediaDetailsLoader<T>(fetchDetails: (url: string) => Promi
   let current: { url: string; promise: Promise<T> } | null = null;
   return {
     load(url: string): Promise<T> {
+      url = url.trim();
       if (current?.url === url) return current.promise;
       const request = { url, promise: Promise.resolve().then(() => fetchDetails(url)) };
       current = request;
