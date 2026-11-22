@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "動画リンクを貼り付け",
+    "url_hint": "複数リンクやTorrentなどは + から。",
+    "search_app": "アプリ内検索",
+    "p2p_unavailable": "Android では利用できません"
   },
   "tools": {
     "tab": "ツール",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "ダウンロード設定",
+    "audio_requested": "指定した音声",
+    "subtitles_requested": "指定した字幕",
+    "source_audio": "配信元の既定",
+    "subtitles_off": "字幕なし",
+    "app_setting": "アプリの設定",
+    "automatic_captions": "自動",
+    "subtitles_saved": "保存した字幕",
+    "selection_not_recorded": "このダウンロードの設定は記録されていません。",
+    "subtitles_warning": "ファイルを保存しました。選択した字幕がないか、無効です。ファイルは保持されています。",
+    "saved_warning_short": "警告付きで保存"
   },
   "toast": {
     "download_preparing": "ダウンロードを準備中...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "omniget は役に立っていますか？",
+    "body": "GitHub のスターは、より多くの人がプロジェクトを見つける助けになります。無料で応援できます。",
+    "open": "GitHub を開く",
+    "later": "後で",
+    "already": "応援済み",
+    "optional": "任意です。GitHub を開くだけではスターは付きません。"
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

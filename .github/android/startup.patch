@@ -1,8 +1,8 @@
 diff --git a/src-tauri/libreget-core/src/core/ytdlp.rs b/src-tauri/libreget-core/src/core/ytdlp.rs
-index 647f9de1..2cfa529f 100644
+index 9c58216..5db087e 100644
 --- a/src-tauri/libreget-core/src/core/ytdlp.rs
 +++ b/src-tauri/libreget-core/src/core/ytdlp.rs
-@@ -3600,7 +3600,14 @@ pub async fn download_video(
+@@ -3827,7 +3827,14 @@ pub async fn download_video_full(
          }
      }
  
@@ -18,7 +18,7 @@ index 647f9de1..2cfa529f 100644
      if !is_youtube_url(url) {
          base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
      }
-@@ -3914,6 +3921,9 @@ pub async fn download_video(
+@@ -4175,6 +4182,9 @@ pub async fn download_video_full(
          };
  
          let captured_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
@@ -28,7 +28,7 @@ index 647f9de1..2cfa529f 100644
          let line_reader = spawn_stdout_reader(
              lines,
              progress.clone(),
-@@ -3923,16 +3933,21 @@ pub async fn download_video(
+@@ -4184,16 +4194,21 @@ pub async fn download_video_full(
              _timer_start,
              Some(boot_slot.clone()),
              degraded_360p_detector,
@@ -50,7 +50,7 @@ index 647f9de1..2cfa529f 100644
                  if first {
                      first = false;
                      release_boot_slot(&stderr_boot_slot);
-@@ -3946,7 +3961,26 @@ pub async fn download_video(
+@@ -4207,7 +4222,26 @@ pub async fn download_video_full(
              buf
          });
  
@@ -77,7 +77,7 @@ index 647f9de1..2cfa529f 100644
              s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
              _ = cancel_token.cancelled() => {
                  let _ = child.kill().await;
-@@ -3967,7 +4001,10 @@ pub async fn download_video(
+@@ -4228,7 +4262,10 @@ pub async fn download_video_full(
          release_boot_slot(&boot_slot);
  
          let _ = line_reader.await;
@@ -89,7 +89,7 @@ index 647f9de1..2cfa529f 100644
  
          if status.success() {
              if degraded_360p.load(Ordering::Relaxed)
-@@ -4353,6 +4390,7 @@ fn spawn_stdout_reader(
+@@ -4624,6 +4661,7 @@ fn spawn_stdout_reader(
      _timer_start: std::time::Instant,
      boot_slot: Option<BootSlot>,
      degraded_360p_detector: Option<Arc<AtomicBool>>,
@@ -97,7 +97,7 @@ index 647f9de1..2cfa529f 100644
  ) -> tokio::task::JoinHandle<()> {
      tokio::spawn(async move {
          let mut boot_slot = boot_slot;
-@@ -4373,6 +4411,13 @@ fn spawn_stdout_reader(
+@@ -4644,6 +4682,13 @@ fn spawn_stdout_reader(
          let mut current_stream_bytes: u64 = 0;
          let mut planned_count: usize = 0;
          while let Ok(Some(line)) = lines.next_line().await {
@@ -111,7 +111,7 @@ index 647f9de1..2cfa529f 100644
              // Primeira linha: o Python já está de pé, o bootstrap acabou.
              if let Some(slot) = boot_slot.take() {
                  release_boot_slot(&slot);
-@@ -4599,6 +4644,7 @@ async fn run_override_command(
+@@ -4870,6 +4915,7 @@ async fn run_override_command(
          timer_start,
          Some(boot_slot.clone()),
          None,

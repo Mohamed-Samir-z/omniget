@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
   import AudioTrackChoice from "$components/downloads/AudioTrackChoice.svelte";
   import { audioChoice } from "$lib/multi-audio-choice";
   import ScheduledDownloads, { type Scheduled } from "$components/downloads/ScheduledDownloads.svelte";
@@ -34,6 +35,8 @@
   import DownloadCommand from "$components/download/DownloadCommand.svelte";
   import ReencodeDialog from "$components/dialog/ReencodeDialog.svelte";
   import ToolsPanel from "$components/downloads/ToolsPanel.svelte";
+  import DownloadChoices from "$components/downloads/DownloadChoices.svelte";
+  import { newestDownloadFirst, type DownloadSelection } from "$lib/download-display";
   import VideoOpsOverlay from "$components/downloads/VideoOpsOverlay.svelte";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { locale as i18nLocale } from "$lib/i18n";
@@ -170,8 +173,7 @@
       }
     }
 
-    const byRecency = (a: GenericDownloadItem, b: GenericDownloadItem) =>
-      (b.lastUpdateAt || b.startedAt || b.id) - (a.lastUpdateAt || a.startedAt || a.id);
+    const byRecency = newestDownloadFirst;
 
     finished.sort(byRecency);
     completed.sort(byRecency);
@@ -350,7 +352,10 @@
     total_bytes: number | null;
     success: boolean;
     error: string | null;
+    subtitle_warning?: string | null;
+    selection?: DownloadSelection | null;
     completed_at: number;
+    completed_at_ms?: number | null;
     thumbnail_url: string | null;
     kind: QueueKind | null;
   };
@@ -391,7 +396,7 @@
   });
   let historyEntries = $state<HistoryEntry[]>([]);
   let historyTimeline = $derived([
-    ...historyEntries.map(entry => ({ kind: "download" as const, entry, time: entry.completed_at * 1000 })),
+    ...historyEntries.map(entry => ({ kind: "download" as const, entry, time: entry.completed_at_ms ?? entry.completed_at * 1000 })),
     ...systemSchedules.filter(entry => !["ENQUEUED", "RUNNING", "BLOCKED"].includes(entry.state)).map(entry => ({ kind: "schedule" as const, entry, time: entry.finishedAt || entry.at })),
   ].sort((a, b) => Number(b.time) - Number(a.time)));
   async function forgetSchedule(id: string) {
@@ -729,6 +734,8 @@
                     <span class="history-meta-chip history-meta-error">{entry.error}</span>
                   {/if}
                 </div>
+                <DownloadChoices selection={entry.selection} />
+                {#if entry.subtitle_warning}<p class="subtitle-warning" role="status">{$t('downloads.subtitles_warning')}</p>{/if}
                 <div class="history-item-actions">
 
                   {#if entry.success && entry.file_path}
@@ -924,6 +931,7 @@
               </button>
             {:else if item.status === "complete" && item.filePath}
               <CompletedFileActions path={item.filePath} />
+              <button type="button" class="action-icon-btn" onclick={() => removeItemWithFile(item.id)} aria-label={$t('downloads.delete_file')} title={$t('downloads.delete_file')}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg></button>
 
               <button
                 class="action-icon-btn"
@@ -980,7 +988,7 @@
                   </svg>
                 </button>
               {/if}
-              {#if item.filePath && item.queueKind === "video"}
+              {#if item.filePath && item.queueKind === "video" && !isAndroid()}
                 <button
                   class="action-icon-btn"
                   onclick={() => (vopPath = item.filePath!)}
@@ -1036,8 +1044,8 @@
                 </svg>
               </button>
             {/if}
-            <span class="item-status" data-status={item.status}>
-              {$t(`downloads.status.${item.status}`)}
+            <span class="item-status" data-status={item.status} data-warning={!!item.subtitleWarning}>
+              {$t(item.subtitleWarning ? "downloads.saved_warning_short" : `downloads.status.${item.status}`)}
             </span>
           </div>
         </div>
@@ -1144,6 +1152,8 @@
         {/if}
       </div>
     </div>
+    <DownloadChoices selection={item.selection} />
+    {#if item.subtitleWarning}<p class="subtitle-warning" role="status">{$t('downloads.subtitles_warning')}</p>{/if}
   </div>
 {/snippet}
 
@@ -1844,6 +1854,8 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .subtitle-warning {padding:8px 10px;border-inline-start:3px solid #d97706;border-radius:6px;background:color-mix(in srgb,#d97706 13%,transparent);font-size:12px;line-height:1.6;color:var(--text-primary);overflow-wrap:anywhere}
+  .item-status[data-warning="true"] {background:color-mix(in srgb,#d97706 18%,transparent);color:var(--text-primary);border:1px solid #d97706}
   .history-meta-error {
     color: var(--danger);
   }

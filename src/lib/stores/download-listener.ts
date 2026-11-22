@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+import { recordVerifiedSupportDownload } from "$lib/support-prompt";
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
@@ -21,7 +23,7 @@ import { rpcSyncIdleStats } from "$lib/rpc";
 
 // Best-effort OS notification so completions reach the user when the window is
 // in the background (parity with the in-app toast and the channel feature).
-async function notifyComplete(title: string) {
+async function notifyComplete(title: string, warning = false) {
   // Android completion notifications are emitted by the native queue, including share-only downloads.
   if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) return;
   try {
@@ -33,7 +35,8 @@ async function notifyComplete(title: string) {
     if (granted) {
       const tr = get(t);
       n.sendNotification({
-        title: tr("toast.download_complete", { name: title }) as string,
+        title: (warning ? tr("downloads.saved_warning_short") : tr("toast.download_complete", { name: title })) as string,
+        body: warning ? title : undefined,
       });
     }
   } catch {
@@ -73,6 +76,7 @@ type QueueItemInfo = {
   file_path: string | null;
   file_size_bytes: number | null;
   file_count: number | null;
+  subtitle_warning?: string | null;
   thumbnail_url: string | null;
   eta_seconds?: number | null;
 };
@@ -311,9 +315,18 @@ export async function initDownloadListener(): Promise<() => void> {
           queueToastEligibleIds.delete(item.id);
           addLog("info", "download", `Download complete: ${item.title}`, item.file_path ?? undefined);
           const tr = get(t);
-          showToast("success", `${tr("toast.generic_download_complete", { name: item.title })}\nيا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق`);
-          void notifyComplete(item.title);
+          if (item.subtitle_warning) {
+            showToast("info", `${item.title}\n${tr("downloads.subtitles_warning")}`, 12000);
+            addLog("warn", "download", "Selected subtitles missing; media kept", item.file_path ?? undefined);
+          } else {
+            showToast("success", `${tr("toast.generic_download_complete", { name: item.title })}\nيا ريت دعوة منك للباشمهندس محمد سمير، مطور التطبيق`);
+          }
+          void notifyComplete(item.title, !!item.subtitle_warning);
           recordDownloadComplete(item.file_size_bytes ?? 0);
+          if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) {
+            void invoke<boolean>("verify_completed_download", { downloadId: item.id })
+              .then(saved => { if (saved) recordVerifiedSupportDownload(item.id); }).catch(() => {});
+          }
           void rpcSyncIdleStats();
         }
       }

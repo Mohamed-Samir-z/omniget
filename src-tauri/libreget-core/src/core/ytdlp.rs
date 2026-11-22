@@ -1171,7 +1171,7 @@ pub async fn check_ytdlp_update_detailed(ytdlp: &Path) -> anyhow::Result<UpdateC
     let combined = format!("{}{}", stdout, stderr);
 
     if combined.contains("Updated yt-dlp") || combined.contains("Updating to") {
-        tracing::info!("[ytdlp] updated: {}", combined.trim());
+        tracing::info!("[ytdlp] updated: {}", sanitize_log_line(combined.trim()));
         reset_ytdlp_cache();
         Ok(UpdateCheck::Updated)
     } else {
@@ -2622,7 +2622,7 @@ fn extract_error_message(stderr: &str) -> String {
         .map(|l| l.trim().to_string());
 
     if let Some(msg) = error_line {
-        return msg;
+        return sanitize_log_line(&msg);
     }
 
     let warning_line = stderr
@@ -2631,10 +2631,10 @@ fn extract_error_message(stderr: &str) -> String {
         .map(|l| l.trim().to_string());
 
     if let Some(msg) = warning_line {
-        return msg;
+        return sanitize_log_line(&msg);
     }
 
-    stderr.trim().to_string()
+    sanitize_log_line(stderr.trim())
 }
 
 pub async fn get_video_info(
@@ -2780,7 +2780,7 @@ pub async fn get_video_info(
         tracing::debug!(
             "[yt-dlp info] stderr ({} bytes): {}",
             stderr.len(),
-            stderr.trim()
+            sanitize_log_line(stderr.trim())
         );
         let stderr_lower = stderr.to_lowercase();
         if stderr_lower.contains("http error 429") {
@@ -2801,7 +2801,7 @@ pub async fn get_video_info(
             tracing::warn!(
                 "[yt-dlp] info fetch attempt {} failed, retrying with fallback player_client: {}",
                 attempt + 1,
-                stderr.trim().lines().last().unwrap_or("")
+                sanitize_log_line(stderr.trim().lines().last().unwrap_or(""))
             );
             if stderr_lower.contains("http error 429") {
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -2869,7 +2869,7 @@ async fn select_available_subtitle_lang(
             requested_label, manual_label, auto_label
         )
     };
-    tracing::warn!("{}", line);
+    tracing::warn!("{}", sanitize_log_line(&line));
     if let Some(dl_id) = log_hook::current_download_id() {
         log_hook::emit_log(dl_id, &line);
     }
@@ -3925,7 +3925,7 @@ pub async fn download_video_full(
                     "[subtitles] could not check subtitles; continuing without subtitles: {}",
                     err
                 );
-                tracing::warn!("{}", line);
+                tracing::warn!("{}", sanitize_log_line(&line));
                 if let Some(dl_id) = log_hook::current_download_id() {
                     log_hook::emit_log(dl_id, &line);
                 }
@@ -4500,7 +4500,10 @@ pub async fn download_video_full(
                     })
                 });
                 if let Some(ref_url) = fallback {
-                    tracing::info!("[yt-dlp] 403, adding fallback referer: {}", ref_url);
+                    tracing::info!(
+                        "[yt-dlp] 403, adding fallback referer: {}",
+                        sanitize_log_line(&ref_url)
+                    );
                     extra_args.push("--referer".to_string());
                     extra_args.push(ref_url.clone());
                     extra_args.push("--add-headers".to_string());
@@ -5072,6 +5075,8 @@ fn move_file_best_effort(from: &Path, to: &Path) -> bool {
 }
 
 fn sanitize_log_line(line: &str) -> String {
+    let safe = crate::core::log_redaction::redact_diagnostics(line);
+    let line = safe.as_str();
     let mut result = String::with_capacity(line.len());
     let mut remaining = line;
     loop {
@@ -5233,13 +5238,18 @@ fn translate_ytdlp_error(stderr: &str) -> anyhow::Error {
     } else {
         let trimmed = stderr.trim();
         if trimmed.len() > 300 {
-            &trimmed[..300]
+            &trimmed[..trimmed
+                .char_indices()
+                .map(|(i, _)| i)
+                .take_while(|i| *i <= 300)
+                .last()
+                .unwrap_or(0)]
         } else {
             trimmed
         }
     };
 
-    anyhow!("yt-dlp: {}", msg)
+    anyhow!("yt-dlp: {}", sanitize_log_line(msg))
 }
 
 pub fn get_rate_limit_stats() -> serde_json::Value {
@@ -6190,21 +6200,30 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
     fn sanitize_strips_query_params() {
         let input = "Error downloading https://example.com/video?token=secret&key=123 failed";
         let result = sanitize_log_line(input);
-        assert_eq!(result, "Error downloading https://example.com/video failed");
+        assert_eq!(
+            result,
+            "Error downloading https://example.com/[REDACTED] failed"
+        );
     }
 
     #[test]
     fn sanitize_preserves_url_without_query() {
         let input = "Error downloading https://example.com/video failed";
         let result = sanitize_log_line(input);
-        assert_eq!(result, input);
+        assert_eq!(
+            result,
+            "Error downloading https://example.com/[REDACTED] failed"
+        );
     }
 
     #[test]
     fn sanitize_multiple_urls() {
         let input = "from https://a.com/x?s=1 to https://b.com/y?t=2 done";
         let result = sanitize_log_line(input);
-        assert_eq!(result, "from https://a.com/x to https://b.com/y done");
+        assert_eq!(
+            result,
+            "from https://a.com/[REDACTED] to https://b.com/[REDACTED] done"
+        );
     }
 
     #[test]

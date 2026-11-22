@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "Επικολλήστε σύνδεσμο βίντεο",
+    "url_hint": "Στο +: πολλοί σύνδεσμοι, torrent και άλλα.",
+    "search_app": "Αναζήτηση στην εφαρμογή",
+    "p2p_unavailable": "Μη διαθέσιμο σε Android"
   },
   "tools": {
     "tab": "Εργαλεία",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "Επιλογές λήψης",
+    "audio_requested": "Ζητούμενος ήχος",
+    "subtitles_requested": "Ζητούμενοι υπότιτλοι",
+    "source_audio": "Προεπιλογή πηγής",
+    "subtitles_off": "Χωρίς υπότιτλους",
+    "app_setting": "Ρύθμιση εφαρμογής",
+    "automatic_captions": "Αυτόματοι",
+    "subtitles_saved": "Αποθηκευμένοι υπότιτλοι",
+    "selection_not_recorded": "Οι επιλογές αυτής της λήψης δεν καταγράφηκαν.",
+    "subtitles_warning": "Το αρχείο αποθηκεύτηκε. Οι επιλεγμένοι υπότιτλοι λείπουν ή δεν είναι έγκυροι. Το αρχείο διατηρήθηκε.",
+    "saved_warning_short": "Αποθηκεύτηκε με προειδοποίηση"
   },
   "toast": {
     "download_preparing": "Προετοιμασία λήψης...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "Σας αρέσει το omniget;",
+    "body": "Ένα αστέρι στο GitHub βοηθά περισσότερους να βρουν το έργο. Η υποστήριξη είναι δωρεάν.",
+    "open": "Άνοιγμα GitHub",
+    "later": "Αργότερα",
+    "already": "Το υποστήριξα ήδη",
+    "optional": "Προαιρετικό. Το άνοιγμα του GitHub δεν προσθέτει αυτόματα αστέρι."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

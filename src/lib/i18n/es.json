@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "Pega un enlace de vídeo",
+    "url_hint": "Usa + para varios enlaces, torrents y más.",
+    "search_app": "Buscar en la app",
+    "p2p_unavailable": "No disponible en Android"
   },
   "tools": {
     "tab": "Herramientas",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "Opciones de descarga",
+    "audio_requested": "Audio solicitado",
+    "subtitles_requested": "Subtítulos solicitados",
+    "source_audio": "Predeterminado de la fuente",
+    "subtitles_off": "Sin subtítulos",
+    "app_setting": "Ajuste de la aplicación",
+    "automatic_captions": "Automáticos",
+    "subtitles_saved": "Subtítulos guardados",
+    "selection_not_recorded": "No se registraron las opciones de esta descarga.",
+    "subtitles_warning": "Archivo guardado. Los subtítulos elegidos faltan o no son válidos; el archivo se ha conservado.",
+    "saved_warning_short": "Guardado con advertencia"
   },
   "toast": {
     "download_preparing": "Preparando descarga...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "¿Te gusta omniget?",
+    "body": "Una estrella en GitHub ayuda a dar a conocer el proyecto. Puedes apoyarlo gratis.",
+    "open": "Abrir GitHub",
+    "later": "Más tarde",
+    "already": "Ya lo apoyé",
+    "optional": "Opcional. Abrir GitHub no añade una estrella automáticamente."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

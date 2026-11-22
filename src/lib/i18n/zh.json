@@ -91,7 +91,11 @@
     "action_advanced": "高级选项",
     "action_simple": "回到简洁视图",
     "value_line": "已用 LibreGet 保存 {{count}} 个文件 · {{size}}",
-    "value_first": "你的第一次下载大约需要一分钟。私有内容只需你的浏览器 cookies。"
+    "value_first": "你的第一次下载大约需要一分钟。私有内容只需你的浏览器 cookies。",
+    "url_prompt": "粘贴视频链接",
+    "url_hint": "使用 + 添加多个链接、种子与更多选项。",
+    "search_app": "搜索应用",
+    "p2p_unavailable": "Android 暂不支持"
   },
   "tools": {
     "tab": "工具",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "下载选项",
+    "audio_requested": "请求的音轨",
+    "subtitles_requested": "请求的字幕",
+    "source_audio": "来源默认",
+    "subtitles_off": "无字幕",
+    "app_setting": "应用设置",
+    "automatic_captions": "自动",
+    "subtitles_saved": "已保存的字幕",
+    "selection_not_recorded": "未记录此次下载的选项。",
+    "subtitles_warning": "文件已保存。所选字幕缺失或无效，文件已保留。",
+    "saved_warning_short": "已保存，有警告"
   },
   "toast": {
     "download_preparing": "正在准备下载...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "喜欢 omniget 吗？",
+    "body": "在 GitHub 上点星可以帮助更多人发现这个项目。支持是免费的。",
+    "open": "打开 GitHub",
+    "later": "稍后",
+    "already": "已支持",
+    "optional": "自愿参与。打开 GitHub 不会自动点星。"
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

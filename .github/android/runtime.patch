@@ -47,7 +47,7 @@ index 0ed1caf..ca7fb6c 100644
      fn network_and_rate_limit_still_retry() {
          assert!(!is_terminal_category(
 diff --git a/src-tauri/libreget-core/src/core/ytdlp.rs b/src-tauri/libreget-core/src/core/ytdlp.rs
-index 11fa859..0104723 100644
+index 8732f39..e4d3e1f 100644
 --- a/src-tauri/libreget-core/src/core/ytdlp.rs
 +++ b/src-tauri/libreget-core/src/core/ytdlp.rs
 @@ -463,7 +463,7 @@ pub(crate) fn prepare_override_args(
@@ -93,7 +93,7 @@ index 11fa859..0104723 100644
              let Some(py) = android_python() else { return };
              let zip = base.join("yt-dlp").join("yt-dlp");
              let app = base.join("yt-dlp").join("app");
-@@ -2716,6 +2727,8 @@ pub async fn get_video_info(
+@@ -2714,6 +2725,8 @@ pub async fn get_video_info(
              args.push(proxy_url);
          }
          args.extend(effective_extra_flags.iter().cloned());
@@ -102,9 +102,9 @@ index 11fa859..0104723 100644
          args.push(url.to_string());
  
          let _slot = acquire_ytdlp_slot("video info").await;
-@@ -2784,6 +2797,16 @@ pub async fn get_video_info(
+@@ -2782,6 +2795,16 @@ pub async fn get_video_info(
              stderr.len(),
-             stderr.trim()
+             sanitize_log_line(stderr.trim())
          );
 +        // Android's on-device log needs the actual extractor warnings, not
 +        // only the translated final error. Keep the existing redaction path.
@@ -119,7 +119,7 @@ index 11fa859..0104723 100644
          let stderr_lower = stderr.to_lowercase();
          if stderr_lower.contains("http error 429") {
              rate_limit_429_increment();
-@@ -3488,14 +3511,19 @@ pub async fn download_video_full(
+@@ -3520,14 +3543,13 @@ pub async fn download_video_full(
          200
      };
      #[cfg(target_os = "android")]
@@ -130,20 +130,14 @@ index 11fa859..0104723 100644
          .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
 -    // Android file names are limited to 255 bytes; Arabic/emoji titles take 2-4
 -    // bytes per character and yt-dlp adds `.f<id>.<ext>.part`, so keep titles short.
-+    // Bound UTF-8 bytes, not letters: keep Arabic and emoji intact, while
-+    // leaving room below the 255-byte component limit for format/part suffixes.
-+    // Missing titles fall back to the ID without another extraction request.
++    // Use one tested byte-bounded resolver for supplied and None templates.
      #[cfg(target_os = "android")]
 -    let template = template.replace("%(title).200s", "%(title).40s");
-+    let template = template
-+        .replace("%(title).200s", "%(title,id|download).120B")
-+        .replace("%(title).40s", "%(title,id|download).120B")
-+        .replace("%(title)s", "%(title,id|download).120B")
-+        .replace("%(id)s", "%(id).32B");
++    let template = crate::core::media_names::download_filename_template(filename_template);
      let output_template = output_dir.join(&template).to_string_lossy().to_string();
  
      std::fs::create_dir_all(output_dir)?;
-@@ -3619,6 +3647,17 @@ pub async fn download_video_full(
+@@ -3651,6 +3673,17 @@ pub async fn download_video_full(
          "--progress".to_string(),
      ];
      base_args.extend(js_runtime_args());
@@ -161,7 +155,7 @@ index 11fa859..0104723 100644
  
      if mode == "audio" {
          let target_fmt = audio_format.unwrap_or("m4a");
-@@ -3937,16 +3976,12 @@ pub async fn download_video_full(
+@@ -4010,16 +4043,12 @@ pub async fn download_video_full(
              None
          };
  

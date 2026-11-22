@@ -91,7 +91,11 @@
     "action_advanced": "ຕົວເລືອກຂັ້ນສູງ",
     "action_simple": "ກັບໄປມຸມມອງແບບງ່າຍ",
     "value_line": "{{count}} ໄຟລ໌ · {{size}} ບັນທຶກດ້ວຍ LibreGet",
-    "value_first": "ການດາວໂຫຼດຄັ້ງທຳອິດໃຊ້ເວລາປະມານໜຶ່ງນາທີ. ເນື້ອຫາສ່ວນຕົວຕ້ອງການພຽງຄຸກກີ້ຂອງບຣາວເຊີທ່ານ."
+    "value_first": "ການດາວໂຫຼດຄັ້ງທຳອິດໃຊ້ເວລາປະມານໜຶ່ງນາທີ. ເນື້ອຫາສ່ວນຕົວຕ້ອງການພຽງຄຸກກີ້ຂອງບຣາວເຊີທ່ານ.",
+    "url_prompt": "ວາງລິ້ງວິດີໂອ",
+    "url_hint": "ໃຊ້ + ສໍາລັບຫຼາຍລິ້ງ, torrent ແລະອື່ນໆ.",
+    "search_app": "ຄົ້ນຫາໃນແອັບ",
+    "p2p_unavailable": "ບໍ່ມີໃຫ້ໃຊ້ໃນ Android"
   },
   "tools": {
     "tab": "ເຄື່ອງມື",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "ຕົວເລືອກດາວໂຫຼດ",
+    "audio_requested": "ສຽງທີ່ຮ້ອງຂໍ",
+    "subtitles_requested": "ຄຳບັນຍາຍທີ່ຮ້ອງຂໍ",
+    "source_audio": "ຄ່າເລີ່ມຕົ້ນຈາກແຫຼ່ງ",
+    "subtitles_off": "ບໍ່ມີຄຳບັນຍາຍ",
+    "app_setting": "ການຕັ້ງຄ່າແອັບ",
+    "automatic_captions": "ອັດຕະໂນມັດ",
+    "subtitles_saved": "ຄຳບັນຍາຍທີ່ບັນທຶກ",
+    "selection_not_recorded": "ບໍ່ໄດ້ບັນທຶກຕົວເລືອກຂອງການດາວໂຫຼດນີ້.",
+    "subtitles_warning": "ບັນທຶກໄຟລ໌ແລ້ວ. ຄຳບັນຍາຍທີ່ເລືອກບໍ່ມີ ຫຼື ບໍ່ຖືກຕ້ອງ; ໄຟລ໌ຍັງຢູ່.",
+    "saved_warning_short": "ບັນທຶກພ້ອມຄຳເຕືອນ"
   },
   "toast": {
     "download_preparing": "ກຳລັງກຽມດາວໂຫຼດ...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "ມັກ omniget ບໍ?",
+    "body": "ດາວໃນ GitHub ຊ່ວຍໃຫ້ຄົນອື່ນພົບໂຄງການນີ້. ສາມາດສະໜັບສະໜູນໄດ້ຟຣີ.",
+    "open": "ເປີດ GitHub",
+    "later": "ພາຍຫຼັງ",
+    "already": "ສະໜັບສະໜູນແລ້ວ",
+    "optional": "ບໍ່ບັງຄັບ. ການເປີດ GitHub ບໍ່ໄດ້ເພີ່ມດາວອັດຕະໂນມັດ."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

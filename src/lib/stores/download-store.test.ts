@@ -38,6 +38,15 @@ afterAll(() => {
 });
 
 describe("generic download progress", () => {
+  it("keeps persisted choice, warning and completion time from authoritative snapshots", () => {
+    const selection={audio_requested:["ar","en"],subtitles_enabled:true,subtitle_requested:"ar",automatic_subtitles:true,subtitles_obtained:[]};
+    const item={...queueItem(903),status:{type:"Complete"},subtitle_warning:"subtitles_missing",selection,completed_at_ms:100900};
+    store.syncQueueState([item]);
+    expect(store.getDownloads().get(903)).toMatchObject({selection,subtitleWarning:"subtitles_missing",completedAtMs:100900});
+    store.syncQueueState([item]);
+    expect(store.getDownloads().get(903)).toMatchObject({selection,subtitleWarning:"subtitles_missing",completedAtMs:100900});
+  });
+
   it("does not recreate an item removed by an authoritative queue update", () => {
     const id = 901;
     store.syncQueueState([queueItem(id)]);

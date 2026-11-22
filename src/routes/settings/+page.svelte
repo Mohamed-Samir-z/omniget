@@ -84,7 +84,7 @@
   }
 
   $effect(() => {
-    if (settings) {
+    if (settings && !android) {
       loadDeps();
     }
   });
@@ -673,7 +673,7 @@
 
     {#if isSearching || activeCategory === "network"}
       <div class="settings-panel" data-settings-cat="network">
-        <SettingsBrowserExtension />
+        {#if !android}<SettingsBrowserExtension />{/if}
         <SettingsNetwork />
       </div>
     {/if}
@@ -692,7 +692,7 @@
 
     {#if isSearching || activeCategory === "ai"}
       <div class="settings-panel" data-settings-cat="ai">
-        <SettingsAI />
+        {#if android}<section class="settings-section"><h2>{$t("android.unavailable_title")}</h2><p>{$t("android.unavailable_body")}</p></section>{:else}<SettingsAI />{/if}
       </div>
     {/if}
 

@@ -30,7 +30,8 @@ object MediaActions {
         val action = intent(context, path, share)
         context.startActivity(if (share) Intent.createChooser(action, NativeText.t(context, "Share downloaded file")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else action)
     }
-    @JvmStatic fun complete(context: Context, path: String, title: String) {
+    @JvmStatic fun complete(context: Context, path: String, title: String) = completeWithWarning(context, path, title, false)
+    @JvmStatic fun completeWithWarning(context: Context, path: String, title: String, subtitlesMissing: Boolean) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val id = (path.hashCode() and 0x1fffffff) + 100
         fun pending(share: Boolean): PendingIntent {
@@ -41,13 +42,13 @@ object MediaActions {
         }
         val open = pending(false)
         val share = pending(true)
-        postCompletion(context, id, title, open, share)
+        postCompletion(context, id, title, open, share, subtitlesMissing)
     }
-    internal fun postCompletion(context: Context, id: Int, title: String, open: PendingIntent, share: PendingIntent) {
+    internal fun postCompletion(context: Context, id: Int, title: String, open: PendingIntent, share: PendingIntent, subtitlesMissing: Boolean = false) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val builder = NativeNotifications.builder(context, "completed", NativeText.t(context, "Completed downloads"))
         manager.notify(id, builder.setSmallIcon(R.drawable.ic_omniget_download)
-            .setContentTitle(NativeText.t(context, "Download complete")).setContentText(title.take(160))
+            .setContentTitle(NativeText.t(context, if (subtitlesMissing) "File saved, subtitles unavailable" else "Download complete")).setContentText(title.take(160))
             .setStyle(Notification.BigTextStyle().bigText(title.take(160)))
             .setContentIntent(open).setAutoCancel(true).setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, NativeText.t(context, "Open"), open).build())

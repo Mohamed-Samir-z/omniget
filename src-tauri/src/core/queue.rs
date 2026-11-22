@@ -138,6 +138,9 @@ pub struct QueueItemInfo {
     pub file_path: Option<String>,
     pub file_size_bytes: Option<u64>,
     pub file_count: Option<u32>,
+    pub subtitle_warning: Option<String>,
+    pub selection: Option<crate::core::download_selection::DownloadSelection>,
+    pub completed_at_ms: Option<u64>,
     pub thumbnail_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<QueueKind>,
@@ -198,6 +201,9 @@ pub struct QueueItem {
     pub file_path: Option<String>,
     pub file_size_bytes: Option<u64>,
     pub file_count: Option<u32>,
+    pub subtitle_warning: Option<String>,
+    pub selection: Option<crate::core::download_selection::DownloadSelection>,
+    pub completed_at_ms: Option<u64>,
     pub media_info: Option<MediaInfo>,
     pub downloader: Arc<dyn PlatformDownloader>,
     pub ytdlp_path: Option<PathBuf>,
@@ -290,6 +296,9 @@ impl QueueItem {
             file_path: self.file_path.clone(),
             file_size_bytes: self.file_size_bytes,
             file_count: self.file_count,
+            subtitle_warning: self.subtitle_warning.clone(),
+            selection: self.selection.clone(),
+            completed_at_ms: self.completed_at_ms,
             thumbnail_url: self.thumbnail_url_override.clone().or_else(|| {
                 self.media_info
                     .as_ref()
@@ -397,6 +406,13 @@ impl DownloadQueue {
         } else {
             Some(kind_from_platform(&platform))
         };
+        let selection = Some(
+            crate::core::download_selection::DownloadSelection::from_request(
+                audio_language.as_deref(),
+                audio_languages.as_deref(),
+                custom_ytdlp_args.as_deref(),
+            ),
+        );
         let item = QueueItem {
             id,
             url,
@@ -419,6 +435,9 @@ impl DownloadQueue {
             file_path: None,
             file_size_bytes: None,
             file_count,
+            subtitle_warning: None,
+            selection,
+            completed_at_ms: None,
             media_info,
             downloader,
             ytdlp_path,
@@ -506,6 +525,11 @@ impl DownloadQueue {
                 file_path: entry.file_path.clone(),
                 file_size_bytes: entry.file_size_bytes,
                 file_count: None,
+                subtitle_warning: entry.subtitle_warning.clone(),
+                selection: entry.selection.clone(),
+                completed_at_ms: entry
+                    .completed_at_ms
+                    .or_else(|| Some((entry.completed_at.max(0) as u64).saturating_mul(1000))),
                 media_info: None,
                 downloader: placeholder.clone(),
                 ytdlp_path: None,
@@ -643,6 +667,7 @@ impl DownloadQueue {
                 return;
             }
             let error_for_history = error.clone();
+            item.completed_at_ms = Some(now_ms());
             if success {
                 item.status = QueueStatus::Complete { success: true };
                 item.percent = 100.0;
@@ -742,7 +767,10 @@ impl DownloadQueue {
                     total_bytes: item.total_bytes,
                     success,
                     error: if success { None } else { error_for_history },
+                    subtitle_warning: item.subtitle_warning.clone(),
+                    selection: item.selection.clone(),
                     completed_at: crate::core::queue_history::now_unix_seconds(),
+                    completed_at_ms: item.completed_at_ms,
                     thumbnail_url: item.thumbnail_url_override.clone().or_else(|| {
                         item.media_info
                             .as_ref()
@@ -1836,6 +1864,33 @@ async fn spawn_download_inner(
         torrent_upnp: settings.advanced.torrent_upnp,
     };
 
+    let expected_subtitle_language = {
+        let mut selection = crate::core::download_selection::DownloadSelection::from_request(
+            opts.audio_language.as_deref(),
+            opts.audio_languages.as_deref(),
+            opts.custom_ytdlp_args.as_deref(),
+        );
+        selection.subtitles_enabled = Some(opts.download_subtitles);
+        let flags = opts.custom_ytdlp_args.as_deref().unwrap_or_default();
+        selection.automatic_subtitles = opts.download_subtitles
+            && if flags.iter().any(|flag| flag == "--no-write-auto-subs") {
+                false
+            } else if flags.iter().any(|flag| flag == "--write-auto-subs") {
+                true
+            } else {
+                opts.include_auto_subtitles
+            };
+        if opts.download_subtitles && selection.subtitle_requested.is_none() {
+            selection.subtitle_requested = Some(settings.download.caption_locale.clone());
+        }
+        let expected = selection.subtitle_requested.clone();
+        let mut q = queue.lock().await;
+        if let Some(item) = q.items.iter_mut().find(|item| item.id == item_id) {
+            item.selection = Some(selection);
+        }
+        emit_queue_state_from_state(&app, q.get_state());
+        expected
+    };
     // Keep Android media variants separate without weakening --no-overwrites.
     // Do this before clip isolation, which intentionally uses its own stable
     // source name and reserves a unique final clip path.
@@ -2382,8 +2437,33 @@ async fn spawn_download_inner(
                     }),
                 );
             }
+            let subtitle_warning = (opts.download_subtitles
+                && (platform_name == "youtube"
+                    || crate::core::subtitle_output::requested_language(
+                        opts.custom_ytdlp_args.as_deref(),
+                    )
+                    .is_some())
+                && !crate::core::subtitle_output::has_valid_selected_sidecar(
+                    &dl.file_path,
+                    expected_subtitle_language.as_deref(),
+                    crate::core::subtitle_output::requested_language(
+                        opts.custom_ytdlp_args.as_deref(),
+                    )
+                    .is_none(),
+                ))
+            .then(|| "subtitles_missing".to_string());
+            if subtitle_warning.is_some() {
+                append_download_log(&app, item_id, "[subtitles] Selected captions are missing or invalid; the downloaded media has been kept");
+            }
             let state = {
                 let mut q = queue.lock().await;
+                if let Some(item) = q.items.iter_mut().find(|item| item.id == item_id) {
+                    item.subtitle_warning = subtitle_warning.clone();
+                    if let Some(selection) = item.selection.as_mut() {
+                        selection.subtitles_obtained =
+                            crate::core::subtitle_output::valid_sidecar_languages(&dl.file_path);
+                    }
+                }
                 if platform_name == "magnet" && dl.torrent_id.is_some() {
                     q.mark_seeding(
                         item_id,
@@ -2404,14 +2484,18 @@ async fn spawn_download_inner(
             };
             // Remove the retained source only after all processing and the
             // successful queue journal transition, not at transfer completion.
-            if let Some(job) = clip_workspace.take() {
+            if let Some(job) = clip_workspace.take().filter(|_| subtitle_warning.is_none()) {
                 if let Err(error) = job.complete() {
                     tracing::warn!("clip cleanup: {}", error);
                 }
             }
             #[cfg(target_os = "android")]
             if !is_seeding && dl.file_path.is_file() {
-                crate::android_media::notify_complete(&dl.file_path, &info.title);
+                crate::android_media::notify_complete(
+                    &dl.file_path,
+                    &info.title,
+                    subtitle_warning.is_some(),
+                );
             }
             emit_queue_state_from_state(&app, state);
         }

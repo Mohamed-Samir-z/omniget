@@ -490,7 +490,11 @@ async fn finish_subtitles(
                 }
                 let text =
                     std::fs::read_to_string(&path).context("Cannot read source subtitles")?;
-                std::fs::write(&target, trim_srt(&text, start, duration)?)?;
+                let clipped = trim_srt(&text, start, duration)?;
+                if clipped.trim().is_empty() {
+                    bail!("Selected clip has no usable subtitle cues");
+                }
+                std::fs::write(&target, clipped)?;
                 continue;
             }
             let mut command = super::process::command("ffmpeg");
@@ -756,7 +760,12 @@ pub async fn finish(
             reserved.0.display()
         )
     })?;
-    finish_subtitles(input, &reserved.0, range.start, duration, token).await?;
+    if let Err(error) = finish_subtitles(input, &reserved.0, range.start, duration, token).await {
+        tracing::warn!("Selected clip subtitles could not be saved; keeping video: {error}");
+    }
+    if token.is_cancelled() {
+        bail!("Download cancelled");
+    }
     let path = reserved.commit();
     Ok((path, duration))
 }

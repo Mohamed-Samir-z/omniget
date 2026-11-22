@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "Paste a video link",
+    "url_hint": "Use + for multiple links, torrents and more.",
+    "search_app": "Search app",
+    "p2p_unavailable": "Not available on Android"
   },
   "tools": {
     "tab": "Tools",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "Download choices",
+    "audio_requested": "Requested audio",
+    "subtitles_requested": "Requested subtitles",
+    "source_audio": "Source default",
+    "subtitles_off": "Off",
+    "app_setting": "App setting",
+    "automatic_captions": "Automatic",
+    "subtitles_saved": "Saved subtitles",
+    "selection_not_recorded": "Choices were not recorded for this download.",
+    "subtitles_warning": "File saved. Selected subtitles are missing or invalid; your file has been kept.",
+    "saved_warning_short": "Saved with a warning"
   },
   "toast": {
     "download_preparing": "Preparing download...",
@@ -4509,13 +4524,13 @@
     "roadmap_community_text": "we're accepting ideas and suggestions! it's a great way to request a new platform or feature.",
     "roadmap_community_discord": "reach out on discord:",
     "roadmap_community_issue": "or open an issue on the repository:",
-    "tagline": "Download anything, from anywhere.",
+    "tagline": "Download video and audio from links, with the options available from each source.",
     "credit": "Made with love by OpenSelena",
     "android_edition": {
-      "name": "Mohamed Samir",
+      "name": "Eng. Mohamed Samir",
       "role": "Android edition",
       "heading": "Version development",
-      "detail": "Development and customization of omniget for Android.",
+      "detail": "I develop and adapt the Android edition of omniget. Have an app issue or a project idea? Get in touch.",
       "contact": "Get in touch",
       "original": "Original project",
       "based": "Based on the open-source LibreGet project.",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "Enjoying omniget?",
+    "body": "A GitHub star helps more people find the project. If it has been useful, you can support it for free.",
+    "open": "Open GitHub",
+    "later": "Later",
+    "already": "Already supported",
+    "optional": "Optional. Opening GitHub does not add a star automatically."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

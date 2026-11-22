@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/omniget_download_body"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center_horizontal"
+    android:paddingStart="16dp" android:paddingEnd="16dp"
+    android:paddingTop="3dp" android:paddingBottom="3dp">
+    <TextView android:id="@+id/omniget_download_title"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+        android:textSize="13sp" android:includeFontPadding="false"
+        android:gravity="center" android:textAlignment="center" android:textDirection="firstStrong"
+        android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/omniget_download_detail"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification"
+        android:textSize="12sp" android:includeFontPadding="false"
+        android:layout_marginTop="2dp" android:gravity="center" android:textAlignment="center"
+        android:textDirection="firstStrong" android:maxLines="1" android:ellipsize="end" />
+    <ProgressBar android:id="@+id/omniget_download_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="4dp"
+        android:layout_marginTop="6dp" android:indeterminate="false" />
+</LinearLayout>

@@ -24,6 +24,18 @@ class MediaActionsTest {
   try { MediaActions.intent(context,file.path,true);fail("Empty file must be rejected") }
   catch (expected: IllegalArgumentException) { assertTrue(expected.message!!.contains("empty")) }
  }
+ @Test fun subtitleWarningKeepsSavedFileOpenShareAndPrayer() {
+  val context=RuntimeEnvironment.getApplication()
+  com.openselena.libreget.NativeText.language(context,"en")
+  val pending=android.app.PendingIntent.getActivity(context,8,Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://example.com")),android.app.PendingIntent.FLAG_IMMUTABLE)
+  MediaActions.postCompletion(context,315,"Saved clip",pending,pending,true)
+  val manager=context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+  val shadow=org.robolectric.Shadows.shadowOf(manager)
+  val n=shadow.getNotification(315)
+  assertEquals("File saved, subtitles unavailable",n.extras.getString(android.app.Notification.EXTRA_TITLE))
+  assertEquals(listOf("Open","Share"),n.actions.map {it.title.toString()})
+  assertNotNull(shadow.getNotification("developer-prayer",315))
+ }
  @Test fun prayerIsSeparateAndKeepsCompletionActions() {
   val context=RuntimeEnvironment.getApplication()
   val manager=context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager

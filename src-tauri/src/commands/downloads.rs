@@ -849,6 +849,10 @@ pub async fn download_from_url(
     subtitle_track: Option<String>,
     recovery_clip_id: Option<String>,
 ) -> Result<DownloadStarted, String> {
+    #[cfg(target_os = "android")]
+    if url.trim().starts_with("p2p:") {
+        return Err("P2P file transfer is not available on Android".into());
+    }
     let recovery_clip_id = recovery_clip_id
         .map(|id| uuid::Uuid::parse_str(&id).map(|v| v.to_string()))
         .transpose()
@@ -1658,7 +1662,11 @@ pub async fn restore_recovery(
 
 #[tauri::command]
 pub fn parse_batch_file(path: String) -> Result<Vec<String>, String> {
+    #[cfg(target_os = "android")]
+    let content = crate::android_media::import_document(&path, false)?;
+    #[cfg(not(target_os = "android"))]
     let content = std::fs::read_to_string(&path).map_err(|e| format!("Read error: {}", e))?;
+    let content = content.trim_start_matches('\u{feff}');
     let mut urls = Vec::new();
     for raw in content.lines() {
         let line = raw.trim();
@@ -1666,6 +1674,10 @@ pub fn parse_batch_file(path: String) -> Result<Vec<String>, String> {
             continue;
         }
         let candidate = line.split('|').next().unwrap_or(line).trim();
+        #[cfg(target_os = "android")]
+        if candidate.starts_with("p2p:") {
+            return Err("P2P file transfer is not available on Android".into());
+        }
         if candidate.starts_with("http://")
             || candidate.starts_with("https://")
             || candidate.starts_with("magnet:")
@@ -1675,6 +1687,35 @@ pub fn parse_batch_file(path: String) -> Result<Vec<String>, String> {
         }
     }
     Ok(urls)
+}
+
+#[tauri::command]
+pub async fn verify_completed_download(
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<bool, String> {
+    let path = {
+        let queue = state.download_queue.lock().await;
+        queue
+            .items
+            .iter()
+            .find(|item| {
+                item.id == download_id
+                    && matches!(item.status, queue::QueueStatus::Complete { success: true })
+            })
+            .and_then(|item| item.file_path.clone())
+    };
+    Ok(path.is_some_and(|path| {
+        crate::core::support_eligibility::saved_artifact_exists(std::path::Path::new(&path))
+    }))
+}
+
+#[tauri::command]
+pub fn prepare_torrent_file(path: String) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    return crate::android_media::import_document(&path, true);
+    #[cfg(not(target_os = "android"))]
+    Ok(path)
 }
 
 #[tauri::command]
@@ -1937,6 +1978,19 @@ pub async fn open_developer_contact(app: tauri::AppHandle) -> Result<(), String>
             None,
         )
         .map_err(|e| e.to_string())
+}
+
+/// Open one of the fixed developer profile links through the native browser intent.
+#[tauri::command]
+#[allow(deprecated)]
+pub async fn open_developer_profile_link(
+    app: tauri::AppHandle,
+    target: String,
+) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+    let url = crate::core::developer_links::profile_url(&target)
+        .ok_or_else(|| "Unknown developer profile destination".to_string())?;
+    app.shell().open(url, None).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

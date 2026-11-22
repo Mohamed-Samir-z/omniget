@@ -31,33 +31,7 @@ class DownloadService : Service() {
     private fun refresh(foreground: Boolean) {
         val p = progress
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        val launch = packageManager.getLaunchIntentForPackage(packageName)
-        val tap = launch?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) }
-        val builder = NativeNotifications.builder(this, "downloads", NativeText.t(this, "Downloads"))
-        if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-        val status = when {
-            p.percent < 0 -> NativeText.t(this, "Preparing download")
-            p.percent >= 100 -> NativeText.t(this, "Finalizing and adding to media library")
-            else -> NativeText.percent(this, p.percent)
-        }
-        val speedLabel = when {
-            p.speed >= 1048576 -> String.format(java.util.Locale.US, "%.1f MB/s", p.speed / 1048576.0)
-            p.speed >= 1024 -> String.format(java.util.Locale.US, "%.0f KB/s", p.speed / 1024.0)
-            else -> "${p.speed} B/s"
-        }
-        val detail = if (p.speed > 0 && p.percent in 0..99) "$status · $speedLabel" else status
-        val notification = builder
-            .setContentTitle(if (p.count > 1) NativeText.count(this, p.count) else "omniget")
-            .setContentText("${p.title} · $detail")
-            .setStyle(Notification.BigTextStyle().bigText("${p.title}\n$detail"))
-            .setSmallIcon(R.drawable.ic_omniget_download)
-            .setContentIntent(tap)
-            .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_PROGRESS)
-            .setShowWhen(false)
-            .setOngoing(true)
-            .setProgress(100, p.percent.coerceAtLeast(0), p.percent < 0)
-            .build()
+        val notification = DownloadNotification.build(this, p.title, p.percent, p.count, p.speed)
         if (foreground) {
             if (Build.VERSION.SDK_INT >= 29) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             else startForeground(1, notification)

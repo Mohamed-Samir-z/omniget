@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { openGuide } from "$lib/stores/guide-store.svelte";
+  import { isAndroid } from "$lib/platform";
   import { t } from "$lib/i18n";
   import { getVersion } from "@tauri-apps/api/app";
   import { open } from "@tauri-apps/plugin-shell";
@@ -8,6 +10,7 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   let version = $state("");
   let contactBusy = $state(false);
+  let developerCollapsed = $state(false);
   const copy = $derived({
     name: $t("about.android_edition.name"),
     role: $t("about.android_edition.role"),
@@ -37,7 +40,7 @@
 
 <div class="about-overview">
   <header class="about-hero">
-    <img src="/icons/about-64.png" alt="" width="60" height="60" class="about-app-icon" />
+    <img src="/mascot/penguin.png" alt="" width="128" height="128" class="about-app-icon" />
     <div class="app-identity">
       <div class="app-name"><h1>omniget</h1><span class="edition">Android</span></div>
       <p class="app-summary">{$t("about.tagline")}</p>
@@ -46,17 +49,21 @@
   </header>
   <p class="about-description">{$t("about.description")}</p>
 
-  <section class="android-identity" aria-labelledby="android-developer-name">
+  <section class="android-identity" class:developer-collapsed={developerCollapsed} aria-labelledby="android-developer-name">
+    <button type="button" class="about-developer-toggle" aria-label={copy.role} aria-expanded={!developerCollapsed} aria-controls="about-developer-body" onclick={() => developerCollapsed = !developerCollapsed}><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d={developerCollapsed ? "m5 12 5-5 5 5" : "m5 8 5 5 5-5"}/></svg></button>
     <div class="identity-top">
-      <img class="developer-portrait" src="/developer/mohamed.jpg" alt={copy.portrait} width="64" height="64" />
+      <img class="developer-portrait" src="/developer/mohamed.jpg" alt={copy.portrait} width="48" height="48" />
       <div class="developer-details"><span class="section-eyebrow">{copy.role}</span><h2 id="android-developer-name">{copy.name}</h2><p>{copy.heading}</p></div>
     </div>
+    {#if !developerCollapsed}<div id="about-developer-body" class="about-developer-body">
     <p class="developer-description">{copy.detail}</p>
     <button type="button" class="developer-contact" onclick={contact} disabled={contactBusy} aria-busy={contactBusy}>
       {copy.contact}<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg>
     </button>
+    </div>{/if}
   </section>
 
+  {#if isAndroid()}<button class="about-guide-button" type="button" onclick={openGuide}>{$t("guide.reopen")}</button>{/if}
   <nav class="about-links" aria-label={$t("nav.about")}>
     {#each cards as card}
       <a href={card.href} class="about-link">
@@ -83,25 +90,28 @@
 </div>
 
 <style>
+  .about-developer-toggle{position:absolute;left:5px;top:5px;width:44px;height:44px;border:0!important;background:transparent!important;box-shadow:none!important;color:var(--text-muted);cursor:pointer;display:grid;place-items:center}.about-developer-body{display:flex;flex-direction:column;gap:14px}.developer-collapsed .developer-details p{display:none}
+
+.about-guide-button{width:100%;min-height:46px;border:1px solid var(--border);border-radius:12px;background:var(--surface-hi);color:var(--text);padding:10px 14px;font:inherit;text-align:start;cursor:pointer}
   .about-overview{display:flex;flex-direction:column;gap:16px;min-width:0;width:100%;box-sizing:border-box}
-  .about-hero{display:flex;gap:14px;align-items:center;padding:4px 0}
-  .about-app-icon{width:60px;height:60px;object-fit:cover;border-radius:16px;flex-shrink:0;box-shadow:0 0 0 1px var(--border)}
-  .app-identity{min-width:0;display:flex;flex-direction:column;gap:5px}
+  .about-hero{display:flex;flex-direction:column;gap:16px;align-items:center;padding:14px 0 4px;text-align:center}
+  .about-app-icon{width:128px;height:128px;object-fit:contain;flex-shrink:0}
+  .app-identity{min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px}
   .app-name{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .app-name h1{font-size:26px;line-height:1.1;letter-spacing:-.6px;font-weight:750;margin:0;color:var(--text)}
   .edition{font-size:10px;line-height:1.4;padding:3px 6px;border:1px solid var(--border);border-radius:6px;color:var(--text-muted)}
   .app-summary{font-size:12px;line-height:1.5;margin:0;color:var(--text-muted)}
   .app-version{font-size:11px;color:var(--text-dim)}
   .about-description{font-size:13px;line-height:1.7;margin:0;color:var(--text-muted)}
-  .android-identity{border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));border-radius:17px;padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface));display:flex;flex-direction:column;gap:13px;min-width:0}
-  .identity-top{display:flex;gap:13px;align-items:center;min-width:0}
-  .developer-portrait{border-radius:15px;object-fit:cover;flex-shrink:0;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border)}
+  .android-identity{position:relative;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--border));border-radius:17px;padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface));display:flex;flex-direction:column;gap:13px;min-width:0}
+  .identity-top{display:flex;flex-direction:row;direction:rtl;gap:10px;align-items:center;min-width:0;padding-left:34px;text-align:right}
+  .developer-portrait{width:48px;height:48px;border-radius:12px;object-fit:contain;flex-shrink:0;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border)}
   .developer-details{min-width:0;display:flex;flex-direction:column;gap:4px}
   .section-eyebrow{font-size:10px;line-height:1.4;color:var(--text-muted);font-weight:600;letter-spacing:.2px}
-  .developer-details h2{font-size:22px;line-height:1.35;margin:0;color:var(--text);font-weight:700}
+  .developer-details h2{font-size:18px;line-height:1.35;margin:0;color:var(--text);font-weight:700}
   .developer-details p{margin:0;font-size:12px;line-height:1.5;color:var(--text-muted)}
   .developer-description{font-size:12px;line-height:1.7;color:var(--text-muted);margin:0}
-  .developer-contact{min-height:44px;width:100%;display:flex;gap:9px;justify-content:center;align-items:center;border:0;border-radius:10px;background:var(--accent);color:var(--on-accent);padding:10px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .developer-contact{min-height:44px;width:100%;display:flex;gap:9px;justify-content:center;align-items:center;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 7%,var(--surface));color:var(--accent);padding:10px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
   .developer-contact:disabled{opacity:.6;cursor:wait}
   .about-links{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:15px;background:var(--surface)}
   .about-link{display:flex;align-items:center;gap:12px;text-decoration:none;min-height:74px;padding:13px;box-sizing:border-box;color:var(--text)}
@@ -124,5 +134,5 @@
   .build-details{font-size:9px;font-family:var(--font-mono);color:var(--text-dim);overflow-wrap:anywhere;margin-top:3px;direction:ltr;text-align:start}
   a:focus-visible,button:focus-visible{outline:var(--focus-ring);outline-offset:3px}
   @media(min-width:641px){.about-overview{gap:22px}.android-identity{padding:20px}.app-name h1{font-size:30px}}
-  @media(max-width:360px){.android-identity{padding:13px}.developer-details h2{font-size:20px}.about-link{gap:9px;padding:11px}.original-actions a{padding:8px 9px;font-size:10px}}
+  @media(max-width:360px){.android-identity{padding:13px}.developer-details h2{font-size:16px}.about-link{gap:9px;padding:11px}.original-actions a{padding:8px 9px;font-size:10px}}
 </style>

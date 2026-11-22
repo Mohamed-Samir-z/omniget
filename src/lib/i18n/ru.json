@@ -91,7 +91,11 @@
     "action_advanced": "Расширенные параметры",
     "action_simple": "Вернуться к простому виду",
     "value_line": "{{count}} файлов · {{size}} сохранено с LibreGet",
-    "value_first": "Первая загрузка займёт около минуты. Для приватного контента нужны только cookies вашего браузера."
+    "value_first": "Первая загрузка займёт около минуты. Для приватного контента нужны только cookies вашего браузера.",
+    "url_prompt": "Вставьте ссылку на видео",
+    "url_hint": "В +: несколько ссылок, торренты и другие опции.",
+    "search_app": "Поиск в приложении",
+    "p2p_unavailable": "Недоступно на Android"
   },
   "tools": {
     "tab": "Инструменты",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "Параметры загрузки",
+    "audio_requested": "Запрошенное аудио",
+    "subtitles_requested": "Запрошенные субтитры",
+    "source_audio": "По умолчанию источника",
+    "subtitles_off": "Без субтитров",
+    "app_setting": "Настройка приложения",
+    "automatic_captions": "Автоматические",
+    "subtitles_saved": "Сохранённые субтитры",
+    "selection_not_recorded": "Параметры этой загрузки не были записаны.",
+    "subtitles_warning": "Файл сохранён. Выбранные субтитры отсутствуют или недействительны; файл не удалён.",
+    "saved_warning_short": "Сохранено с предупреждением"
   },
   "toast": {
     "download_preparing": "Подготовка к скачиванию…",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "Нравится omniget?",
+    "body": "Звезда на GitHub помогает другим узнать о проекте. Поддержать его можно бесплатно.",
+    "open": "Открыть GitHub",
+    "later": "Позже",
+    "already": "Уже поддержал",
+    "optional": "Необязательно. Открытие GitHub не добавляет звезду автоматически."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

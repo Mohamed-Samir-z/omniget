@@ -5,3 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 export function openDeveloperContact(): Promise<void> {
   return invoke<void>("open_developer_contact");
 }
+
+export type DeveloperProfileLink = "whatsapp" | "portfolio" | "github" | "project";
+
+export function openDeveloperProfileLink(target: DeveloperProfileLink): Promise<void> {
+  return invoke<void>("open_developer_profile_link", { target });
+}

@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "Collez un lien vidéo",
+    "url_hint": "Utilisez + pour plusieurs liens, torrents et plus.",
+    "search_app": "Rechercher dans l'app",
+    "p2p_unavailable": "Indisponible sur Android"
   },
   "tools": {
     "tab": "Outils",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "Choix de téléchargement",
+    "audio_requested": "Audio demandé",
+    "subtitles_requested": "Sous-titres demandés",
+    "source_audio": "Par défaut de la source",
+    "subtitles_off": "Sans sous-titres",
+    "app_setting": "Réglage de l’application",
+    "automatic_captions": "Automatiques",
+    "subtitles_saved": "Sous-titres enregistrés",
+    "selection_not_recorded": "Les choix de ce téléchargement n’ont pas été enregistrés.",
+    "subtitles_warning": "Fichier enregistré. Les sous-titres choisis sont absents ou invalides ; votre fichier a été conservé.",
+    "saved_warning_short": "Enregistré avec avertissement"
   },
   "toast": {
     "download_preparing": "Préparation du téléchargement...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "Vous aimez omniget ?",
+    "body": "Une étoile sur GitHub aide à faire connaître le projet. Vous pouvez le soutenir gratuitement.",
+    "open": "Ouvrir GitHub",
+    "later": "Plus tard",
+    "already": "Déjà soutenu",
+    "optional": "Facultatif. Ouvrir GitHub ne donne pas automatiquement une étoile."
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

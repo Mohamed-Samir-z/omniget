@@ -25,7 +25,24 @@ pub fn load_settings(app: &AppHandle) -> AppSettings {
 
     match store.get(STORE_KEY) {
         Some(val) => serde_json::from_value::<AppSettings>(val.clone()).unwrap_or_default(),
-        None => AppSettings::default(),
+        None => {
+            let mut defaults = AppSettings::default();
+            #[cfg(target_os = "android")]
+            {
+                let tags = crate::android_media::device_language_tags().unwrap_or_default();
+                defaults.appearance.language =
+                    crate::core::device_language::initial_device_language(None, &tags);
+            }
+            // Persist at the very first native read, before bridge/background
+            // setup can save an English placeholder over device detection.
+            if let Ok(value) = serde_json::to_value(&defaults) {
+                store.set(STORE_KEY, value);
+                if let Err(error) = store.save() {
+                    tracing::warn!("Could not persist initial settings: {error}");
+                }
+            }
+            defaults
+        }
     }
 }
 
