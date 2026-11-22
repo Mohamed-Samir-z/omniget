@@ -19,6 +19,15 @@
  */
 
 export type TranslationKeys =
+  | 'about.android_edition.based'
+  | 'about.android_edition.contact'
+  | 'about.android_edition.detail'
+  | 'about.android_edition.github'
+  | 'about.android_edition.heading'
+  | 'about.android_edition.name'
+  | 'about.android_edition.original'
+  | 'about.android_edition.portrait'
+  | 'about.android_edition.role'
   | 'about.card_changelog_desc'
   | 'about.card_changelog_title'
   | 'about.card_project_desc'

@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "在 Discord 上联系我们：",
     "roadmap_community_issue": "或在代码仓库中提交 Issue：",
     "tagline": "随时随地，下载一切。",
-    "credit": "由 OpenSelena 用心打造"
+    "credit": "由 OpenSelena 用心打造",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Android 版本",
+      "heading": "版本开发",
+      "detail": "omniget Android 版本的开发与定制。",
+      "contact": "联系我",
+      "original": "原始项目",
+      "based": "基于开源项目 LibreGet。",
+      "github": "GitHub 项目",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "插件市场",

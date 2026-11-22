@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "Discordでお気軽にどうぞ：",
     "roadmap_community_issue": "またはリポジトリでIssueを作成してください：",
     "tagline": "どこからでも、何でもダウンロード。",
-    "credit": "OpenSelena が愛を込めて作りました"
+    "credit": "OpenSelena が愛を込めて作りました",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Android 版",
+      "heading": "このバージョンの開発",
+      "detail": "Android 向け omniget の開発とカスタマイズ。",
+      "contact": "お問い合わせ",
+      "original": "元のプロジェクト",
+      "based": "オープンソースの LibreGet プロジェクトを基にしています。",
+      "github": "GitHub のプロジェクト",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "マーケットプレイス",

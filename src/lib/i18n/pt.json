@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "me chama no discord:",
     "roadmap_community_issue": "ou abra uma issue no repositório:",
     "tagline": "Baixe qualquer coisa, de qualquer lugar.",
-    "credit": "Feito com amor por OpenSelena"
+    "credit": "Feito com amor por OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Edição Android",
+      "heading": "Desenvolvimento da versão",
+      "detail": "Desenvolvimento e personalização do omniget para Android.",
+      "contact": "Entre em contato",
+      "original": "Projeto original",
+      "based": "Baseado no projeto de código aberto LibreGet.",
+      "github": "Projeto no GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

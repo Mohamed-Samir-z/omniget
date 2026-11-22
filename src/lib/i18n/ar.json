@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "الوصول إلى الخلاف:",
     "roadmap_community_issue": "أو افتح مشكلة في المستودع:",
     "tagline": "قم بتنزيل أي شيء، من أي مكان.",
-    "credit": "صُنع بحب بواسطة OpenSelena"
+    "credit": "صُنع بحب بواسطة OpenSelena",
+    "android_edition": {
+      "name": "محمد سمير",
+      "role": "نسخة أندرويد",
+      "heading": "تطوير وتخصيص النسخة",
+      "detail": "تطوير وتجهيز نسخة omniget لأندرويد.",
+      "contact": "تواصل معايا",
+      "original": "المشروع الأصلي",
+      "based": "مبني على مشروع LibreGet مفتوح المصدر.",
+      "github": "المشروع على GitHub",
+      "portrait": "صورة محمد سمير"
+    }
   },
   "marketplace": {
     "title": "السوق",

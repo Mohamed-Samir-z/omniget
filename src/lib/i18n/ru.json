@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "свяжитесь с нами в Discord:",
     "roadmap_community_issue": "или откройте задачу в репозитории:",
     "tagline": "Скачивайте что угодно, откуда угодно.",
-    "credit": "Сделано с любовью OpenSelena"
+    "credit": "Сделано с любовью OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Версия для Android",
+      "heading": "Разработка версии",
+      "detail": "Разработка и настройка omniget для Android.",
+      "contact": "Связаться",
+      "original": "Исходный проект",
+      "based": "На основе проекта LibreGet с открытым исходным кодом.",
+      "github": "Проект на GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Маркетплейс",

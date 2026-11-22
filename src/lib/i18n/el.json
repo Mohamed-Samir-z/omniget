@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "βρείτε μας στο discord:",
     "roadmap_community_issue": "ή ανοίξτε ένα θέμα (issue) στο αποθετήριο:",
     "tagline": "Κατεβάστε οτιδήποτε, από οπουδήποτε.",
-    "credit": "Φτιαγμένο με αγάπη από OpenSelena"
+    "credit": "Φτιαγμένο με αγάπη από OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Έκδοση Android",
+      "heading": "Ανάπτυξη της έκδοσης",
+      "detail": "Ανάπτυξη και προσαρμογή του omniget για Android.",
+      "contact": "Επικοινωνία",
+      "original": "Αρχικό έργο",
+      "based": "Βασισμένο στο έργο ανοιχτού κώδικα LibreGet.",
+      "github": "Έργο στο GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

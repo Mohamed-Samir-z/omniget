@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "ຕິດຕໍ່ຫາພວກເຮົາໃນ discord:",
     "roadmap_community_issue": "ຫຼື ເປີດ issue ໃນ repository:",
     "tagline": "ດາວໂຫຼດທຸກຢ່າງ, ຈາກທຸກບ່ອນ.",
-    "credit": "ສ້າງດ້ວຍຄວາມຮັກໂດຍ OpenSelena"
+    "credit": "ສ້າງດ້ວຍຄວາມຮັກໂດຍ OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "ສະບັບ Android",
+      "heading": "ການພັດທະນາສະບັບນີ້",
+      "detail": "ພັດທະນາ ແລະ ປັບແຕ່ງ omniget ສຳລັບ Android.",
+      "contact": "ຕິດຕໍ່",
+      "original": "ໂຄງການຕົ້ນສະບັບ",
+      "based": "ອີງໃສ່ໂຄງການໂອເພນຊອດ LibreGet.",
+      "github": "ໂຄງການໃນ GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "ຕະຫຼາດ",

@@ -4510,7 +4510,18 @@
     "roadmap_community_discord": "reach out on discord:",
     "roadmap_community_issue": "or open an issue on the repository:",
     "tagline": "Download anything, from anywhere.",
-    "credit": "Made with love by OpenSelena"
+    "credit": "Made with love by OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "نسخه اندروید",
+      "heading": "توسعه نسخه",
+      "detail": "توسعه و سفارشی‌سازی omniget برای اندروید.",
+      "contact": "تماس بگیرید",
+      "original": "پروژه اصلی",
+      "based": "بر پایه پروژه متن‌باز LibreGet.",
+      "github": "پروژه در GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",
