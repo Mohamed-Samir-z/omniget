@@ -1,0 +1,198 @@
+name: Promote approved locales and card APK
+on:
+  push:
+    branches: [android-next-locales-card-20261122]
+    paths: [.github/workflows/promote-locales-card-channel.yml]
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: omniget-android-channel-promotion
+  cancel-in-progress: false
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact artifact, preserve rollback, and promote current update channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib, subprocess, time, urllib.request, zipfile
+
+          R = 'repos/Mohamed-Samir-z/omniget'
+          RID = 453014803
+          NAME = 'libreget-android.apk'
+          STAGE = 'libreget-android-next-5174b4c2.apk'
+          BACKUP = 'libreget-android-before-locales-dad34cee.apk'
+          OLD_ID = 779640509
+          OLD_SHA = 'dad34cee99b6820ed7d1c3c663deabe9c3cf21f2aa687af92203632ae40c6e90'
+          NEW_SHA = '5174b4c23b9ffaf567a3574a6040ecf6ac4be6f31f65f08da29fdd2c21d30985'
+          BUILD = '6e1e633d760a680ba60510279b07430f0ec8d689'
+          SOURCE = '4e1b3f28419860750f656041a44db55cd1da91b7'
+          ZIP_SHA = '332036afd6838eb337e95ae09297601ec6ac9d1f4c7585a224919907cfad305a'
+          TITLE = 'omniget Android, translations update TEST'
+          BODY = 'Updated interface translations and developer card.\n\nDevice testing is pending. 16 KiB page-size compatibility remains incomplete.'
+          ROOT = pathlib.Path('evidence'); ROOT.mkdir(exist_ok=True)
+          DATA = pathlib.Path('candidate'); DATA.mkdir(exist_ok=True)
+          assert os.environ['GITHUB_REPOSITORY'] == 'Mohamed-Samir-z/omniget'
+          assert os.environ['GITHUB_REF'] == 'refs/heads/android-next-locales-card-20261122'
+          DEADLINE = time.monotonic() + 660
+
+          def save(name, value):
+              (ROOT / name).write_text(json.dumps(value, indent=2))
+
+          def api(path, method='GET', data=None):
+              assert time.monotonic() < DEADLINE - 20, 'Stop before deadline'
+              args = ['gh', 'api', path, '--method', method, '-H', 'Cache-Control: no-cache']
+              if data is not None: args += ['--input', '-']
+              out = subprocess.check_output(args, input=None if data is None else json.dumps(data).encode(), timeout=50)
+              return json.loads(out) if out.strip() else None
+
+          def digest(path):
+              h = hashlib.sha256()
+              with path.open('rb') as f:
+                  for block in iter(lambda: f.read(1048576), b''): h.update(block)
+              return h.hexdigest()
+
+          def download(url, path, sha, size):
+              for attempt in range(3):
+                  try:
+                      req = urllib.request.Request(url, headers={'User-Agent': 'omniget-channel-verification', 'Cache-Control': 'no-cache'})
+                      with urllib.request.urlopen(req, timeout=70) as response, path.open('wb') as out:
+                          while block := response.read(1048576): out.write(block)
+                      assert path.stat().st_size == size, 'Download size mismatch'
+                      assert digest(path) == sha, 'Download checksum mismatch'
+                      return {'url': url, 'sha256': sha, 'bytes': size}
+                  except Exception:
+                      if attempt == 2: raise
+                      time.sleep(2 ** attempt)
+
+          def rel():
+              value = api(R + '/releases/tags/android-latest')
+              assert value['id'] == RID and value['tag_name'] == 'android-latest'
+              assert value['prerelease'] is True and value['draft'] is False
+              return value
+
+          def asset(value, name):
+              rows = [a for a in value['assets'] if a['name'] == name]
+              assert len(rows) <= 1
+              return rows[0] if rows else None
+
+          def valid(value, sha, size, ident=None):
+              assert value and value['state'] == 'uploaded' and value['digest'] == 'sha256:' + sha and value['size'] == size
+              if ident is not None: assert value['id'] == ident
+
+          def refs():
+              return {key: api(R + '/git/ref/' + key)['object']['sha'] for key in ['tags/android-latest', 'heads/android', 'heads/main']}
+
+          def rename(ident, name):
+              value = api(R + '/releases/assets/' + str(ident))
+              if value['name'] != name:
+                  try: api(R + '/releases/assets/' + str(ident), 'PATCH', {'name': name})
+                  except Exception: print('Rename response uncertain; reading exact asset state')
+              value = api(R + '/releases/assets/' + str(ident)); assert value['name'] == name
+              return value
+
+          def eligibility(value, installed, stamp):
+              apk = asset(value, NAME)
+              valid(apk, NEW_SHA, 101624011)
+              same = installed in value['body'] or value['target_commitish'] == installed
+              url = apk['browser_download_url']
+              assert url.startswith('https://github.com/Mohamed-Samir-z/omniget/releases/download/') and url.endswith('/libreget-android.apk') and '?' not in url and '#' not in url
+              return {'same_build': same, 'available': not same and apk['created_at'] > stamp}
+
+          entry = rel(); save('release-before.json', entry)
+          current = asset(entry, NAME)
+          if current and current.get('digest') == 'sha256:' + NEW_SHA:
+              assert entry['name'] == TITLE and entry['body'] == BODY and entry['target_commitish'] == BUILD
+              valid(asset(entry, BACKUP), OLD_SHA, 101480651, OLD_ID)
+              save('outcome.json', {'state': 'already-canonical', 'release': entry['html_url'], 'apk': current['browser_download_url']})
+              raise SystemExit(0)
+          assert os.environ['GITHUB_RUN_NUMBER'] == '1' and os.environ['GITHUB_RUN_ATTEMPT'] == '1'
+          valid(current, OLD_SHA, 101480651, OLD_ID)
+          assert entry['name'] == 'omniget Android, TEST'
+          assert entry['target_commitish'] == 'dde38615048e591560346fb301464db0650e1307'
+          assert OLD_SHA in entry['body'] and '10d4c2847b0273613c184aa2dd705ff40c617f77' in entry['body']
+          assert asset(entry, BACKUP) is None and asset(entry, STAGE) is None
+          original_refs = refs(); save('refs-before.json', original_refs)
+          unrelated = {a['id']: (a['name'], a['digest'], a['size']) for a in entry['assets'] if a['id'] != OLD_ID}
+
+          run = api(R + '/actions/runs/45055794408')
+          assert run['status'] == 'completed' and run['conclusion'] == 'success' and run['head_sha'] == BUILD
+          art = api(R + '/actions/artifacts/14767654382')
+          assert art['workflow_run']['id'] == 45055794408 and not art['expired']
+          assert art['name'] == 'omniget-next-locales-card-4e1b3f2' and art['digest'] == 'sha256:' + ZIP_SHA
+          save('source-artifact.json', art)
+          archive = DATA / 'build.zip'
+          with archive.open('wb') as out:
+              subprocess.run(['gh', 'api', R + '/actions/artifacts/14767654382/zip'], stdout=out, check=True, timeout=110)
+          assert digest(archive) == ZIP_SHA
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              (DATA / NAME).write_bytes(z.read(NAME))
+              manifest = json.loads(z.read('build-manifest.json'))
+          assert manifest['app_snapshot_commit'] == SOURCE and manifest['apk_build_stamp_commit'] == BUILD
+          save('candidate-manifest.json', manifest)
+          new = DATA / NAME
+          assert new.stat().st_size == 101624011 and digest(new) == NEW_SHA
+          # Keep a verified copy of the old binary and retain its live object as the rollback asset.
+          download(current['browser_download_url'], DATA / 'old-canonical.apk', OLD_SHA, 101480651)
+          value = rel(); valid(asset(value, NAME), OLD_SHA, 101480651, OLD_ID)
+          assert value['name'] == entry['name'] and value['body'] == entry['body'] and refs() == original_refs
+          staged_path = DATA / STAGE; new.rename(staged_path)
+          subprocess.run(['gh', 'release', 'upload', 'android-latest', str(staged_path)], check=True, timeout=130)
+          value = rel(); staged = asset(value, STAGE); valid(staged, NEW_SHA, 101624011)
+          assert staged['created_at'] > '2026-11-22T18:35:23Z'
+          download(staged['browser_download_url'], DATA / 'staged-readback.apk', NEW_SHA, 101624011)
+          value = rel(); valid(asset(value, NAME), OLD_SHA, 101480651, OLD_ID)
+          valid(asset(value, STAGE), NEW_SHA, 101624011, staged['id'])
+          assert asset(value, BACKUP) is None and refs() == original_refs
+          assert value['name'] == entry['name'] and value['body'] == entry['body']
+          save('before-switch.json', value)
+
+          try:
+              rename(OLD_ID, BACKUP)
+              rename(staged['id'], NAME)
+              api(R + '/releases/' + str(RID), 'PATCH', {'name': TITLE, 'body': BODY, 'target_commitish': BUILD, 'draft': False, 'prerelease': True, 'make_latest': 'false'})
+              value = rel(); candidate = asset(value, NAME)
+              valid(candidate, NEW_SHA, 101624011, staged['id'])
+              valid(asset(value, BACKUP), OLD_SHA, 101480651, OLD_ID)
+              assert value['name'] == TITLE and value['body'] == BODY and value['target_commitish'] == BUILD
+              assert refs() == original_refs
+              assert {a['id']: (a['name'], a['digest'], a['size']) for a in value['assets'] if a['id'] in unrelated} == unrelated
+              old_check = eligibility(value, 'dde38615048e591560346fb301464db0650e1307', '2026-11-22T15:38:32Z')
+              new_check = eligibility(value, BUILD, '2026-11-22T18:35:23Z')
+              assert old_check['available'] and not old_check['same_build']
+              assert new_check['same_build'] and not new_check['available']
+              proof = download(candidate['browser_download_url'], DATA / 'canonical-readback.apk', NEW_SHA, 101624011)
+              after = rel(); valid(asset(after, NAME), NEW_SHA, 101624011, staged['id'])
+              assert after['name'] == TITLE and after['body'] == BODY and after['target_commitish'] == BUILD
+              assert refs() == original_refs
+              outcome = {'state': 'promoted-and-canonical-download-verified', 'release': after['html_url'], 'canonical': proof, 'new_asset_id': staged['id'], 'rollback_asset': asset(after, BACKUP)['browser_download_url'], 'source_snapshot': SOURCE, 'build_identity': BUILD, 'old_build_check': old_check, 'new_build_check': new_check, 'unchanged_refs': original_refs, 'physical_device_verified': False, 'version_name': '0.16.6', 'version_code': 16006, 'full_16k_runtime_compatibility': False}
+              save('release-after.json', after); save('outcome.json', outcome); print(json.dumps(outcome, indent=2))
+          except Exception:
+              failure = rel(); save('failure-state.json', failure)
+              active = asset(failure, NAME)
+              if active and active['id'] == staged['id']:
+                  valid(active, NEW_SHA, 101624011, staged['id']); rename(staged['id'], STAGE)
+                  failure = rel(); active = asset(failure, NAME)
+              if active is None:
+                  valid(asset(failure, BACKUP), OLD_SHA, 101480651, OLD_ID); rename(OLD_ID, NAME)
+              restored = rel(); valid(asset(restored, NAME), OLD_SHA, 101480651, OLD_ID)
+              api(R + '/releases/' + str(RID), 'PATCH', {key: entry[key] for key in ['name', 'body', 'target_commitish', 'draft', 'prerelease']} | {'make_latest': 'false'})
+              restored = rel(); valid(asset(restored, NAME), OLD_SHA, 101480651, OLD_ID)
+              assert restored['name'] == entry['name'] and restored['body'] == entry['body'] and refs() == original_refs
+              save('rollback-confirmed.json', restored)
+              raise
+          PYTHON
+      - name: Retain promotion verification
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: locales-card-channel-verification
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 3
