@@ -10,6 +10,16 @@ describe("current-input full metadata sharing", () => {
     expect(await cache.load("video-a")).toBe(result); expect(fetcher).toHaveBeenCalledTimes(1);
     await cache.load("video-b"); expect(fetcher).toHaveBeenCalledTimes(2);
   });
+  it("normalizes surrounding whitespace before sharing full details", async () => {
+    const fetcher = vi.fn(async (url: string) => ({ url }));
+    const cache = createMediaDetailsLoader(fetcher);
+    const formats = cache.load("  video-a \n");
+    const subtitles = cache.load("video-a");
+    expect(formats).toBe(subtitles);
+    expect(await subtitles).toEqual({ url: "video-a" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith("video-a");
+  });
   it("never treats a failed request as an empty subtitle list and permits retry", async () => {
     const fetcher = vi.fn().mockRejectedValueOnce(Error("offline")).mockResolvedValue({ tracks: [] });
     const cache = createMediaDetailsLoader(fetcher);
