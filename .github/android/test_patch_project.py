@@ -2,6 +2,7 @@
 """Offline regressions for the generated Android runtime integration."""
 import io
 import pathlib
+import re
 import runpy
 import tempfile
 import unittest
@@ -9,6 +10,29 @@ import unittest.mock
 import zipfile
 
 PATCHER = pathlib.Path(__file__).with_name("patch_project.py")
+
+
+class QueueConstructorTests(unittest.TestCase):
+    def test_shared_queue_fields_are_initialized_in_every_source_constructor(self):
+        root = PATCHER.resolve().parents[2] / "src-tauri/src"
+        queue = (root / "core/queue.rs").read_text()
+        definition = re.search(r"pub struct QueueItem \{(.*?)^\}", queue, re.S | re.M)
+        self.assertIsNotNone(definition)
+        expected = set(re.findall(r"^    pub (\w+):", definition.group(1), re.M))
+        self.assertIn("completed_at_ms", expected)
+        constructors = 0
+        for path in (root / "core/queue.rs", root / "commands/host_queue.rs"):
+            for match in re.finditer(
+                r"(?P<indent>^[ \t]*)let item = QueueItem \{(?P<body>.*?)^(?P=indent)\};",
+                path.read_text(), re.S | re.M,
+            ):
+                constructors += 1
+                fields = set(re.findall(
+                    "^" + re.escape(match.group("indent")) + r"    (\w+)\s*[:,]",
+                    match.group("body"), re.M,
+                ))
+                self.assertEqual(expected, fields, str(path.relative_to(root)))
+        self.assertEqual(constructors, 3)
 
 
 class RuntimeBundleTests(unittest.TestCase):
