@@ -4352,8 +4352,12 @@
     "quality_best_short": "Best",
     "quality_audio": "Audio",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "View formats",
-    "hide_formats": "Hide formats",
+    "languages_formats_hint": "زبان‌ها و مسیرهای صدا را انتخاب کنید. تنظیمات کیفیت و قالب‌های کامل همچنان در دسترس هستند.",
+    "languages_loading": "در حال دریافت زبان‌های ویدیو...",
+    "preview_loading": "در حال بارگیری پیش‌نمایش...",
+    "preview_unavailable": "پیش‌نمایش هنوز در دسترس نیست. گزینه‌های دانلود کار می‌کنند.",
+    "view_formats": "نمایش زبان‌های موجود ویدیو",
+    "hide_formats": "پنهان کردن زبان‌های موجود ویدیو",
     "no_formats": "No formats available for this video",
     "formats_error": "Failed to load formats",
     "preset_best": "Best",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "reach out on discord:",
     "roadmap_community_issue": "or open an issue on the repository:",
     "tagline": "Download anything, from anywhere.",
-    "credit": "Made with love by OpenSelena"
+    "credit": "Made with love by OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "نسخه اندروید",
+      "heading": "توسعه نسخه",
+      "detail": "توسعه و سفارشی‌سازی omniget برای اندروید.",
+      "contact": "تماس بگیرید",
+      "original": "پروژه اصلی",
+      "based": "بر پایه پروژه متن‌باز LibreGet.",
+      "github": "پروژه در GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

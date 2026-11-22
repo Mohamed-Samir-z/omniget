@@ -4352,8 +4352,12 @@
     "quality_best_short": "Καλύτερο",
     "quality_audio": "Ήχος",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "Προβολή μορφών",
-    "hide_formats": "Απόκρυψη μορφών",
+    "languages_formats_hint": "Επιλέξτε γλώσσες και κομμάτια ήχου. Οι επιλογές ποιότητας και οι αναλυτικές μορφές παραμένουν διαθέσιμες.",
+    "languages_loading": "Λήψη γλωσσών βίντεο...",
+    "preview_loading": "Φόρτωση προεπισκόπησης...",
+    "preview_unavailable": "Η προεπισκόπηση δεν είναι ακόμη διαθέσιμη. Οι επιλογές λήψης λειτουργούν.",
+    "view_formats": "Εμφάνιση διαθέσιμων γλωσσών βίντεο",
+    "hide_formats": "Απόκρυψη διαθέσιμων γλωσσών βίντεο",
     "no_formats": "Δεν υπάρχουν διαθέσιμες μορφές για αυτό το βίντεο",
     "formats_error": "Η φόρτωση των μορφών απέτυχε",
     "preset_best": "Βέλτιστο",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "βρείτε μας στο discord:",
     "roadmap_community_issue": "ή ανοίξτε ένα θέμα (issue) στο αποθετήριο:",
     "tagline": "Κατεβάστε οτιδήποτε, από οπουδήποτε.",
-    "credit": "Φτιαγμένο με αγάπη από OpenSelena"
+    "credit": "Φτιαγμένο με αγάπη από OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Έκδοση Android",
+      "heading": "Ανάπτυξη της έκδοσης",
+      "detail": "Ανάπτυξη και προσαρμογή του omniget για Android.",
+      "contact": "Επικοινωνία",
+      "original": "Αρχικό έργο",
+      "based": "Βασισμένο στο έργο ανοιχτού κώδικα LibreGet.",
+      "github": "Έργο στο GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

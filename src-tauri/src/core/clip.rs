@@ -105,14 +105,52 @@ fn duration_matches(expected: f64, actual: f64, source_known: bool, rounding: f6
     actual <= expected + rounding && (!source_known || actual >= expected - shortfall)
 }
 
+fn workspace_lock_result(result: Result<(), fs4::TryLockError>) -> anyhow::Result<()> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(fs4::TryLockError::WouldBlock) => bail!("This clip is already running"),
+        Err(fs4::TryLockError::Error(error)) => {
+            bail!("Cannot lock clip workspace safely: {error}. Saved source was not deleted")
+        }
+    }
+}
+
+#[cfg(any(target_os = "android", test))]
+fn unsupported_workspace_lock(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::Unsupported || matches!(error.raw_os_error(), Some(38 | 95))
+}
+
+/// OS lock whose ownership ends with the job, not inherited handles.
+struct ClipLock(std::fs::File);
+
+impl Drop for ClipLock {
+    fn drop(&mut self) {
+        // Closing our handle alone does not release an advisory lock while a
+        // concurrent fork still has the same open-file description. End the
+        // job's ownership explicitly, including early-return error paths.
+        let _ = fs4::FileExt::unlock(&self.0);
+    }
+}
+
 /// Durable job workspace. A completed source survives interruption; only a
 /// verified final publish or an explicit discard may remove it.
 pub struct ClipJob {
     pub directory: PathBuf,
-    _lock: std::fs::File,
+    _locks: Vec<ClipLock>,
 }
 impl ClipJob {
     pub fn open(parent: &Path, key: &str) -> anyhow::Result<Self> {
+        #[cfg(target_os = "android")]
+        {
+            let data = crate::core::paths::app_data_dir()
+                .context("Cannot find private clip lock directory; saved source was not deleted")?;
+            return Self::open_with_private_lock(parent, key, &data.join("clip-locks"));
+        }
+        #[cfg(not(target_os = "android"))]
+        Self::open_in_workspace(parent, key)
+    }
+    #[cfg(not(target_os = "android"))]
+    fn open_in_workspace(parent: &Path, key: &str) -> anyhow::Result<Self> {
         use fs4::FileExt;
         let key = uuid::Uuid::parse_str(key).context("Invalid clip recovery identity")?;
         let directory = parent.join(format!(".omniget-clip-{key}"));
@@ -123,10 +161,56 @@ impl ClipJob {
             .create(true)
             .truncate(false)
             .open(directory.join("workspace.lock"))?;
-        FileExt::try_lock(&lock).context("This clip is already running")?;
+        workspace_lock_result(FileExt::try_lock(&lock))?;
         Ok(Self {
             directory,
-            _lock: lock,
+            _locks: vec![ClipLock(lock)],
+        })
+    }
+    /// Private sidecar files stay in place after completion. Unlinking a lock
+    /// inode would let a new worker bypass another process already holding it.
+    #[cfg(any(target_os = "android", test))]
+    fn open_with_private_lock(parent: &Path, key: &str, lock_root: &Path) -> anyhow::Result<Self> {
+        Self::open_with_private_lock_using(parent, key, lock_root, fs4::FileExt::try_lock)
+    }
+    #[cfg(any(target_os = "android", test))]
+    fn open_with_private_lock_using(
+        parent: &Path,
+        key: &str,
+        lock_root: &Path,
+        legacy_try_lock: impl FnOnce(&std::fs::File) -> Result<(), fs4::TryLockError>,
+    ) -> anyhow::Result<Self> {
+        use fs4::FileExt;
+        let key = uuid::Uuid::parse_str(key).context("Invalid clip recovery identity")?;
+        std::fs::create_dir_all(lock_root)?;
+        let private_lock = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_root.join(format!("{key}.lock")))?;
+        workspace_lock_result(FileExt::try_lock(&private_lock))?;
+        let private_lock = ClipLock(private_lock);
+        let directory = parent.join(format!(".omniget-clip-{key}"));
+        std::fs::create_dir_all(&directory)?;
+        // Retain compatibility with a live older worker on filesystems where
+        // the old workspace lock actually works. Only unsupported flock may
+        // use the private lock alone, never contention or permission errors.
+        let legacy = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(directory.join("workspace.lock"))?;
+        let mut locks = vec![private_lock];
+        match legacy_try_lock(&legacy) {
+            Ok(()) => locks.push(ClipLock(legacy)),
+            Err(fs4::TryLockError::Error(error)) if unsupported_workspace_lock(&error) => {}
+            Err(error) => workspace_lock_result(Err(error))?,
+        }
+        Ok(Self {
+            directory,
+            _locks: locks,
         })
     }
     /// A complete source also retains its original media description so a
@@ -864,3 +948,155 @@ mod subtitle_tests {
         assert!(trim_srt("bad subtitle", 1.0, 2.0).is_err());
     }
 }
+
+#[cfg(test)]
+mod lock_error_tests {
+    use super::*;
+    #[test]
+    fn only_contention_claims_already_running() {
+        assert!(workspace_lock_result(Ok(())).is_ok());
+        assert_eq!(
+            workspace_lock_result(Err(fs4::TryLockError::WouldBlock))
+                .unwrap_err()
+                .to_string(),
+            "This clip is already running"
+        );
+        for kind in [
+            std::io::ErrorKind::Unsupported,
+            std::io::ErrorKind::PermissionDenied,
+            std::io::ErrorKind::Other,
+        ] {
+            let message =
+                workspace_lock_result(Err(fs4::TryLockError::Error(std::io::Error::from(kind))))
+                    .unwrap_err()
+                    .to_string();
+            assert!(!message.contains("already running"));
+            assert!(message.contains("Saved source was not deleted"));
+        }
+        let message = workspace_lock_result(Err(fs4::TryLockError::Error(
+            std::io::Error::from_raw_os_error(38),
+        )))
+        .unwrap_err()
+        .to_string();
+        assert!(message.contains("os error 38"));
+    }
+}
+
+#[cfg(test)]
+mod private_lock_tests {
+    use super::*;
+    #[test]
+    fn private_lock_retains_completed_source_and_sidecar() {
+        let root = std::env::temp_dir().join(format!("private-clip-{}", uuid::Uuid::new_v4()));
+        let output = root.join("output");
+        let locks = root.join("private");
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open_with_private_lock(&output, &key, &locks).unwrap();
+        let source = job.directory.join("source.mkv");
+        std::fs::write(&source, b"saved-source").unwrap();
+        job.save_source(&source, "same", 5.0).unwrap();
+        assert!(ClipJob::open_with_private_lock(&output, &key, &locks).is_err());
+        assert!(ClipJob::open(&output, &key).is_err());
+        drop(job);
+        let job = ClipJob::open_with_private_lock(&output, &key, &locks).unwrap();
+        assert!(job.source("same").unwrap().is_some());
+        job.complete().unwrap();
+        assert!(locks.join(format!("{key}.lock")).exists());
+        let job = ClipJob::open_with_private_lock(&output, &key, &locks).unwrap();
+        job.complete().unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn old_worker_contention_never_bypassed_by_private_lock() {
+        let root = std::env::temp_dir().join(format!("legacy-clip-{}", uuid::Uuid::new_v4()));
+        let key = uuid::Uuid::new_v4().to_string();
+        let job = ClipJob::open(&root, &key).unwrap();
+        assert!(ClipJob::open_with_private_lock(&root, &key, &root.join("private")).is_err());
+        drop(job);
+        let job = ClipJob::open_with_private_lock(&root, &key, &root.join("private")).unwrap();
+        job.complete().unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn fallback_is_only_unsupported_not_contention_or_permissions() {
+        assert!(unsupported_workspace_lock(
+            &std::io::Error::from_raw_os_error(38)
+        ));
+        assert!(unsupported_workspace_lock(
+            &std::io::Error::from_raw_os_error(95)
+        ));
+        assert!(!unsupported_workspace_lock(
+            &std::io::Error::from_raw_os_error(11)
+        ));
+        assert!(!unsupported_workspace_lock(
+            &std::io::Error::from_raw_os_error(13)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod unsupported_fs_integration {
+    use super::*;
+    #[test]
+    fn unsupported_shared_lock_keeps_real_private_exclusion_and_checkpoint() {
+        let root = std::env::temp_dir().join(format!("enosys-clip-{}", uuid::Uuid::new_v4()));
+        let output = root.join("shared");
+        let private = root.join("private");
+        let key = uuid::Uuid::new_v4().to_string();
+        let enosys = |_: &std::fs::File| {
+            Err(fs4::TryLockError::Error(std::io::Error::from_raw_os_error(
+                38,
+            )))
+        };
+        let job = ClipJob::open_with_private_lock_using(&output, &key, &private, enosys).unwrap();
+        let source = job.directory.join("source.mkv");
+        std::fs::write(&source, b"retained").unwrap();
+        job.save_source(&source, "same", 4.0).unwrap();
+        assert!(ClipJob::open_with_private_lock_using(&output, &key, &private, enosys).is_err());
+        drop(job);
+        let denied = |_: &std::fs::File| {
+            Err(fs4::TryLockError::Error(std::io::Error::from_raw_os_error(
+                13,
+            )))
+        };
+        assert!(ClipJob::open_with_private_lock_using(&output, &key, &private, denied).is_err());
+        assert!(source.is_file());
+        let job = ClipJob::open_with_private_lock_using(&output, &key, &private, enosys).unwrap();
+        assert_eq!(
+            std::fs::read(job.source("same").unwrap().unwrap().0).unwrap(),
+            b"retained"
+        );
+        job.complete().unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod inherited_lock_regression {
+    use super::*;
+
+    #[test]
+    fn inherited_descriptors_do_not_keep_a_finished_job_locked() {
+        let root = std::env::temp_dir().join(format!("inherited-clip-{}", uuid::Uuid::new_v4()));
+        let key = uuid::Uuid::new_v4().to_string();
+        let output = root.join("output");
+        let private = root.join("private");
+        let job = ClipJob::open_with_private_lock(&output, &key, &private).unwrap();
+        // dup and fork retain the same open-file description. A concurrent
+        // subprocess may briefly inherit it before its close-on-exec runs.
+        let inherited_private = job._locks[0].0.try_clone().unwrap();
+        let inherited_legacy = job._locks[1].0.try_clone().unwrap();
+        drop(job);
+        let reopened = ClipJob::open_with_private_lock(&output, &key, &private);
+        assert!(
+            reopened.is_ok(),
+            "Finished job remained locked: {:?}",
+            reopened.err()
+        );
+        drop(inherited_private);
+        drop(inherited_legacy);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+// Lock ownership ends with the job, even when another handle still exists.

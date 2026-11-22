@@ -4352,8 +4352,12 @@
     "quality_best_short": "Meilleur",
     "quality_audio": "Audio",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "Voir les formats",
-    "hide_formats": "Masquer les formats",
+    "languages_formats_hint": "Choisissez les langues et les pistes audio. Les réglages de qualité et les formats détaillés restent disponibles.",
+    "languages_loading": "Chargement des langues de la vidéo...",
+    "preview_loading": "Chargement de l’aperçu...",
+    "preview_unavailable": "Aperçu indisponible pour le moment. Les options de téléchargement fonctionnent.",
+    "view_formats": "Afficher les langues disponibles de la vidéo",
+    "hide_formats": "Masquer les langues disponibles de la vidéo",
     "no_formats": "Aucun format disponible pour cette vidéo",
     "formats_error": "Échec du chargement des formats",
     "preset_best": "Meilleur",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "contactez-nous sur discord :",
     "roadmap_community_issue": "ou ouvrez une issue sur le dépôt :",
     "tagline": "Téléchargez tout, de partout.",
-    "credit": "Fait avec amour par OpenSelena"
+    "credit": "Fait avec amour par OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Édition Android",
+      "heading": "Développement de la version",
+      "detail": "Développement et personnalisation d’omniget pour Android.",
+      "contact": "Me contacter",
+      "original": "Projet original",
+      "based": "Basé sur le projet open source LibreGet.",
+      "github": "Projet sur GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

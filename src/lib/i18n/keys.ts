@@ -19,6 +19,15 @@
  */
 
 export type TranslationKeys =
+  | 'about.android_edition.based'
+  | 'about.android_edition.contact'
+  | 'about.android_edition.detail'
+  | 'about.android_edition.github'
+  | 'about.android_edition.heading'
+  | 'about.android_edition.name'
+  | 'about.android_edition.original'
+  | 'about.android_edition.portrait'
+  | 'about.android_edition.role'
   | 'about.card_changelog_desc'
   | 'about.card_changelog_title'
   | 'about.card_project_desc'
@@ -579,6 +588,8 @@ export type TranslationKeys =
   | 'librebox.go_to_udemy'
   | 'librebox.hide_formats'
   | 'librebox.install_courses_plugin'
+  | 'librebox.languages_formats_hint'
+  | 'librebox.languages_loading'
   | 'librebox.media_changed'
   | 'librebox.mode_advanced'
   | 'librebox.mode_audio'
@@ -606,6 +617,8 @@ export type TranslationKeys =
   | 'librebox.preset_best'
   | 'librebox.preset_custom'
   | 'librebox.preset_music'
+  | 'librebox.preview_loading'
+  | 'librebox.preview_unavailable'
   | 'librebox.quality'
   | 'librebox.quality_1080p'
   | 'librebox.quality_1440p'

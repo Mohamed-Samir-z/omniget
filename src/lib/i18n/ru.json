@@ -4352,8 +4352,12 @@
     "quality_best_short": "Лучшее",
     "quality_audio": "Аудио",
     "quality_from_formats": "Показаны разрешения, доступные для этого видео",
-    "view_formats": "Посмотреть форматы",
-    "hide_formats": "Скрыть форматы",
+    "languages_formats_hint": "Выберите языки и звуковые дорожки. Настройки качества и подробные форматы остаются доступны.",
+    "languages_loading": "Получение языков видео...",
+    "preview_loading": "Загрузка предпросмотра...",
+    "preview_unavailable": "Предпросмотр пока недоступен. Параметры загрузки работают.",
+    "view_formats": "Показать доступные языки видео",
+    "hide_formats": "Скрыть доступные языки видео",
     "no_formats": "Для этого видео нет доступных форматов",
     "formats_error": "Не удалось загрузить форматы",
     "preset_best": "Лучшее",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "свяжитесь с нами в Discord:",
     "roadmap_community_issue": "или откройте задачу в репозитории:",
     "tagline": "Скачивайте что угодно, откуда угодно.",
-    "credit": "Сделано с любовью OpenSelena"
+    "credit": "Сделано с любовью OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Версия для Android",
+      "heading": "Разработка версии",
+      "detail": "Разработка и настройка omniget для Android.",
+      "contact": "Связаться",
+      "original": "Исходный проект",
+      "based": "На основе проекта LibreGet с открытым исходным кодом.",
+      "github": "Проект на GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Маркетплейс",

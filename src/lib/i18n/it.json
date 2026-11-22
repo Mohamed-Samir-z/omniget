@@ -4352,8 +4352,12 @@
     "quality_best_short": "Migliore",
     "quality_audio": "Audio",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "Mostra formati",
-    "hide_formats": "Nascondi formati",
+    "languages_formats_hint": "Scegli le lingue e le tracce audio. Le opzioni di qualità e i formati dettagliati restano disponibili.",
+    "languages_loading": "Caricamento delle lingue del video...",
+    "preview_loading": "Caricamento anteprima...",
+    "preview_unavailable": "Anteprima non ancora disponibile. Le opzioni di download funzionano.",
+    "view_formats": "Mostra le lingue disponibili del video",
+    "hide_formats": "Nascondi le lingue disponibili del video",
     "no_formats": "Nessun formato disponibile per questo video",
     "formats_error": "Impossibile caricare i formati",
     "preset_best": "Migliore",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "scrivici su Discord:",
     "roadmap_community_issue": "oppure apri una issue nel repository:",
     "tagline": "Scarica qualsiasi cosa, da qualsiasi luogo.",
-    "credit": "Fatto con amore da OpenSelena"
+    "credit": "Fatto con amore da OpenSelena",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Edizione Android",
+      "heading": "Sviluppo della versione",
+      "detail": "Sviluppo e personalizzazione di omniget per Android.",
+      "contact": "Contattami",
+      "original": "Progetto originale",
+      "based": "Basato sul progetto open source LibreGet.",
+      "github": "Progetto su GitHub",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "Marketplace",

@@ -1836,6 +1836,44 @@ async fn spawn_download_inner(
         torrent_upnp: settings.advanced.torrent_upnp,
     };
 
+    // Keep Android media variants separate without weakening --no-overwrites.
+    // Do this before clip isolation, which intentionally uses its own stable
+    // source name and reserves a unique final clip path.
+    #[cfg(target_os = "android")]
+    let opts = {
+        use libreget_core::core::output_variant::{filename_template, OutputVariant};
+        let flags: Vec<String> = settings
+            .download
+            .extra_ytdlp_flags
+            .iter()
+            .chain(opts.custom_ytdlp_args.as_deref().unwrap_or_default())
+            .map(|flag| flag.trim())
+            .filter(|flag| !flag.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let variant = OutputVariant {
+            url: &url,
+            quality: opts.quality.as_deref(),
+            mode: opts.download_mode.as_deref(),
+            audio_format: opts.audio_format.as_deref(),
+            format_id: opts.format_id.as_deref(),
+            audio_language: opts.audio_language.as_deref(),
+            audio_languages: opts.audio_languages.as_deref(),
+            subtitles: opts.download_subtitles,
+            auto_subtitles: opts.include_auto_subtitles,
+            flags: &flags,
+        };
+        let template = filename_template(
+            opts.filename_template
+                .as_deref()
+                .unwrap_or("%(title)s [%(id)s].%(ext)s"),
+            &variant,
+        );
+        let mut opts = opts;
+        opts.filename_template = Some(template);
+        opts
+    };
+
     let total_bytes = info.file_size_bytes;
     let item_title = info.title.clone();
     let log_title = item_title.clone();

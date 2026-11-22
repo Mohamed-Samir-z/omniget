@@ -132,11 +132,11 @@ class ScheduledDownloadWorker(context: Context, params: WorkerParameters) : Work
     }
     private fun foreground(percent: Int): ForegroundInfo {
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("scheduled", NativeText.t(applicationContext, "Scheduled downloads"), NotificationManager.IMPORTANCE_LOW))
         val tap = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)?.let {
             PendingIntent.getActivity(applicationContext, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(applicationContext, "scheduled") else Notification.Builder(applicationContext)
+        val builder = NativeNotifications.builder(applicationContext, "scheduled", NativeText.t(applicationContext, "Scheduled downloads"))
+        if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         val notification = builder.setSmallIcon(R.drawable.ic_omniget_download).setContentTitle(NativeText.t(applicationContext, "omniget · Scheduled download"))
             .setContentText(if (percent < 0) NativeText.t(applicationContext, "Preparing download") else NativeText.percent(applicationContext, percent))
             .setProgress(100, percent.coerceAtLeast(0), percent < 0).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(tap)

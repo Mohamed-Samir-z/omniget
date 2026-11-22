@@ -7,11 +7,12 @@ class MainActivity : android.app.Activity() {
  @Volatile var ready = true
  @Volatile var calls = 0
  @Volatile var last = listOf<String>()
+ val acceptedUrls = java.util.concurrent.ConcurrentLinkedQueue<String>()
  @Volatile var result = ""
  fun setShareContentVisible(visible: Boolean) { contentVisible = visible }
  fun nativeShareReady(): Boolean = ready
  fun nativeShareAction(text: String, mode: String, quality: String, action: String): String {
-  last=listOf(text,mode,quality,action); calls++; return result
+  last=listOf(text,mode,quality,action); calls++; if (action == "download" && result.isEmpty()) acceptedUrls.add(text); return result
  }
  override fun moveTaskToBack(nonRoot: Boolean): Boolean { left=true; return true }
 }

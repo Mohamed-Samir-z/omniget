@@ -36,3 +36,32 @@ async fn main()->anyhow::Result<()> {
  let (path,duration)=clip::finish(std::path::Path::new(&a[1]),std::path::Path::new(&a[2]),"Test title",&range,Some(a[4].parse()?),&tokio_util::sync::CancellationToken::new()).await?;
  println!("{}\n{}",path.display(),duration); Ok(())
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod lock_diagnostics {
+ use super::*;
+ use anyhow::Context;
+ #[test]
+ fn non_contention_error_is_currently_misreported_as_running() {
+  let failure: Result<(),fs4::TryLockError> = Err(std::io::Error::from_raw_os_error(38).into());
+  let error=failure.context("This clip is already running").unwrap_err();
+  assert_eq!(error.to_string(),"This clip is already running");
+  assert!(format!("{error:#}").contains("not implemented"));
+ }
+ #[test]
+ fn killed_owner_leaves_file_but_not_lock_or_source_loss() {
+  use std::io::{BufRead,BufReader};
+  let root=std::env::temp_dir().join(format!("clip-killed-owner-{}",uuid::Uuid::new_v4()));
+  let key=uuid::Uuid::new_v4().to_string();
+  let directory;
+  {let job=clip::ClipJob::open(&root,&key).unwrap();directory=job.directory.clone();let source=directory.join("source.mkv");std::fs::write(&source,b"saved-source").unwrap();job.save_source(&source,"choices",12.0).unwrap();}
+  let code="import fcntl,sys,time; f=open(sys.argv[1],'r+'); fcntl.flock(f,fcntl.LOCK_EX); print('ready',flush=True); time.sleep(60)";
+  let child=std::process::Command::new("python3").args(["-c",code]).arg(directory.join("workspace.lock")).stdout(std::process::Stdio::piped()).spawn();
+  let mut child=child.unwrap();let mut ready=String::new();BufReader::new(child.stdout.take().unwrap()).read_line(&mut ready).unwrap();assert_eq!(ready.trim(),"ready");
+  assert!(clip::ClipJob::open(&root,&key).is_err());
+  child.kill().unwrap();child.wait().unwrap();
+  assert!(directory.join("workspace.lock").exists());
+  let job=clip::ClipJob::open(&root,&key).unwrap();let (source,_) = job.source("choices").unwrap().unwrap();assert_eq!(std::fs::read(source).unwrap(),b"saved-source");
+  job.complete().unwrap();std::fs::remove_dir(root).unwrap();
+ }
+}

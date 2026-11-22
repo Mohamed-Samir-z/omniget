@@ -40,6 +40,7 @@ pub mod preflight;
 pub mod queue;
 pub mod queue_history;
 pub mod queue_wal;
+pub mod quick_preview;
 pub mod recovery;
 pub mod root_cause;
 pub mod rpc;

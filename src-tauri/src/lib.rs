@@ -913,6 +913,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::downloads::open_developer_contact,
+            commands::downloads::android_notification_channel,
             local_bridge::media_stream_url,
             android_update::check_android_update,
             android_update::download_android_update,
@@ -953,7 +954,9 @@ pub fn run() {
             commands::downloads::check_cookie_error,
             commands::downloads::validate_output_path,
             commands::downloads::get_media_formats,
+            commands::downloads::get_media_details,
             commands::downloads::prefetch_media_info,
+            commands::downloads::quick_media_preview,
             commands::downloads::download_from_url,
             commands::downloads::playlist_entries,
             #[cfg(not(target_os = "android"))]

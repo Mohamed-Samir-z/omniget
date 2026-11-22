@@ -4352,8 +4352,12 @@
     "quality_best_short": "最佳",
     "quality_audio": "音訊",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "檢視格式",
-    "hide_formats": "隱藏格式",
+    "languages_formats_hint": "在下方選擇音訊語言和音軌。畫質預設和詳細格式仍然可用。",
+    "languages_loading": "正在取得影片語言…",
+    "preview_loading": "正在載入影片預覽…",
+    "preview_unavailable": "預覽暫時無法使用，下載選項仍可使用。",
+    "view_formats": "顯示影片可用語言",
+    "hide_formats": "隱藏影片可用語言",
     "no_formats": "此影片沒有可用格式",
     "formats_error": "載入格式失敗",
     "preset_best": "最佳",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "可透過 Discord 聯絡：",
     "roadmap_community_issue": "或在專案儲存庫建立 Issue：",
     "tagline": "隨時隨地，下載一切。",
-    "credit": "由 OpenSelena 用心打造"
+    "credit": "由 OpenSelena 用心打造",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Android 版本",
+      "heading": "版本開發",
+      "detail": "omniget Android 版本的開發與客製化。",
+      "contact": "聯絡我",
+      "original": "原始專案",
+      "based": "以開源專案 LibreGet 為基礎。",
+      "github": "GitHub 專案",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "插件市场",

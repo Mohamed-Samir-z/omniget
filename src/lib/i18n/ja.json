@@ -4352,8 +4352,12 @@
     "quality_best_short": "最高",
     "quality_audio": "音声",
     "quality_from_formats": "Showing resolutions available for this video",
-    "view_formats": "フォーマットを表示",
-    "hide_formats": "フォーマットを隠す",
+    "languages_formats_hint": "音声の言語とトラックを選択できます。画質設定と詳細な形式も引き続き利用できます。",
+    "languages_loading": "動画の言語を取得中...",
+    "preview_loading": "プレビューを読み込み中...",
+    "preview_unavailable": "プレビューはまだ利用できません。ダウンロード設定は利用できます。",
+    "view_formats": "動画で利用できる言語を表示",
+    "hide_formats": "動画で利用できる言語を非表示",
     "no_formats": "この動画で利用可能なフォーマットはありません",
     "formats_error": "フォーマットの読み込みに失敗しました",
     "preset_best": "最適",
@@ -4506,7 +4510,18 @@
     "roadmap_community_discord": "Discordでお気軽にどうぞ：",
     "roadmap_community_issue": "またはリポジトリでIssueを作成してください：",
     "tagline": "どこからでも、何でもダウンロード。",
-    "credit": "OpenSelena が愛を込めて作りました"
+    "credit": "OpenSelena が愛を込めて作りました",
+    "android_edition": {
+      "name": "Mohamed Samir",
+      "role": "Android 版",
+      "heading": "このバージョンの開発",
+      "detail": "Android 向け omniget の開発とカスタマイズ。",
+      "contact": "お問い合わせ",
+      "original": "元のプロジェクト",
+      "based": "オープンソースの LibreGet プロジェクトを基にしています。",
+      "github": "GitHub のプロジェクト",
+      "portrait": "Mohamed Samir"
+    }
   },
   "marketplace": {
     "title": "マーケットプレイス",

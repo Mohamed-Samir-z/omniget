@@ -28,6 +28,7 @@
     selectedAudioLanguages = $bindable<string[]>([]),
     multipleAudio = $bindable(false),
     loadingFormats = false,
+    expanded = true,
     formatError = null as string | null,
     onLoadFormats,
     onSelectFormat,
@@ -152,6 +153,8 @@
     class="button formats-toggle-btn"
     onclick={onLoadFormats}
     disabled={loadingFormats}
+    aria-busy={loadingFormats}
+    aria-expanded={expanded && formats.length > 0}
   >
     {#if loadingFormats}
       <span class="feedback-spinner small-spinner"></span>
@@ -161,8 +164,8 @@
       </svg>
     {/if}
     {#if loadingFormats}
-      {$t('librebox.view_formats')}...
-    {:else if formats.length > 0}
+      {$t('librebox.languages_loading')}
+    {:else if formats.length > 0 && expanded}
       {$t('librebox.hide_formats')}
     {:else}
       {$t('librebox.view_formats')}
@@ -170,7 +173,7 @@
   </button>
 
   {#if formatError && formats.length === 0}
-    <div class="formats-error">
+    <div class="formats-error" role="alert">
       <span class="formats-error-text">{formatError}</span>
       <button class="button formats-retry-btn" onclick={onLoadFormats}>
         {$t('librebox.retry')}
@@ -178,8 +181,13 @@
     </div>
   {/if}
 
-  {#if formats.length > 0}
+  {#if loadingFormats}
+    <p class="multi-audio-note" role="status" aria-live="polite">{$t("librebox.languages_loading")}</p>
+  {/if}
+
+  {#if formats.length > 0 && expanded}
     <div class="formats-panel">
+      <p class="multi-audio-note">{$t("librebox.languages_formats_hint")}</p>
       <div class="formats-presets" role="radiogroup" aria-label={$t('librebox.formats_presets_label')}>
         {#if bestVA || bestVideo}
           <button
@@ -341,9 +349,26 @@
   .formats-toggle-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 48px;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    margin-top: 6px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
     font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.45;
+    white-space: normal;
+    text-align: center;
+    cursor: pointer;
   }
+  .formats-toggle-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .formats-toggle-btn:disabled { opacity: 0.75; cursor: wait; }
 
   .formats-playlist-note {
     padding: calc(var(--padding) / 2) var(--padding);
@@ -379,8 +404,8 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .formats-retry-btn {
@@ -398,8 +423,8 @@
     border-radius: var(--border-radius);
     box-shadow: var(--button-box-shadow);
     padding: var(--padding);
-    max-height: 400px;
-    overflow: hidden;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .audio-track-row {
