@@ -31,6 +31,7 @@ object NativeText {
         "Share downloaded file" to "مشاركة الملف المنزّل",
         "Completed downloads" to "التنزيلات المكتملة",
         "Download complete" to "اكتمل التنزيل",
+        "File saved, subtitles unavailable" to "تم حفظ الملف، الترجمة غير متاحة",
         "Developer appreciation" to "دعوة للمطور",
         "Open" to "فتح",
         "Share" to "مشاركة",

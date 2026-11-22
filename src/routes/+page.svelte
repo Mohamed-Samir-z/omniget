@@ -702,6 +702,7 @@
     }
 
     if (info.platform === "p2p") {
+      if (isAndroid()) { showToast("info", $t("home.p2p_unavailable")); return; }
       const trimmed = url.trim();
       const code = trimmed.replace(/^p2p:/, "");
       p2pReceiveUrl = trimmed;
@@ -947,8 +948,10 @@
       multiple: false,
     });
     if (selected && typeof selected === "string") {
-      url = selected;
-      handleInput();
+      try {
+        url = isAndroid() ? await invoke<string>("prepare_torrent_file", { path: selected }) : selected;
+        handleInput();
+      } catch (e) { showToast("error", String(e)); }
     }
   }
 
@@ -983,6 +986,7 @@
     // return to "url" so the tab bar never strands on an empty state when
     // the picker/dialog is cancelled
     if (mode === "p2p") {
+      if (isAndroid()) { showToast("info", $t("home.p2p_unavailable")); homeInputMode = "url"; return; }
       showP2pSendDialog = true;
       homeInputMode = "url";
     } else if (mode === "torrent") {
@@ -1272,7 +1276,7 @@
     </div>
   {/if}
 
-  <DeveloperCard />
+  <DeveloperCard compact={isAndroid()} />
 
   {#if showP2pSendDialog}
     <P2pSendDialog onClose={() => { showP2pSendDialog = false; }} />

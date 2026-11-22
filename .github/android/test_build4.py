@@ -21,8 +21,10 @@ class Build4Tests(unittest.TestCase):
   self.assertIn('JValue::Long(speed.max(0.0) as i64)',patch)
   service=(ROOT/'.github/android/DownloadService.kt').read_text()
   self.assertIn('count: Int, speed: Long',service)
-  self.assertIn('MB/s',service)
-  self.assertIn('$detail',service)
+  self.assertIn('DownloadNotification.build(this, p.title, p.percent, p.count, p.speed)',service)
+  body=(ROOT/'.github/android/DownloadNotification.kt').read_text()
+  self.assertIn('MB/s',body)
+  self.assertIn('$detail',body)
  def test_share_schedule_has_validation_and_limit(self):
   share=(ROOT/'src/routes/share/+page.svelte').read_text()
   self.assertIn('type="datetime-local"',share)

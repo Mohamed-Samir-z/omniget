@@ -32,11 +32,14 @@ class GalleryIntegrationTests(unittest.TestCase):
 
     def test_notifications_use_real_progress_and_a_custom_icon(self):
         service = Path(__file__).with_name('DownloadService.kt').read_text()
-        self.assertIn('R.drawable.ic_omniget_download', service)
-        self.assertIn('.setProgress(100,', service)
-        self.assertIn('.setOngoing(true)', service)
-        self.assertIn('.setOnlyAlertOnce(true)', service)
-        self.assertIn('PendingIntent.getActivity', service)
+        body = Path(__file__).with_name('DownloadNotification.kt').read_text()
+        self.assertIn('DownloadNotification.build(this, p.title, p.percent, p.count, p.speed)', service)
+        self.assertIn('R.drawable.ic_omniget_download', body)
+        self.assertIn('.setProgressBar(R.id.omniget_download_progress, 100,', body)
+        self.assertNotIn('.setProgress(100,', body)  # Would draw a duplicate system bar.
+        self.assertIn('.setOngoing(true)', body)
+        self.assertIn('.setOnlyAlertOnce(true)', body)
+        self.assertIn('PendingIntent.getActivity', body)
         self.assertIn('stopForeground(STOP_FOREGROUND_REMOVE)', service)
         queue = (ROOT / 'src-tauri/src/core/queue.rs').read_text()
         self.assertIn('crate::android_media::update_download_notification', queue)

@@ -91,7 +91,11 @@
     "action_advanced": "Advanced options",
     "action_simple": "Back to the simple view",
     "value_line": "{{count}} files · {{size}} saved with LibreGet",
-    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies."
+    "value_first": "Your first download takes about a minute. Private content only needs your browser cookies.",
+    "url_prompt": "貼上影片連結",
+    "url_hint": "使用 + 加入多個連結、種子與更多選項。",
+    "search_app": "搜尋應用程式",
+    "p2p_unavailable": "Android 尚不支援"
   },
   "tools": {
     "tab": "工具",
@@ -3285,7 +3289,18 @@
     "schedule_edit": "Change time",
     "schedule_save": "Save time",
     "schedule_completed_heading": "Completed scheduled downloads",
-    "schedule_error_details": "Failure details"
+    "schedule_error_details": "Failure details",
+    "selection_details": "下載選項",
+    "audio_requested": "要求的音軌",
+    "subtitles_requested": "要求的字幕",
+    "source_audio": "來源預設",
+    "subtitles_off": "無字幕",
+    "app_setting": "應用程式設定",
+    "automatic_captions": "自動",
+    "subtitles_saved": "已儲存的字幕",
+    "selection_not_recorded": "未記錄這次下載的選項。",
+    "subtitles_warning": "檔案已儲存。所選字幕遺失或無效，檔案已保留。",
+    "saved_warning_short": "已儲存，有警告"
   },
   "toast": {
     "download_preparing": "正在準備下載...",
@@ -5518,5 +5533,20 @@
     "date": "Date",
     "time": "Time",
     "android_hint": "Leave the time empty to start now. Android background schedules do not support clips or a stop time. Download a clip now, or clear clip times to schedule."
+  },
+  "support": {
+    "title": "喜歡 omniget 嗎？",
+    "body": "在 GitHub 上加星可以幫助更多人發現這個專案。支持是免費的。",
+    "open": "開啟 GitHub",
+    "later": "稍後",
+    "already": "已支持",
+    "optional": "自願參與。開啟 GitHub 不會自動加星。"
+  },
+  "android": {
+    "unavailable_title": "Not available on Android",
+    "unavailable_body": "This page is for desktop tools. Find source metadata, covers, captions, comments and chat in Downloads > Tools."
+  },
+  "guide": {
+    "reopen": "Usage guide and all capabilities"
   }
 }

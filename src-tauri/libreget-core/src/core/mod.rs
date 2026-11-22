@@ -36,3 +36,5 @@ pub mod subtitle_merge;
 pub mod tools;
 pub mod trash_compat;
 pub mod ytdlp;
+
+pub mod log_redaction;

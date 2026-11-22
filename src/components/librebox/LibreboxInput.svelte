@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import { shortcut } from "$lib/platform";
+  import { shortcut, isAndroid } from "$lib/platform";
   import type { HomeInputMode } from "$lib/home/librebox-controller";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
 
@@ -23,6 +23,8 @@
   let dragOver = $state(false);
   let inputEl = $state<HTMLInputElement | null>(null);
   let menuOpen = $state(false);
+  let menuRootEl = $state<HTMLDivElement | null>(null);
+  let inlineMenu = $derived(isAndroid() && prominent);
   let menuWrapEl = $state<HTMLDivElement | null>(null);
 
   const secondary: {
@@ -38,7 +40,8 @@
   $effect(() => {
     if (!menuOpen) return;
     function handleDocPointerDown(e: PointerEvent) {
-      if (menuWrapEl && !menuWrapEl.contains(e.target as Node)) {
+      const scope = inlineMenu ? menuRootEl : menuWrapEl;
+      if (scope && !scope.contains(e.target as Node)) {
         menuOpen = false;
       }
     }
@@ -105,6 +108,50 @@
   }
 </script>
 
+{#snippet inputMenu()}
+      <div class="librebox-plus-menu" class:inline={inlineMenu} role="menu">
+        {#each secondary as item (item.mode)}
+          <button
+            type="button"
+            class="librebox-plus-item"
+            role="menuitem"
+            disabled={isAndroid() && item.mode === "p2p"}
+            title={isAndroid() && item.mode === "p2p" ? $t("home.p2p_unavailable") : undefined}
+            onclick={(e) => {
+              e.stopPropagation();
+              menuOpen = false;
+              onModeSelect?.(item.mode);
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d={item.icon} />
+            </svg>
+            <span>{$t(item.key)}{#if isAndroid() && item.mode === "p2p"}<small class="mode-unavailable">{$t("home.p2p_unavailable")}</small>{/if}</span>
+          </button>
+        {/each}
+        {#if onAdvanced}
+          <div class="librebox-plus-sep" role="separator"></div>
+          <button
+            type="button"
+            class="librebox-plus-item"
+            role="menuitem"
+            onclick={(e) => {
+              e.stopPropagation();
+              menuOpen = false;
+              onAdvanced();
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+            </svg>
+            <span>{$t(advanced ? "home.action_simple" : "home.action_advanced")}</span>
+          </button>
+        {/if}
+      </div>
+{/snippet}
+
+<div class="librebox-input-stack" bind:this={menuRootEl}>
+
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
@@ -136,53 +183,16 @@
       </svg>
     </button>
 
-    {#if menuOpen}
-      <div class="librebox-plus-menu" role="menu">
-        {#each secondary as item (item.mode)}
-          <button
-            type="button"
-            class="librebox-plus-item"
-            role="menuitem"
-            onclick={(e) => {
-              e.stopPropagation();
-              menuOpen = false;
-              onModeSelect?.(item.mode);
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d={item.icon} />
-            </svg>
-            <span>{$t(item.key)}</span>
-          </button>
-        {/each}
-        {#if onAdvanced}
-          <div class="librebox-plus-sep" role="separator"></div>
-          <button
-            type="button"
-            class="librebox-plus-item"
-            role="menuitem"
-            onclick={(e) => {
-              e.stopPropagation();
-              menuOpen = false;
-              onAdvanced();
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
-            </svg>
-            <span>{$t(advanced ? "home.action_simple" : "home.action_advanced")}</span>
-          </button>
-        {/if}
-      </div>
-    {/if}
+    {#if menuOpen && !inlineMenu}{@render inputMenu()}{/if}
   </div>
 
   <input
     bind:this={inputEl}
     class="librebox"
     type="text"
-    placeholder={$t('librebox.placeholder')}
-    aria-label={$t('librebox.placeholder')}
+    placeholder={$t(isAndroid() && prominent ? 'home.url_prompt' : 'librebox.placeholder')}
+    aria-label={$t(isAndroid() && prominent ? 'home.url_prompt' : 'librebox.placeholder')}
+    aria-describedby={isAndroid() && prominent ? 'home-input-help' : undefined}
     bind:value={url}
     oninput={onInput}
     autocomplete="off"
@@ -209,8 +219,13 @@
     </button>
   {/if}
 </div>
+{#if menuOpen && inlineMenu}{@render inputMenu()}{/if}
+</div>
 
 <style>
+  .librebox-input-stack { display:flex; flex-direction:column; width:100%; min-width:0; }
+  .librebox-plus-menu.inline { position:static; width:100%; min-width:0; box-sizing:border-box; margin-top:8px; z-index:auto; }
+
   .librebox-wrapper {
     width: 100%;
     position: relative;
@@ -356,6 +371,8 @@
     cursor: pointer;
     transition: background var(--duration-fast) var(--ease-out);
   }
+
+  .librebox-plus-item:disabled{opacity:.55;cursor:not-allowed}.mode-unavailable{display:block;font-size:10px;line-height:1.5;color:var(--text-muted)}
 
   .librebox-plus-item svg {
     color: var(--text-muted);

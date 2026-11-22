@@ -143,6 +143,12 @@ if "YoutubeDL" not in k:
     (act.parent / "MediaLibrary.kt").write_text(media_template.replace("@PACKAGE@", pkg))
     service_template = pathlib.Path(__file__).resolve().with_name("DownloadService.kt").read_text()
     (act.parent / "DownloadService.kt").write_text(service_template.replace("@PACKAGE@", pkg))
+    (act.parent / "DocumentImports.kt").write_text(pathlib.Path(__file__).with_name("DocumentImports.kt").read_text().replace("@PACKAGE@", pkg))
+    (act.parent / "DownloadNotification.kt").write_text(pathlib.Path(__file__).with_name("DownloadNotification.kt").read_text().replace("@PACKAGE@", pkg))
+    notification_layouts = root / "src/main/res/layout"
+    notification_layouts.mkdir(parents=True, exist_ok=True)
+    for name in ("omniget_download_compact", "omniget_download_expanded"):
+        (notification_layouts / f"{name}.xml").write_text(pathlib.Path(__file__).with_name(f"{name}.xml").read_text())
     drawable = root / "src/main/res/drawable"
     drawable.mkdir(parents=True, exist_ok=True)
     (drawable / "ic_omniget_download.xml").write_text(

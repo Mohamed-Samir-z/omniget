@@ -61,6 +61,8 @@ export type CommandRecord = {
   overridden: boolean;
 };
 
+import type { DownloadSelection } from "$lib/download-display";
+
 export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
@@ -71,6 +73,9 @@ export type GenericDownloadItem = BaseItem & {
   etaSeconds?: number | null;
   filePath?: string;
   fileCount?: number;
+  subtitleWarning?: string | null;
+  selection?: DownloadSelection | null;
+  completedAtMs?: number | null;
   thumbnail_url?: string | null;
   quality?: string | null;
   downloadMode?: string | null;
@@ -287,6 +292,9 @@ type QueueItemInfo = {
   file_path: string | null;
   file_size_bytes: number | null;
   file_count: number | null;
+  subtitle_warning?: string | null;
+  selection?: DownloadSelection | null;
+  completed_at_ms?: number | null;
   thumbnail_url: string | null;
   kind?: QueueKind;
   external?: boolean;
@@ -368,6 +376,9 @@ export function syncQueueState(items: QueueItemInfo[]) {
       lastUpdateAt: now,
       filePath: qi.file_path ?? undefined,
       fileCount: qi.file_count ?? undefined,
+      subtitleWarning: qi.subtitle_warning ?? null,
+      selection: qi.selection ?? null,
+      completedAtMs: qi.completed_at_ms ?? null,
       thumbnail_url: qi.thumbnail_url,
       queueKind: qi.kind,
       external: qi.external,

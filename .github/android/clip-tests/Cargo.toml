@@ -14,3 +14,9 @@ fs4 = "1"
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
+
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+url = "2"
+
+regex = "1"

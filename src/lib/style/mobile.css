@@ -151,7 +151,7 @@
   .section-title { font-size:13px;font-weight:600;line-height:1.5;margin-bottom:10px; }
 }
 @media(max-width:768px){
- .home-mac--stage{overflow-y:auto}.home-stage{padding:24px 12px 32px;flex:0 0 auto;overflow:visible}.home-stage-inner{margin:16px 0 8px}.home-mac--stage>.developer{margin-top:auto}.home-panel{padding:12px}.options-panel{padding:0 8px}
+ .home-mac--stage{overflow-y:auto}.home-stage{padding:16px 12px;flex:0 0 auto;overflow:visible}.home-stage-inner{margin:8px 0 0}.home-mac--stage>.developer{margin-top:8px}.home-panel{padding:12px}.options-panel{padding:0 8px}
  .settings-mac-content .toggle[role="switch"]{width:48px;height:44px;min-height:44px;background:transparent;box-shadow:none;border-radius:10px}
  .settings-mac-content .toggle[role="switch"]::before{content:"";position:absolute;width:44px;height:24px;top:10px;left:2px;border-radius:20px;background:var(--fill-3);box-shadow:inset 0 0 0 1px var(--border)}
  .settings-mac-content .toggle[aria-checked="true"]::before{background:var(--accent)}

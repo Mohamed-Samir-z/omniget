@@ -141,7 +141,11 @@
   }
 
   @media (max-width: 640px) {
-    .about-layout { flex-direction: column; width: 100%; box-sizing: border-box; padding: 12px; gap: 16px; }
+    /* The desktop pane reserves an 8px trailing margin. About's mobile
+       layout instead keeps its own symmetric 16px horizontal padding. */
+    :global(.mac-pane:has(.about-layout)) { margin-inline: 0; }
+    .about-layout { flex-direction: column; align-items: stretch; width: 100%; box-sizing: border-box; padding: 16px; gap: 20px; }
+    .about-content { width: 100%; box-sizing: border-box; }
     .about-sidebar { width: 100%; position: static; box-sizing: border-box; flex-direction: row; flex-wrap: nowrap; gap: 4px; padding: 4px; background: var(--fill-1); border: 1px solid var(--border); border-radius: 14px; }
     .about-nav-item { flex: 1 1 0; min-width: 0; min-height: 58px; height: auto; box-sizing: border-box; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 2px; font-size: 11px; line-height: 1.25; text-align: center; border-radius: 10px; overflow-wrap: anywhere; }
     .about-nav-icon { width: 20px; height: 20px; background: transparent; }

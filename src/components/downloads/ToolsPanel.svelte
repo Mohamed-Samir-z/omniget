@@ -3,6 +3,7 @@
 </script>
 
 <script lang="ts">
+  import { isAndroid } from "$lib/platform";
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
@@ -732,7 +733,7 @@
   </section>
   {/if}
 
-  {#if show("workshop")}
+  {#if show("workshop") && !isAndroid()}
   <section class="tool-card">
     {#if !only}
     <div class="tool-head">
@@ -749,7 +750,7 @@
   {/if}
 </div>
 
-{#if wsOpen}
+{#if wsOpen && !isAndroid()}
   <SubtitleWorkshop onClose={() => (wsOpen = false)} />
 {/if}
 

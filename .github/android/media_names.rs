@@ -42,3 +42,21 @@ mod tests {
         assert_eq!(safe_media_stem(""), "download");
     }
 }
+
+/// Byte-bounded yt-dlp default, including the caller's explicit None branch.
+pub fn download_filename_template(template: Option<&str>) -> String {
+    template.unwrap_or("%(title).180s [%(id)s].%(ext)s").replace("%(title).200s", "%(title,id|download).120B").replace("%(title).180s", "%(title,id|download).120B").replace("%(title).40s", "%(title,id|download).120B").replace("%(title)s", "%(title,id|download).120B").replace("%(id)s", "%(id).32B")
+}
+#[cfg(test)]
+mod filename_template_tests {
+    use super::*;
+    #[test] fn none_template_is_byte_bounded_for_arabic_and_emoji() {
+        let template=download_filename_template(None);
+        assert_eq!(template,"%(title,id|download).120B [%(id).32B].%(ext)s");
+        for title in ["عنوان عربي طويل ".repeat(80),"🎥✨".repeat(100)] {
+            assert!(title.len()>255);let bounded=safe_media_stem(&title);
+            let filename=format!("{bounded} [12345678901234567890123456789012].f999.mp4.part");
+            assert!(filename.len()<255);assert!(!filename.contains('\u{fffd}'));
+        }
+    }
+}

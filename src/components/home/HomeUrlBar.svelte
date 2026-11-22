@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "$lib/i18n";
+  import { isAndroid } from "$lib/platform";
   import LibreboxInput from "$components/librebox/LibreboxInput.svelte";
   import type { HomeInputMode } from "$lib/home/librebox-controller";
 
@@ -36,10 +38,13 @@
       onModeSelect={pick}
       {onAdvanced}
     />
+    {#if isAndroid() && variant === "stage"}<p class="home-input-help" id="home-input-help">{$t('home.url_hint')}</p>{/if}
   {/if}
 </div>
 
 <style>
+  .home-input-help { margin: 2px 0 0; padding-inline: 6px; font-size: 11px; line-height: 1.6; color: var(--text-muted); text-align: center; overflow-wrap: anywhere; }
+
   .home-url-bar {
     display: flex;
     flex-direction: column;

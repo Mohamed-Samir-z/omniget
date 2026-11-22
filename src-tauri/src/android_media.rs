@@ -276,7 +276,7 @@ pub fn notification_channel() -> Result<String, String> {
     response.ok_or_else(|| "Android notification channel is unavailable".into())
 }
 
-pub fn notify_complete(path: &std::path::Path, title: &str) {
+pub fn notify_complete(path: &std::path::Path, title: &str, subtitles_missing: bool) {
     let path = path.to_string_lossy().into_owned();
     let title = title.to_string();
     with_context("completion notification", move |env, context| {
@@ -285,12 +285,13 @@ pub fn notify_complete(path: &std::path::Path, title: &str) {
         let title = env.new_string(title)?;
         env.call_static_method(
             jni::objects::JClass::from(class),
-            "complete",
-            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V",
+            "completeWithWarning",
+            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Z)V",
             &[
                 JValue::Object(context),
                 JValue::Object(&path),
                 JValue::Object(&title),
+                JValue::Bool(u8::from(subtitles_missing)),
             ],
         )?;
         Ok(())
@@ -332,4 +333,60 @@ pub fn schedule_call(action: &str, payload: &str) -> Result<String, String> {
             .unwrap_or("Schedule operation failed")
             .into())
     }
+}
+
+/// Read only the document selected by the platform picker, preserving URI grants.
+pub fn import_document(source: &str, torrent: bool) -> Result<String, String> {
+    let mut response = None;
+    let method = if torrent { "copyTorrent" } else { "readBatch" };
+    if !with_context("document import", |env, context| {
+        let class = load_class(env, context, "com.openselena.libreget.DocumentImports")?;
+        let source = env.new_string(source)?;
+        let value = env
+            .call_static_method(
+                jni::objects::JClass::from(class),
+                method,
+                "(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;",
+                &[JValue::Object(context), JValue::Object(&source)],
+            )?
+            .l()?;
+        response = Some(env.get_string(&jni::objects::JString::from(value))?.into());
+        Ok(())
+    }) {
+        return Err("Could not access the selected Android document".into());
+    }
+    let response: String = response.ok_or("The document provider returned no result")?;
+    let value: serde_json::Value = serde_json::from_str(&response).map_err(|e| e.to_string())?;
+    if value["ok"].as_bool() != Some(true) {
+        return Err(value["error"]
+            .as_str()
+            .unwrap_or("Could not read the selected document")
+            .into());
+    }
+    value["value"]
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "The document provider returned invalid data".into())
+}
+
+/// Device locale list before the first settings record is created. The native
+/// list is available before the webview and cannot overwrite a saved choice.
+pub fn device_language_tags() -> Option<String> {
+    let mut result = None;
+    with_context("device languages", |env, _context| {
+        let locales = env
+            .call_static_method(
+                "android/os/LocaleList",
+                "getDefault",
+                "()Landroid/os/LocaleList;",
+                &[],
+            )?
+            .l()?;
+        let tags = env
+            .call_method(locales, "toLanguageTags", "()Ljava/lang/String;", &[])?
+            .l()?;
+        result = Some(env.get_string(&jni::objects::JString::from(tags))?.into());
+        Ok(())
+    });
+    result
 }

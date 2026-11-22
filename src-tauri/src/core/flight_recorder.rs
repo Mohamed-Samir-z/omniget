@@ -24,6 +24,8 @@ pub const CAPACITY: usize = 500;
 /// enumerar o que e seguro. A mitigacao e cobrir por *classe* de segredo e
 /// testar cada uma, em vez de por padrao literal.
 pub fn redact(line: &str) -> String {
+    let diagnostic = crate::core::log_redaction::redact_diagnostics(line);
+    let line = diagnostic.as_str();
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
 
@@ -46,7 +48,7 @@ pub fn redact(line: &str) -> String {
 
 /// Acha o proximo segredo: `(offset, comprimento, substituto)`.
 fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
-    let lower = hay.to_lowercase();
+    let lower = hay.to_ascii_lowercase();
     let mut best: Option<(usize, usize, &'static str)> = None;
 
     // Chave=valor, em query string, header ou linha de config.
@@ -243,6 +245,7 @@ mod tests {
 
     #[test]
     fn linha_sem_segredo_atravessa_intacta() {
+        assert!(!redact("İ título عربي token=SYNTHETIC_UNICODE").contains("SYNTHETIC_UNICODE"));
         // Redacao agressiva demais destroi o valor do log.
         let limpa = "[ytdlp] merging formats 137+140 into out.mp4";
         assert_eq!(redact(limpa), limpa);

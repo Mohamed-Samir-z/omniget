@@ -30,6 +30,9 @@
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
   import { initChangelog } from "$lib/stores/changelog-store.svelte";
   import { checkAnnouncements } from "$lib/stores/announcement-store.svelte";
+  import CapabilityGuide from "$components/onboarding/CapabilityGuide.svelte";
+  import { isGuideOpen } from "$lib/stores/guide-store.svelte";
+  import SupportPromptDialog from "$components/dialog/SupportPromptDialog.svelte";
   import { needsOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { isYtdlpAvailable, isDepsChecked, refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
@@ -305,7 +308,7 @@
           goto("/");
         },
       },
-    ]);
+    ].filter(item => !isAndroid || ["nav-home","nav-downloads","nav-settings","nav-about","action-paste"].includes(item.id)));
   }
 
   $effect(() => {
@@ -441,7 +444,9 @@
 
     <main id="main-content" class="content" use:sectionSwipe={{ enabled: isAndroid, getPath: () => page.url.pathname, rtl: () => isRtlLocale($locale), navigate: (href) => goto(href) }}>
       <div class="mac-pane" class:mac-pane--flush={isFlushRoute}>
-        {#if isCoreRoute}
+        {#if isAndroid && (page.url.pathname.startsWith("/tools") || page.url.pathname.startsWith("/marketplace"))}
+          <section class="android-unavailable" style="padding:24px;line-height:1.8"><h2>{$t("android.unavailable_title")}</h2><p>{$t("android.unavailable_body")}</p><a href="/downloads">{$t("nav.downloads")}</a></section>
+        {:else if isCoreRoute}
           <div class="core-shell" class:core-shell--flush={isFlushRoute}>
             {@render children()}
           </div>
@@ -459,7 +464,9 @@
 <Toast />
 <CommandPalette />
 
-{#if showOnboarding && OnboardingWizard}
+{#if isAndroid && (showOnboarding || isGuideOpen())}
+  <CapabilityGuide />
+{:else if showOnboarding && OnboardingWizard}
   <OnboardingWizard />
 {/if}
 
@@ -696,3 +703,5 @@
     }
   }
 </style>
+
+<SupportPromptDialog />

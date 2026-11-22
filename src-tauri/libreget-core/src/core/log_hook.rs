@@ -10,7 +10,8 @@ pub fn set_log_sink(sink: LogSink) {
 
 pub fn emit_log(id: u64, line: &str) {
     if let Some(s) = SINK.get() {
-        s(id, line);
+        let safe = crate::core::log_redaction::redact_diagnostics(line);
+        s(id, &safe);
     }
 }
 

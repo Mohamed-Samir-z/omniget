@@ -29,6 +29,7 @@ pub mod channels;
 pub mod clip;
 pub mod db;
 pub mod download_log;
+pub mod download_selection;
 pub mod events;
 pub mod flight_recorder;
 pub mod host_limiter;
@@ -47,7 +48,18 @@ pub mod rpc;
 pub mod rules;
 pub mod silence_map;
 pub mod state_file;
+pub mod subtitle_output;
 pub mod torrent_stream;
 pub mod trackers;
 pub mod url_parser;
 pub mod url_resolver;
+
+pub mod developer_links;
+
+pub mod support_eligibility;
+
+pub mod bridge_security;
+
+pub mod log_redaction;
+
+pub mod device_language;

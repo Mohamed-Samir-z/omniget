@@ -41,6 +41,7 @@ pub fn active_token() -> Option<String> {
     ACTIVE_TOKEN.read().ok().and_then(|l| l.clone())
 }
 
+use crate::core::bridge_security::{consume_pairing_window, is_allowed_pair_origin};
 use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Path as AxumPath, State},
@@ -56,7 +57,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::net::TcpListener;
 use tokio_util::io::ReaderStream;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 use crate::extension_storage::{
     cookie_limit, write_extension_metadata, ExtensionCookie, ExtensionPayload,
@@ -490,35 +491,41 @@ pub async fn spawn(app: AppHandle) {
         token: Arc::new(token),
     };
 
-    let cors = CorsLayer::new()
-        // The token is the actual auth boundary, so we accept any browser
-        // origin (extension or webpage). Requests without a valid bearer are
-        // still rejected by the handler.
-        .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers(Any);
-
-    let router = Router::new()
-        .route("/v1/health", get(health))
-        .route("/v1/pair", get(pair))
-        // Media grants are their own capability: the token in the path is
-        // unguessable and short-lived, so this stays out of the bearer check.
+    // Media capabilities stay separate: the Android player still needs Range
+    // streaming, but Android must not expose desktop extension/control routes.
+    let media = Router::new()
         .route("/media/{token}", get(media_stream))
-        .route(
-            "/v1/enqueue",
-            // The extension may attach the full text of a captured HLS playlist
-            // (`manifestText`), which it caps at 4 MiB. Axum's default cap is
-            // 2 MiB, and hitting it fails the whole enqueue with a 413 — the
-            // download would not merely lose its manifest, it would never be
-            // queued at all.
-            post(enqueue).layer(DefaultBodyLimit::max(ENQUEUE_BODY_LIMIT)),
-        )
-        .route("/v1/queue", get(queue_state))
-        .route("/v1/log/{id}", get(download_log))
-        .route("/v1/cookies", post(cookies_export))
-        .route("/mcp", post(mcp_post).get(mcp_get).delete(mcp_get))
-        .with_state(state)
-        .layer(cors);
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
+                .allow_headers(Any),
+        );
+    #[cfg(target_os = "android")]
+    let router = media.with_state(state);
+    #[cfg(not(target_os = "android"))]
+    let router = {
+        let cors = CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(|origin, _| {
+                origin.to_str().is_ok_and(is_allowed_pair_origin)
+            }))
+            .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::DELETE])
+            .allow_headers(Any);
+        Router::new()
+            .route("/v1/health", get(health))
+            .route("/v1/pair", get(pair))
+            .route(
+                "/v1/enqueue",
+                post(enqueue).layer(DefaultBodyLimit::max(ENQUEUE_BODY_LIMIT)),
+            )
+            .route("/v1/queue", get(queue_state))
+            .route("/v1/log/{id}", get(download_log))
+            .route("/v1/cookies", post(cookies_export))
+            .route("/mcp", post(mcp_post).get(mcp_get).delete(mcp_get))
+            .layer(cors)
+            .merge(media)
+            .with_state(state)
+    };
 
     tracing::info!("local bridge listening on http://127.0.0.1:{port}");
 
@@ -585,10 +592,6 @@ pub fn open_pairing_window() -> i64 {
     PAIR_WINDOW_SECS
 }
 
-fn pairing_open() -> bool {
-    PAIR_OPEN_UNTIL_MS.load(Ordering::SeqCst) > now_ms()
-}
-
 #[derive(Debug, Serialize)]
 struct PairResponse {
     ok: bool,
@@ -596,21 +599,10 @@ struct PairResponse {
     token: Option<String>,
 }
 
-fn is_allowed_pair_origin(origin: &str) -> bool {
-    let o = origin.trim();
-    o.starts_with("chrome-extension://")
-        || o.starts_with("moz-extension://")
-        || o.starts_with("safari-web-extension://")
-        || o.starts_with("tauri://")
-        || o.starts_with("http://localhost")
-        || o.starts_with("http://127.0.0.1")
-        || o.starts_with("https://localhost")
-}
-
 async fn pair(State(state): State<BridgeState>, headers: HeaderMap) -> Response {
-    if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
-        if !is_allowed_pair_origin(origin) {
-            tracing::warn!("[bridge] rejected pairing request from untrusted origin: {origin}");
+    if let Some(origin) = headers.get("origin") {
+        if !origin.to_str().is_ok_and(is_allowed_pair_origin) {
+            tracing::warn!("[bridge] rejected pairing request from untrusted origin");
             return (
                 StatusCode::FORBIDDEN,
                 Json(PairResponse {
@@ -622,7 +614,7 @@ async fn pair(State(state): State<BridgeState>, headers: HeaderMap) -> Response 
         }
     }
 
-    if !pairing_open() {
+    if !consume_pairing_window(&PAIR_OPEN_UNTIL_MS, now_ms()) {
         return (
             StatusCode::FORBIDDEN,
             Json(PairResponse {
@@ -632,7 +624,6 @@ async fn pair(State(state): State<BridgeState>, headers: HeaderMap) -> Response 
         )
             .into_response();
     }
-    PAIR_OPEN_UNTIL_MS.store(0, Ordering::SeqCst);
     tracing::info!("[bridge] pairing token handed out (window closed, single-use)");
 
     // Tell the Settings UI that pairing actually succeeded, so it can flip

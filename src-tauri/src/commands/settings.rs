@@ -106,7 +106,7 @@ pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
         crate::local_bridge::build_pairing_url(settings.bridge.port)
     };
     Ok(BridgeInfo {
-        enabled: settings.bridge.enabled,
+        enabled: !cfg!(target_os = "android") && settings.bridge.enabled,
         port: settings.bridge.port,
         token: settings.bridge.token,
         url,
@@ -139,7 +139,7 @@ pub struct BridgePairStatus {
 #[tauri::command]
 pub fn bridge_open_pairing(app: tauri::AppHandle) -> Result<BridgePairStatus, String> {
     let settings = config::load_settings(&app);
-    if !settings.bridge.enabled {
+    if cfg!(target_os = "android") || !settings.bridge.enabled {
         return Ok(BridgePairStatus {
             ok: false,
             window_secs: 0,

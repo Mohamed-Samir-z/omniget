@@ -28,6 +28,8 @@ fn store() -> &'static Mutex<HashMap<u64, Entry>> {
 }
 
 pub fn push_line(id: u64, line: &str) -> bool {
+    let safe = crate::core::flight_recorder::redact(line);
+    let line = safe.as_str();
     let mut map = match store().lock() {
         Ok(g) => g,
         Err(_) => return false,
@@ -72,5 +74,24 @@ pub fn clear(id: u64) {
 pub fn clear_all() {
     if let Ok(mut g) = store().lock() {
         g.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn storage_never_keeps_the_original_sensitive_line() {
+        let id = 987654321;
+        for line in [
+            "Cookie: session=SYNTHETIC_COOKIE_SECRET",
+            "ERROR: https://cdn.invalid/video?Policy=SYNTHETIC_URL_SECRET",
+            "[debug] argv: ['--password', 'SYNTHETIC_ARGV_SECRET']",
+        ] {
+            push_line(id, line);
+        }
+        let stored = get(id).join("\n");
+        assert!(!stored.contains("SYNTHETIC_"), "{stored}");
+        clear(id);
     }
 }

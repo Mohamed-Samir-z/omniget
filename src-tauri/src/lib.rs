@@ -619,6 +619,9 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
                 libreget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
+                    // One boundary for every sink: never store or emit the raw diagnostic.
+                    let safe = core::flight_recorder::redact(line);
+                    let line = safe.as_str();
                     // B33: caixa-preta. Toda linha de log de download passa por
                     // aqui, e o `record` redige antes de guardar — e o unico
                     // ponto onde da para capturar o historico sem instrumentar
@@ -913,6 +916,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::downloads::open_developer_contact,
+            commands::downloads::open_developer_profile_link,
             commands::downloads::android_notification_channel,
             local_bridge::media_stream_url,
             android_update::check_android_update,
@@ -1025,6 +1029,8 @@ pub fn run() {
             commands::downloads::get_download_command,
             commands::downloads::retry_download_with_command,
             commands::downloads::parse_batch_file,
+            commands::downloads::prepare_torrent_file,
+            commands::downloads::verify_completed_download,
             commands::downloads::get_recovery_items,
             commands::downloads::discard_recovery,
             commands::downloads::restore_recovery,

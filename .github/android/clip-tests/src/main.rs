@@ -1,10 +1,34 @@
 #[cfg(test)]
+#[path="../../media_names.rs"] pub mod media_names;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/device_language.rs"] pub mod device_language;
+#[cfg(test)]
+#[path="../../../../src-tauri/libreget-core/src/core/log_redaction.rs"] pub mod log_redaction;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/flight_recorder.rs"] pub mod flight_recorder;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/download_log.rs"] pub mod download_log;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/bridge_security.rs"] pub mod bridge_security;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/support_eligibility.rs"] pub mod support_eligibility;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/developer_links.rs"] pub mod developer_links;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/subtitle_output.rs"] pub mod subtitle_output;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/download_selection.rs"] pub mod download_selection;
+#[cfg(test)]
+#[path="../../../../src-tauri/src/core/queue_history.rs"] pub mod queue_history;
+#[cfg(test)]
 #[path="../../../../src-tauri/src/core/queue_wal.rs"] pub mod queue_wal;
 #[cfg(test)]
 #[path="../../../../src-tauri/src/core/recovery.rs"] mod recovery;
 #[cfg(test)]
 mod core {
- pub use crate::queue_wal;
+ pub use crate::{queue_wal,subtitle_output,download_selection,queue_history,log_redaction,flight_recorder};
+ pub mod queue { #[derive(Debug,Clone,PartialEq,serde::Serialize,serde::Deserialize)] pub enum QueueKind { Video } }
+ pub mod db { pub fn with_conn<T>(f:impl FnOnce(&rusqlite::Connection)->rusqlite::Result<T>)->Option<T> { f(&rusqlite::Connection::open_in_memory().ok()?).ok() } }
  pub mod paths { pub fn app_data_dir()->Option<std::path::PathBuf> { None } }
 }
 mod process {
