@@ -125,6 +125,12 @@ jobs:
       - name: Unit tests (vitest)
         run: pnpm test
 
+      - name: Android runtime generation regressions
+        run: |
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_resume_policy.py
+          python3 .github/android/test_download_startup.py
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Multiple audio tracks and clip media regressions
