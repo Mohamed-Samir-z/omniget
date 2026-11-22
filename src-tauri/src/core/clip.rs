@@ -1097,4 +1097,6 @@ mod inherited_lock_regression {
         drop(inherited_legacy);
         std::fs::remove_dir_all(root).unwrap();
     }
-        }
+}
+
+// Lock ownership ends with the job, even when another handle still exists.
