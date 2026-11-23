@@ -19,5 +19,8 @@ jobs:
           test -c /dev/kvm
           sudo chmod 666 /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
+          SDKM=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -n 1)
+          test -n "$SDKM"
+          "$SDKM" "emulator"
           "$ANDROID_HOME/emulator/emulator" -accel-check
           printf '%s\n' 'Hardware acceleration gate passed. No APK was built, installed, uploaded or released.'
