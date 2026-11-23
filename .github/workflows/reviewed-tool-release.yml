@@ -1,0 +1,63 @@
+# Install on main under .github/workflows/reviewed-tool-release.yml to expose branch dispatch.
+name: Discover interpreted tool updates
+on:
+  schedule:
+    - cron: '37 5 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        required: false
+        type: string
+      source_sha256:
+        required: false
+        type: string
+      sequence:
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: omniget-tool-discovery
+  cancel-in-progress: false
+jobs:
+  discover:
+    if: github.repository == 'Mohamed-Samir-z/omniget' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Discover newer upstream, skip existing or pending candidates, request reviewed branch run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Mohamed-Samir-z/omniget
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,re,subprocess,urllib.request
+          def get(path):
+              return json.loads(subprocess.run(['gh','api',path],check=True,capture_output=True,text=True).stdout)
+          repo='Mohamed-Samir-z/omniget'
+          runs=get('repos/'+repo+'/actions/workflows/reviewed-tool-release.yml/runs?branch=tool-release-control&per_page=30')['workflow_runs']
+          if any(r['status']!='completed' for r in runs):
+              print('Existing reviewed candidate is pending; no duplicate request.');raise SystemExit(0)
+          upstream=get('repos/yt-dlp/yt-dlp/releases/latest');version=upstream['tag_name']
+          if not re.fullmatch(r'\d{4}\.\d{2}\.\d{2}',version):raise ValueError('Unrecognized upstream release format')
+          releases=get('repos/'+repo+'/releases?per_page=100')
+          versions=[];sequences=[1]
+          for release in releases:
+              match=re.fullmatch(r'tool-bundle-([1-9][0-9]*)',release['tag_name'])
+              if match:
+                  sequences.append(int(match[1]))
+                  for line in (release.get('body') or '').splitlines():
+                      m=re.search(r'Version (\d{4}\.\d{2}\.\d{2})',line)
+                      if m:versions.append(m[1])
+          if versions and version<=max(versions):
+              print('No newer tool version.');raise SystemExit(0)
+          url='https://github.com/yt-dlp/yt-dlp/releases/download/'+version+'/SHA2-256SUMS'
+          with urllib.request.urlopen(url,timeout=30) as response:data=response.read(262145)
+          if len(data)>262144:raise ValueError('Oversized checksums')
+          checks=[line.split()[0] for line in data.decode().splitlines() if len(line.split())==2 and line.split()[1].lstrip('*')=='yt-dlp']
+          if len(checks)!=1 or not re.fullmatch('[a-f0-9]{64}',checks[0]):raise ValueError('Missing exact checksum')
+          subprocess.run(['gh','workflow','run','reviewed-tool-release.yml','--repo',repo,'--ref','tool-release-control','-f','version='+version,'-f','source_sha256='+checks[0],'-f','sequence='+str(max(sequences)+1)],check=True)
+          print('Requested tool-only preparation. Publication still requires Mohamed approval.')
+          PY
