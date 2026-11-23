@@ -32,7 +32,7 @@ jobs:
           cd /tmp/player-proof
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --max-workers=2
       - name: Boot accelerated emulator and run actual playback acceptance
-        timeout-minutes: 6
+        timeout-minutes: 10
         shell: bash
         run: |
           set -euxo pipefail
@@ -56,7 +56,17 @@ jobs:
           "$ADB" shell input keyevent 82
           timeout 45 "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/debug/app-debug.apk
           timeout 45 "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-          timeout 180 "$ADB" shell am instrument -w com.openselena.libreget.runtimeproof.test/com.openselena.libreget.RuntimeProof | tee /tmp/player-result.txt
+          "$ADB" logcat -c
+          "$ADB" logcat -v threadtime > /tmp/player-live.log 2>&1 &
+          LOGPID=$!
+          for cycle in 1 2 3; do
+            "$ADB" shell am force-stop com.openselena.libreget.runtimeproof
+            timeout 180 "$ADB" shell am instrument -w com.openselena.libreget.runtimeproof.test/com.openselena.libreget.RuntimeProof | tee /tmp/player-result.txt
+            if ! grep NATIVE_PLAYBACK_SEEK_PAUSE_RESUME_PASS /tmp/player-result.txt; then grep -E 'OmnigetProof|VLC|MediaCodec|CCodec|AWindow|SurfaceView|AudioTrack' /tmp/player-live.log | tail -350; kill "$LOGPID"; exit 1; fi
+            echo "COLD_START_CYCLE_${cycle}_PASS"
+          done
+          grep -E 'OmnigetProof|VLC|MediaCodec|CCodec|AWindow|SurfaceView|AudioTrack' /tmp/player-live.log | tail -350
+          kill "$LOGPID"
           timeout 15 "$ADB" exec-out run-as com.openselena.libreget.runtimeproof cat cache/runtime.png > /tmp/native-player-runtime.png
           echo 'SCREENSHOT_BASE64_BEGIN'
           base64 -w 0 /tmp/native-player-runtime.png
