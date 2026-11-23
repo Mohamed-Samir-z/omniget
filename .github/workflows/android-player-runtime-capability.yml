@@ -1,0 +1,23 @@
+name: Android emulator capability (no release)
+on:
+  push:
+    branches: [android-player-runtime-capability-20261123]
+    paths: [.github/workflows/android-player-runtime-capability.yml]
+permissions: {}
+concurrency:
+  group: android-player-runtime-capability
+  cancel-in-progress: true
+jobs:
+  capability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Verify standard Linux hardware acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod 666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+          printf '%s\n' 'Hardware acceleration gate passed. No APK was built, installed, uploaded or released.'
