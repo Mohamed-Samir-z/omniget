@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          trap 'cat /tmp/emulator.log || true; timeout 10 "$ANDROID_HOME/platform-tools/adb" logcat -d -s VLC:V libvlc:V AndroidRuntime:E ActivityManager:I || true' EXIT
+          trap 'cat /tmp/emulator.log || true; timeout 10 "$ANDROID_HOME/platform-tools/adb" logcat -d -t 3500 || true' EXIT
           sudo chmod 666 /dev/kvm
           test -r /dev/kvm
           test -w /dev/kvm
