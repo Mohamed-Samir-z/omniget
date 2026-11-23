@@ -32,8 +32,11 @@ jobs:
           cd /tmp/player-proof
           ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --max-workers=2
       - name: Boot accelerated emulator and run actual playback acceptance
+        timeout-minutes: 6
         shell: bash
         run: |
+          set -euxo pipefail
+          trap 'cat /tmp/emulator.log || true' EXIT
           sudo chmod 666 /dev/kvm
           test -r /dev/kvm
           test -w /dev/kvm
@@ -48,12 +51,12 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -avd player-proof -no-window -no-audio -no-snapshot -gpu swiftshader_indirect > /tmp/emulator.log 2>&1 &
           ADB="$ANDROID_HOME/platform-tools/adb"
           if ! timeout 90 "$ADB" wait-for-device; then cat /tmp/emulator.log; exit 1; fi
-          for i in $(seq 1 120); do if [ "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi; sleep 2; done
-          if [ "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" != 1 ]; then cat /tmp/emulator.log; "$ADB" logcat -d -t 200; exit 1; fi
+          for i in $(seq 1 120); do if [ "$(timeout 8 "$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi; sleep 2; done
+          if [ "$(timeout 8 "$ADB" shell getprop sys.boot_completed | tr -d '\r')" != 1 ]; then cat /tmp/emulator.log; "$ADB" logcat -d -t 200; exit 1; fi
           "$ADB" shell input keyevent 82
-          "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/debug/app-debug.apk
-          "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-          "$ADB" shell am instrument -w com.openselena.libreget.runtimeproof.test/com.openselena.libreget.RuntimeProof | tee /tmp/player-result.txt
+          timeout 45 "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/debug/app-debug.apk
+          timeout 45 "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          timeout 100 "$ADB" shell am instrument -w com.openselena.libreget.runtimeproof.test/com.openselena.libreget.RuntimeProof | tee /tmp/player-result.txt
           grep NATIVE_PLAYBACK_SEEK_PAUSE_RESUME_PASS /tmp/player-result.txt
           "$ADB" shell am start -n com.openselena.libreget.runtimeproof/com.openselena.libreget.HarnessActivity
           sleep 2
