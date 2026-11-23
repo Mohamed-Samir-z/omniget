@@ -39,7 +39,12 @@ jobs:
           test -w /dev/kvm
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           "$SDKMANAGER" --install emulator 'system-images;android-35;google_apis;x86_64' 'platform-tools'
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name player-proof --package 'system-images;android-35;google_apis;x86_64'
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force --name player-proof --path "$ANDROID_AVD_HOME/player-proof.avd" --package 'system-images;android-35;google_apis;x86_64'
+          find "$HOME/.android" -maxdepth 3 -name '*.ini' -print
+          "$ANDROID_HOME/emulator/emulator" -list-avds
+          test -f "$ANDROID_AVD_HOME/player-proof.ini"
           "$ANDROID_HOME/emulator/emulator" -avd player-proof -no-window -no-audio -no-snapshot -gpu swiftshader_indirect > /tmp/emulator.log 2>&1 &
           ADB="$ANDROID_HOME/platform-tools/adb"
           if ! timeout 90 "$ADB" wait-for-device; then cat /tmp/emulator.log; exit 1; fi
