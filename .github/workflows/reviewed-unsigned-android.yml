@@ -1,0 +1,122 @@
+name: Reviewed unsigned Android build
+on:
+  push:
+    branches: [build/owner-completion-reviewed-20261123]
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-unsigned-android
+  cancel-in-progress: false
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # arm64 covers virtually every phone made in the last decade and keeps
+      # the build fast. Add armv7 / x86_64 here if you need them.
+      ANDROID_TARGET: aarch64
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Apply reviewed application-only source patch
+        run: |
+          cat reviewed-source-*.b64 | base64 --decode | gzip --decompress > reviewed-app.patch
+          echo "08de8d904df9b5e58c063de5e47c93685284305e655cf01eae8289bd387a9d0e  reviewed-app.patch" | sha256sum --check
+          git apply --check reviewed-app.patch
+          git apply reviewed-app.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install NDK and build tools
+        # GitHub's ubuntu runners already ship the Android SDK (ANDROID_HOME),
+        # so we only add the pieces we need with its own sdkmanager.
+        run: |
+          SDKM="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)"
+          yes | "$SDKM" --licenses >/dev/null || true
+          "$SDKM" "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+          # NDK r23+ dropped the `<triple>-ranlib` / `-ar` binutils names and
+          # ships only llvm-* tools. The vendored OpenSSL build still looks for
+          # the old names, so expose them as symlinks on PATH.
+          NDKBIN="$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          SHIMS="$HOME/ndk-shims"
+          mkdir -p "$SHIMS"
+          for triple in aarch64-linux-android armv7a-linux-androideabi arm-linux-androideabi x86_64-linux-android i686-linux-android; do
+            for tool in ar ranlib strip nm; do
+              ln -sf "$NDKBIN/llvm-$tool" "$SHIMS/$triple-$tool"
+            done
+          done
+          echo "$SHIMS" >> "$GITHUB_PATH"
+          echo "$NDKBIN" >> "$GITHUB_PATH"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate the Android project
+        run: pnpm tauri android init --ci
+
+      - name: Test Android runtime patcher
+        run: |
+          python3 .github/android/test_android_dependency_scope.py
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_resume_policy.py
+          python3 .github/android/test_download_startup.py
+
+      - name: Bundle yt-dlp, Python and ffmpeg
+        run: |
+          python3 .github/android/patch_project.py
+          python3 .github/android/test_download_startup.py --yt-dlp src-tauri/gen/android/app/src/main/res/raw/omniget_ytdlp
+
+      - name: Test gallery registration and filenames
+        run: |
+          python3 .github/android/test_gallery_registration.py
+          rustc --edition 2021 --test .github/android/media_names.rs -o /tmp/media-names-test
+          /tmp/media-names-test
+
+      - name: Build release APK
+        run: |
+          # Stamp the build so the in-app updater can tell whether the
+          # android-latest release is newer than the installed APK.
+          export LIBREGET_BUILD_SHA="$GITHUB_SHA"
+          export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          pnpm tauri android build --apk --target "$ANDROID_TARGET" --ci
+
+      - name: Audit native alignment and collect unsigned artifact
+        run: |
+          set -euo pipefail
+          APK="$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)"
+          test -n "$APK"
+          mkdir -p dist audit
+          cp "$APK" dist/omniget-unsigned.apk
+          unzip -q "$APK" 'lib/*' -d audit
+          python3 - <<'PY_AUDIT'
+          from pathlib import Path
+          import subprocess
+          for p in Path('audit/lib').rglob('*.so'):
+              if p.read_bytes()[:4] != b'\x7fELF': continue
+              text=subprocess.check_output(['readelf','-lW',str(p)],text=True)
+              loads=[line for line in text.splitlines() if line.strip().startswith('LOAD')]
+              assert loads and all(int(line.split()[-1],16)>=16384 for line in loads),str(p)
+              print(p.name,'16KiB ELF alignment verified')
+          PY_AUDIT
+          sha256sum dist/omniget-unsigned.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-unsigned-android
+          path: dist/omniget-unsigned.apk
+          retention-days: 1
+          if-no-files-found: error
