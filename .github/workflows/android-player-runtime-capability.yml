@@ -42,9 +42,9 @@ jobs:
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name player-proof --package 'system-images;android-35;google_apis;x86_64'
           "$ANDROID_HOME/emulator/emulator" -avd player-proof -no-window -no-audio -no-snapshot -gpu swiftshader_indirect > /tmp/emulator.log 2>&1 &
           ADB="$ANDROID_HOME/platform-tools/adb"
-          "$ADB" wait-for-device
+          if ! timeout 90 "$ADB" wait-for-device; then cat /tmp/emulator.log; exit 1; fi
           for i in $(seq 1 120); do if [ "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi; sleep 2; done
-          test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1
+          if [ "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" != 1 ]; then cat /tmp/emulator.log; "$ADB" logcat -d -t 200; exit 1; fi
           "$ADB" shell input keyevent 82
           "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/debug/app-debug.apk
           "$ADB" install -r /tmp/player-proof/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
