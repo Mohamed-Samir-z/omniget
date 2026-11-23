@@ -1,4 +1,4 @@
-name: Combined installed-app x86 validation only
+name: Combined arm64 installable candidate build
 on:
   push:
     branches: [build/owner-completion-reviewed-20261123]
@@ -14,7 +14,7 @@ jobs:
     env:
       # arm64 covers virtually every phone made in the last decade and keeps
       # the build fast. Add armv7 / x86_64 here if you need them.
-      ANDROID_TARGET: x86_64
+      ANDROID_TARGET: aarch64
     steps:
       - uses: actions/checkout@v7
 
@@ -101,7 +101,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-linux-android
+          targets: aarch64-linux-android
 
       - uses: pnpm/action-setup@v4
 
@@ -125,14 +125,6 @@ jobs:
       - name: Bundle yt-dlp, Python and ffmpeg
         run: |
           python3 .github/android/patch_project.py
-          python3 - <<'PY_ABI'
-          from pathlib import Path
-          p=Path('src-tauri/gen/android/app/build.gradle.kts')
-          s=p.read_text()
-          old='abiFilters += listOf("arm64-v8a")'
-          assert old in s
-          p.write_text(s.replace(old,'abiFilters += listOf("x86_64")'))
-          PY_ABI
           python3 .github/android/test_download_startup.py --yt-dlp src-tauri/gen/android/app/src/main/res/raw/omniget_ytdlp
 
       - name: Test gallery registration and filenames
@@ -155,7 +147,7 @@ jobs:
           APK="$(find src-tauri/gen/android -name '*-release-unsigned.apk' | head -n 1)"
           test -n "$APK"
           mkdir -p dist audit
-          cp "$APK" dist/omniget-x86-validation-unsigned.apk
+          cp "$APK" dist/omniget-arm64-candidate-unsigned.apk
           unzip -q "$APK" 'lib/*' -d audit
           python3 - <<'PY_AUDIT'
           from pathlib import Path
@@ -167,10 +159,10 @@ jobs:
               assert loads and all(int(line.split()[-1],16)>=16384 for line in loads),str(p)
               print(p.name,'16KiB ELF alignment verified')
           PY_AUDIT
-          sha256sum dist/omniget-x86-validation-unsigned.apk
+          sha256sum dist/omniget-arm64-candidate-unsigned.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: combined-x86-validation-only
-          path: dist/omniget-x86-validation-unsigned.apk
+          name: combined-arm64-installable-candidate
+          path: dist/omniget-arm64-candidate-unsigned.apk
           retention-days: 1
           if-no-files-found: error
