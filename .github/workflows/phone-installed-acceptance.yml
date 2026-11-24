@@ -23,7 +23,11 @@ jobs:
         distribution: temurin
         java-version: '17'
     - name: Materialize external nonsecret instrumentation
-      run: 'mkdir -p /tmp/installed-proof
+      run: 'sudo apt-get update -qq
+
+        sudo apt-get install -y ffmpeg
+
+        mkdir -p /tmp/installed-proof
 
         cd /tmp/installed-proof
 
