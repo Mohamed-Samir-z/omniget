@@ -1,0 +1,79 @@
+workflows:
+  omniget-private-unsigned:
+    name: omniget canonical unsigned Android
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      java: '17'
+      node: '22'
+      ndk: 27.0.12077973
+      groups:
+        - omniget_source_ci
+    scripts:
+      - name: Verify canonical source and build unsigned APK
+        script: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # Run only on the free personal mac_mini_m2. No publishing or signing keys.
+          ROOT="$HOME/omniget-canonical"
+          : "${OMNIGET_SOURCE_BASE:?Set non-secret source service base URL}"
+          : "${OMNIGET_SOURCE_TOKEN:?Encrypted short-lived source token}"
+          : "${OMNIGET_SOURCE_SHA256:?Pinned complete canonical tar SHA256}"
+          umask 077
+          mkdir -p "$ROOT"
+          for n in 1 2 3; do
+           curl --fail --silent --show-error --location --header "X-Omniget-CI-Token: $OMNIGET_SOURCE_TOKEN" "$OMNIGET_SOURCE_BASE/part$n" -o "$HOME/source.part$n"
+          done
+          cat "$HOME/source.part1" "$HOME/source.part2" "$HOME/source.part3" > "$HOME/source.tar.gz"
+          printf '%s  %s\n' "$OMNIGET_SOURCE_SHA256" "$HOME/source.tar.gz" | shasum -a 256 -c -
+          tar -xzf "$HOME/source.tar.gz" -C "$ROOT"
+          cd "$ROOT"
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          m=json.loads(Path('CURRENT-SOURCE-SHA256.json').read_text())
+          assert len(m)==2149, len(m)
+          for n,h in m.items():
+           p=Path(n)
+           assert not p.is_absolute() and '..' not in p.parts
+           assert hashlib.sha256(p.read_bytes()).hexdigest()==h,n
+          print('CANONICAL_SOURCE_2149_HASHES_PASS')
+          PY
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          SDKM=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' | head -1)
+          "$SDKM" 'platforms;android-34' 'build-tools;34.0.0' 'ndk;27.0.12077973'
+          export NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
+          export ANDROID_NDK_HOME="$NDK_HOME"
+          NDKBIN="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+          test -x "$NDKBIN/clang"
+          SHIMS="$HOME/omniget-ndk-shims"; mkdir -p "$SHIMS"
+          for triple in aarch64-linux-android armv7a-linux-androideabi arm-linux-androideabi x86_64-linux-android i686-linux-android; do
+           for tool in ar ranlib strip nm; do ln -sf "$NDKBIN/llvm-$tool" "$SHIMS/$triple-$tool"; done
+          done
+          export PATH="$SHIMS:$NDKBIN:$HOME/.cargo/bin:$PATH"
+          # Rustup is preinstalled on some images; otherwise use the official installer.
+          if ! command -v rustup; then curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$HOME/rustup-init.sh"; sh "$HOME/rustup-init.sh" -y --profile minimal; fi
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+          corepack enable
+          corepack prepare pnpm@10.29.3 --activate
+          pnpm install --frozen-lockfile
+          pnpm tauri android init --ci
+          python3 .github/android/patch_project.py
+          # AGP9 legacy Kotlin support required by this generated project.
+          printf '\nandroid.builtInKotlin=false\nandroid.newDsl=false\n' >> src-tauri/gen/android/gradle.properties
+          python3 .github/android/test_patch_project.py
+          python3 .github/android/test_downloader_isolation.py
+          pnpm build
+          export LIBREGET_BUILD_SHA="canonical-2149-${OMNIGET_SOURCE_SHA256:0:12}"
+          export LIBREGET_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          pnpm tauri android build --apk --target aarch64 --ci
+          mkdir -p "$CM_BUILD_DIR/unsigned-output"
+          find src-tauri/gen/android -name '*-release-unsigned.apk' -exec cp '{}' "$CM_BUILD_DIR/unsigned-output/omniget-downloader-unsigned.apk" \;
+          test -s "$CM_BUILD_DIR/unsigned-output/omniget-downloader-unsigned.apk"
+          shasum -a 256 "$CM_BUILD_DIR/unsigned-output/omniget-downloader-unsigned.apk"
+          # Intentionally unsigned. Retrieve to existing signing environment; never publish.
+    artifacts:
+      - unsigned-output/*.apk
