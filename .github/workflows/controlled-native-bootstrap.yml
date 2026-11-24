@@ -1,0 +1,74 @@
+name: Controlled native source bootstrap and QuickJS candidates
+'on':
+  push:
+    branches: [phone-integrated-repairs-20261124]
+    paths: [.github/workflows/controlled-native-bootstrap.yml]
+permissions:
+  contents: read
+concurrency:
+  group: controlled-native-bootstrap
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Inventory pinned Termux source recipes, no package downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/controlled-evidence
+          git clone --filter=blob:none --no-checkout https://github.com/termux/termux-packages.git /tmp/termux-controlled
+          cd /tmp/termux-controlled
+          git checkout 8ddd9a7fc8e06330545487d81bb7591cb40f1aa6
+          test "$(git rev-parse HEAD)" = 8ddd9a7fc8e06330545487d81bb7591cb40f1aa6
+          for target in ffmpeg python quickjs; do
+            python3 scripts/buildorder.py "packages/$target" > "/tmp/controlled-evidence/$target-build-order.txt"
+          done
+          git archive HEAD | gzip -n > /tmp/controlled-evidence/termux-recipes-pinned.tar.gz
+          cp scripts/build/termux_step_get_dependencies.sh /tmp/controlled-evidence/
+          cp scripts/build/termux_download_deb_pac.sh /tmp/controlled-evidence/
+          printf '%s\n' 'INVENTORY ONLY. Stock dependency builder can fetch prebuilt packages for cycles even without -I. Do not use it for source-only closure until this path is blocked.' > /tmp/controlled-evidence/STATUS.txt
+      - name: Fetch hash-verified QuickJS source and Android build tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp
+          curl --fail --location --retry 2 https://bellard.org/quickjs/quickjs-2025-04-26.tar.xz -o quickjs-source.tar.xz
+          echo '2f20074c25166ef6f781f381c50d57b502cb85d470d639abccebbef7954c83bf  quickjs-source.tar.xz' | sha256sum -c -
+          curl --fail --location --retry 2 https://dl.google.com/android/repository/android-ndk-r28c-linux.zip -o ndk.zip
+          echo 'dfb20d396df28ca02a8c708314b814a4d961dc9074f9a161932746f815aa552f  ndk.zip' | sha256sum -c -
+          unzip -q ndk.zip
+          tar -xf quickjs-source.tar.xz
+          cp quickjs-source.tar.xz /tmp/controlled-evidence/
+          cp android-ndk-r28c/source.properties /tmp/controlled-evidence/NDK-source.properties
+          cp android-ndk-r28c/NOTICE /tmp/controlled-evidence/NDK-NOTICE
+      - name: Build source-controlled QuickJS executable candidates for both ABIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/controlled-evidence/quickjs-build.log) 2>&1
+          cd /tmp/quickjs-2025-04-26
+          make -j2 qjs
+          ./qjs -e 'if (JSON.stringify([1,2,3].map(v=>v*2)) !== "[2,4,6]") throw Error("host smoke failed"); console.log("HOST_QUICKJS_SMOKE_PASS")'
+          cp LICENSE /tmp/controlled-evidence/QuickJS-LICENSE
+          TOOL=/tmp/android-ndk-r28c/toolchains/llvm/prebuilt/linux-x86_64/bin
+          "$TOOL/clang" --version > /tmp/controlled-evidence/compiler-version.txt
+          for spec in aarch64-linux-android24:arm64-v8a x86_64-linux-android24:x86_64; do
+            target=${spec%:*}; abi=${spec#*:}
+            mkdir -p "/tmp/controlled-evidence/$abi"
+            "$TOOL/${target}-clang" -O2 -fwrapv -fPIE -pie -D_GNU_SOURCE '-DCONFIG_VERSION="2025-04-26"' qjs.c repl.c quickjs.c dtoa.c libregexp.c libunicode.c cutils.c quickjs-libc.c -lm -ldl -pthread -o "/tmp/controlled-evidence/$abi/libqjs.so"
+            "$TOOL/llvm-readelf" -h -d "/tmp/controlled-evidence/$abi/libqjs.so" > "/tmp/controlled-evidence/$abi/elf.txt"
+          done
+          tar --exclude=.obj --exclude=qjs --exclude=qjsc -czf /tmp/controlled-evidence/quickjs-build-source.tar.gz .
+          printf '%s\n' 'Candidate only. Host smoke and Android compilation are not Android execution or yt-dlp EJS acceptance. No app swap. FFmpeg/Python/VLC/source/notices release gate remains held.' >> /tmp/controlled-evidence/STATUS.txt
+          cd /tmp/controlled-evidence
+          find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 sha256sum > MANIFEST.sha256
+      - name: Preserve candidate source, notices, inventory and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlled-native-bootstrap-candidates-no-release
+          path: /tmp/controlled-evidence
+          retention-days: 14
+          if-no-files-found: error
