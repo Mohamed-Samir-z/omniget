@@ -1,0 +1,22 @@
+name: Publish omniget 16028
+on:
+  push:
+    branches: [android]
+    paths: [.github/workflows/publish-16028.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Fetch the signed APK and verify its hash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o libreget-android.apk 'https://omniget-private-apk-16028.mo2868417.workers.dev/d/mx7TauuC-j2If0fG9FFONDwK4VnYO5glWAucrdLkhP0/omniget-0.16.28.apk'
+          echo '85923a150e4997c851e8c3ef38b9c4eb8fce811462e1ab94dcf4287bd4ffa5c2  libreget-android.apk' | sha256sum --check
+      - name: Replace the android-latest asset
+        run: gh release upload android-latest libreget-android.apk --clobber
